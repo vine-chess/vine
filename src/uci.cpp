@@ -6,9 +6,9 @@ namespace uci {
 		std::string line;
 		while (std::getline(in, line)) {
 			if (line == "uci") {
-				out << "id name Vine";
-				out << "id author Aron Petkovski, Jonathan Hallström";
-				out << "uciok";
+				out << "id name Vine\n";
+				out << "id author Aron Petkovski, Jonathan Hallström\n";
+				out << "uciok\n";
 			}
 		}
 	}
