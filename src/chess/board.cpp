@@ -1,11 +1,12 @@
 #include "board.hpp"
-#include <sstream>
 #include <iostream>
+#include <sstream>
 
 constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKQBNR w KQkq - 0 1";
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
-    if (!state.occupancy().is_set(sq)) return ' ';
+    if (!state.occupancy().is_set(sq))
+        return ' ';
     return PIECE_TYPE_TO_CHAR[state.get_piece_color(sq)][state.get_piece_type(sq)];
 }
 
@@ -69,7 +70,8 @@ void Board::print() {
         for (int file = 0; file < 8; file++) {
             const auto square = Square(rank, file);
             std::cout << get_piece_ch(state_, square);
-            if (file < 7) std::cout << ' ';
+            if (file < 7)
+                std::cout << ' ';
         }
         std::cout << std::endl;
     }

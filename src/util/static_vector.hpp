@@ -53,7 +53,7 @@ class StaticVector {
     [[nodiscard]] usize size() const {
         return size_;
     }
-    
+
     [[nodiscard]] constexpr usize capacity() const {
         return max_size;
     }
