@@ -1,13 +1,7 @@
 #pragma once
 
 #include "../util/static_vector.hpp"
-#include "../util/types.hpp"
-
-#include "bitboard.hpp"
 #include "board_state.hpp"
-#include "castle_rights.hpp"
-
-#include <string>
 #include <string_view>
 
 class Board {
