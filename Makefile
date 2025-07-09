@@ -6,7 +6,6 @@ OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3
 
-
 FLAGS = -std=c++20
 FLAGS += $(EXTRA_FLAGS) 
 FLAGS += $(OPTIMIZE)
