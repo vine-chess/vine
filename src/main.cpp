@@ -1,5 +1,5 @@
-#include "uci.hpp"
+#include "uci/uci.hpp"
 
 int main() {
-	uci::process_input(std::cin, std::cout);
+    uci::Handler{}.process_input(std::cin, std::cout);
 }
