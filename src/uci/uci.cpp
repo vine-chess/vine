@@ -12,7 +12,7 @@ namespace uci {
 
 void Handler::handle_perft(std::ostream &out, int depth) {
     const auto start = std::chrono::high_resolution_clock::now();
-    const auto nodes = board_.perft(depth);
+    const auto nodes = 0;
     const auto end = std::chrono::high_resolution_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     const auto nps = static_cast<u64>(static_cast<double>(nodes) * 1e9 / elapsed.count());
@@ -22,13 +22,15 @@ void Handler::handle_perft(std::ostream &out, int depth) {
 void Handler::process_input(std::istream &in, std::ostream &out) {
     std::string line;
     while (std::getline(in, line)) {
-        std::vector<std::string_view> parts = util::string::split(line);
+        std::vector<std::string_view> parts = util::split_string(line);
         if (parts[0] == "uci") {
             out << "id name Vine\n";
             out << "id author Aron Petkovski, Jonathan Hallström\n";
             out << "uciok\n";
         } else if (parts[0] == "perft") {
             handle_perft(out, 0);
+        } else if (parts[0] == "print") {
+            board_.print();
         }
     }
 }

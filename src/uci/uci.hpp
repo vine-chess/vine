@@ -1,15 +1,18 @@
 #pragma once
-#include <iostream>
+
 #include "../chess/board.hpp"
+#include <iostream>
 
 namespace uci {
-	class Handler {
-	public:
-		void process_input(std::istream& in, std::ostream& out);
 
-	private:
-		void handle_perft(std::ostream& out, int depth);
+class Handler {
+  public:
+    void process_input(std::istream &in, std::ostream &out);
 
-		Board board_;
-	};
-}
+  private:
+    void handle_perft(std::ostream &out, int depth);
+
+    Board board_;
+};
+
+} // namespace uci
