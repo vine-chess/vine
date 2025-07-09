@@ -9,5 +9,5 @@ class Board {
 public:
 	u64 perft(int depth);
 private: 
-	std::array<BitBoard, 6> m_pieces;
+	std::array<BitBoard, 6> pieces_;
 };

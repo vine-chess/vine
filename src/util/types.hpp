@@ -13,6 +13,8 @@ using i64 = int64_t;
 
 class Square {
 public:
+	constexpr Square(){}
+	constexpr Square(u8 sq) : m_raw(sq) {}
 	[[nodiscard]] constexpr bool is_valid() {
 		return m_raw < 64;
 	}

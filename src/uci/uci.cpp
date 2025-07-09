@@ -14,7 +14,7 @@ namespace uci {
 		const auto nodes = m_board.perft(depth);
 		const auto end = std::chrono::high_resolution_clock::now(); 
 		const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-		const auto nps = u64(double(nodes) * 1e9 / elapsed.count());
+		const auto nps = static_cast<u64>(static_cast<double>(nodes) * 1e9 / elapsed.count());
 		out << "Nodes searched: " << nodes << " (" << nps << "nps)\n";
 	}
 

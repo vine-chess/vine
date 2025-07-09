@@ -8,6 +8,6 @@ namespace uci {
 		void process_input(std::istream& in, std::ostream& out);
 	private:
 		void handle_perft(std::ostream& out, int depth);
-		Board m_board;
+		Board board_;
 	};
 }
