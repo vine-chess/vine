@@ -66,22 +66,37 @@ public:
 		return *this;
 	}
 	
-	class Iterator {
+	[[nodiscard]] constexpr bool operator==(BitBoard const& other) const = default;	
+	
+	[[nodiscard]] constexpr explicit operator u64() const {
+		return raw_;
+	}
 
+	class Iterator {
+	public:
+		u64 state_;
+			
+		constexpr Square operator*() const {
+			return Square{static_cast<u8>(std::countr_zero(state_))};
+		}
+
+		constexpr Iterator& operator++() {
+			state_ &= state_ - 1;
+			return *this;
+		}
+
+		[[nodiscard]] constexpr bool operator==(Iterator const& other) const = default;
+	private:
+		friend class BitBoard;
+
+		constexpr Iterator(BitBoard bb) : state_{static_cast<u64>(bb)} {}
 	};
 
+	[[nodiscard]] constexpr Iterator begin() { return Iterator{*this}; }
+	[[nodiscard]] constexpr Iterator begin() const { return Iterator{*this}; }
+	[[nodiscard]] constexpr Iterator end() { return Iterator{0}; }
+	[[nodiscard]] constexpr Iterator end() const { return Iterator{0}; }
 private:
 	u64 raw_;
 };
 
-class Iterator {
-
-	public:
-	BitBoard state_;
-
-	constexpr Iterator(BitBoard bb) : state_{bb} {}
-		
-	constexpr Square operator*() const {
-		return Square{state_.get_lsb()};
-	}
-};

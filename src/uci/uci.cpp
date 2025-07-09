@@ -11,7 +11,7 @@
 namespace uci {
 	void UCIHandler::handle_perft(std::ostream &out, int depth) {
 		const auto start = std::chrono::high_resolution_clock::now(); 
-		const auto nodes = m_board.perft(depth);
+		const auto nodes = board_.perft(depth);
 		const auto end = std::chrono::high_resolution_clock::now(); 
 		const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 		const auto nps = static_cast<u64>(static_cast<double>(nodes) * 1e9 / elapsed.count());

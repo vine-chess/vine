@@ -14,11 +14,14 @@ using i64 = int64_t;
 class Square {
 public:
 	constexpr Square(){}
-	constexpr Square(u8 sq) : m_raw(sq) {}
+	constexpr Square(u8 sq) : raw_(sq) {}
 	[[nodiscard]] constexpr bool is_valid() {
-		return m_raw < 64;
+		return raw_ < 64;
+	}
+	[[nodiscard]] constexpr explicit operator u8 () const {
+		return raw_;
 	}
 private:
-	u8 m_raw;
+	u8 raw_;
 };
 
