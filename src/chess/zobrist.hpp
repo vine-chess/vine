@@ -9,7 +9,7 @@ using HashKey = u64;
 
 namespace zobrist {
 
-using PieceTable = MultiArray<HashKey, 12, 64>;
+using PieceTable = MultiArray<HashKey, 6, 2, 64>;
 using CastleRightsTable = std::array<HashKey, 16>;
 using EnPassantTable = std::array<HashKey, 8>;
 
@@ -18,8 +18,9 @@ const auto side_to_move = rng::next_u64();
 static PieceTable GeneratePieceTable() {
     PieceTable piece_table;
     for (auto &table : piece_table)
-        for (u64 &entry : table)
-            entry = rng::next_u64();
+        for (auto &color : table)
+            for (u64 &square : color)
+                square = rng::next_u64();
     return piece_table;
 }
 

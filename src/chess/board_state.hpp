@@ -3,6 +3,7 @@
 
 #include "../util/types.hpp"
 
+#include "zobrist.hpp"
 #include "bitboard.hpp"
 #include "castle_rights.hpp"
 
@@ -35,6 +36,7 @@ struct BoardState {
     Square en_passant_sq{};
     CastleRights castle_rights{};
     u8 fifty_moves_clock = 0;
+    HashKey hash_key{};
 };
 
 #endif // BOARD_STATE_HPP
