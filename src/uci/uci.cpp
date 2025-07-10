@@ -33,6 +33,12 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             handle_perft(out, 0);
         } else if (parts[0] == "print") {
             std::cout << board_ << std::endl;
+            board_.state().make_move(Move(Square::E2, Square::E4));
+            std::cout << board_ << std::endl;
+            board_.state().make_move(Move(Square::D7, Square::D5));
+            std::cout << board_ << std::endl;
+            board_.state().make_move(Move(Square::E4, Square::D5, MoveFlag::CAPTURE_BIT));
+            std::cout << board_ << std::endl;
         }
     }
 }

@@ -42,11 +42,11 @@ class Square {
         return raw_ < 64;
     }
 
-    [[nodiscard]] constexpr int rank() const {
+    [[nodiscard]] constexpr u8 rank() const {
         return raw_ >> 3;
     }
 
-    [[nodiscard]] constexpr int file() const {
+    [[nodiscard]] constexpr u8 file() const {
         return raw_ & 7;
     }
 
@@ -69,9 +69,40 @@ class Square {
     u8 raw_;
 };
 
-enum Color : u8 {
-    WHITE,
-    BLACK
+class Color {
+  public:
+    enum ColorEnum : u8 {
+        WHITE,
+        BLACK,
+        NO_COLOR = 2
+    };
+
+    constexpr Color() : raw_(NO_COLOR) {}
+    constexpr explicit Color(u8 i) : raw_(i) {}
+    constexpr Color(ColorEnum c) : raw_(c) {}
+
+    [[nodiscard]] constexpr bool operator==(const Color& other) const {
+        return raw_ == other.raw_;
+    }
+
+    [[nodiscard]] constexpr bool operator==(ColorEnum c) const {
+        return raw_ == c;
+    }
+
+    [[nodiscard]] constexpr bool operator!=(const Color& other) const {
+        return raw_ != other.raw_;
+    }
+
+    [[nodiscard]] constexpr operator u8() const {
+        return raw_;
+    }
+
+    [[nodiscard]] constexpr Color operator~() const {
+        return Color(raw_ ^ 1);
+    }
+
+  private:
+    u8 raw_;
 };
 
 class PieceType {

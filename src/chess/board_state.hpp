@@ -36,7 +36,7 @@ struct BoardState {
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};
     std::array<PieceType, 64> piece_type_on_sq{};
-    Color side_to_move{};
+    Color side_to_move{Color::WHITE};
     Square en_passant_sq{};
     CastleRights castle_rights{};
     u8 fifty_moves_clock = 0;

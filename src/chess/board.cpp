@@ -28,25 +28,25 @@ Board::Board(std::string_view fen) {
             continue;
         }
 
-        state_.place_piece(PieceType::from_char(ch), square, std::islower(ch) ? BLACK : WHITE);
+        state_.place_piece(PieceType::from_char(ch), square, std::islower(ch) ? Color::BLACK : Color::WHITE);
         square++;
     }
 
     char side_to_move;
     stream >> side_to_move;
-    state_.side_to_move = side_to_move == 'w' ? WHITE : BLACK;
+    state_.side_to_move = side_to_move == 'w' ? Color(Color::WHITE) : Color(Color::BLACK);
 
     std::string castle_rights;
     stream >> castle_rights;
     for (const char &ch : castle_rights) {
         if (ch == 'K')
-            state_.castle_rights.set_kingside_castle(WHITE, true);
+            state_.castle_rights.set_kingside_castle(Color::WHITE, true);
         else if (ch == 'Q')
-            state_.castle_rights.set_queenside_castle(WHITE, true);
+            state_.castle_rights.set_queenside_castle(Color::WHITE, true);
         else if (ch == 'k')
-            state_.castle_rights.set_kingside_castle(BLACK, true);
+            state_.castle_rights.set_kingside_castle(Color::BLACK, true);
         else if (ch == 'q')
-            state_.castle_rights.set_queenside_castle(BLACK, true);
+            state_.castle_rights.set_queenside_castle(Color::BLACK, true);
     }
 
     std::string en_passant;

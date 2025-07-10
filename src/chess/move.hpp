@@ -2,6 +2,7 @@
 #define MOVE_HPP
 
 #include "../util/types.hpp"
+#include <cassert>
 
 class MoveFlag {
   public:
@@ -34,7 +35,18 @@ class MoveFlag {
 };
 
 class Move {
-    [[nodiscard]] constexpr explicit Move(Square from, Square to, MoveFlag flag = MoveFlag::NORMAL) : raw_{static_cast<u16>(flag << 12 | to << 6 | from)} {
+  public:
+    [[nodiscard]] constexpr explicit Move(Square from, Square to, MoveFlag flag = MoveFlag::NORMAL)
+        : raw_{static_cast<u16>(flag << 12 | to << 6 | from)} {}
+
+    [[nodiscard]] constexpr Square king_castling_to() {
+        assert(is_castling());
+        return from() > to() ? Square(from().rank(), 2) : Square(from().rank(), 6);
+    }
+
+    [[nodiscard]] constexpr Square rook_castling_to() {
+        assert(is_castling());
+        return from() > to() ? Square(from().rank(), 3) : Square(from().rank(), 5);
     }
 
     [[nodiscard]] constexpr Square from() const {
@@ -55,6 +67,11 @@ class Move {
 
     [[nodiscard]] constexpr bool is_promo() const {
         return (raw_flag() & static_cast<u8>(MoveFlag::PROMOTION_BIT)) != 0;
+    }
+    
+    [[nodiscard]] constexpr PieceType promo_type() const {
+        assert(is_promo());
+        return PieceType{static_cast<u8>(2 + (raw_flag() & ~MoveFlag::PROMO_CAPTURE))};
     }
 
     [[nodiscard]] constexpr bool is_ep() const {

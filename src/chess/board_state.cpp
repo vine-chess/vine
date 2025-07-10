@@ -1,6 +1,33 @@
 #include "board_state.hpp"
+#include "move.hpp"
+
 #include <cassert>
-#include <iostream>
+
+void BoardState::make_move(Move move) {
+    if (move.is_castling()) {
+        remove_piece(PieceType::KING, move.from(), side_to_move);
+        remove_piece(PieceType::ROOK, move.to(), side_to_move);
+        place_piece(PieceType::KING, move.king_castling_to(), side_to_move);
+        place_piece(PieceType::ROOK, move.rook_castling_to(), side_to_move);
+        return;
+    }
+
+    PieceType from_type = piece_type_on_sq[move.from()]; 
+    PieceType to_type = piece_type_on_sq[move.from()]; 
+    if (move.is_capture()) {
+        Square target_square = move.to();
+        if (move.is_ep()) {
+            target_square = Square{move.from().rank(), move.to().file()};
+        }
+        remove_piece(piece_type_on_sq[target_square], target_square, ~side_to_move);
+    }
+    if (move.is_promo()) {
+        to_type = move.promo_type();
+    }
+    remove_piece(from_type, move.from(), side_to_move);
+    place_piece(to_type, move.to(), side_to_move);
+    side_to_move = ~side_to_move;
+}
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
     piece_type_on_sq[sq] = piece_type;
@@ -25,7 +52,7 @@ void BoardState::set_en_passant_sq(Square sq) {
 }
 
 Bitboard BoardState::occupancy() const {
-    return side_bbs[WHITE] | side_bbs[BLACK];
+    return side_bbs[Color::WHITE] | side_bbs[Color::BLACK];
 }
 
 Bitboard BoardState::occupancy(Color color) const {
@@ -86,5 +113,5 @@ PieceType BoardState::get_piece_type(Square sq) const {
 
 Color BoardState::get_piece_color(Square sq) const {
     assert(piece_type_on_sq[sq] != PieceType::NONE);
-    return side_bbs[WHITE].is_set(sq) ? WHITE : BLACK;
+    return side_bbs[Color::WHITE].is_set(sq) ? Color::WHITE : Color::BLACK;
 }
