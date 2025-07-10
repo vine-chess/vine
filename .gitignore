@@ -39,6 +39,7 @@
 *.exe
 *.out
 *.app
+vine
 
 # debug information files
 *.dwo
