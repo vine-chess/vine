@@ -73,6 +73,15 @@ class Bitboard {
         return *this;
     }
 
+    [[nodiscard]] constexpr Bitboard operator^(Bitboard other) const {
+        return Bitboard{raw_ ^ other.raw_};
+    }
+
+    constexpr Bitboard &operator^=(Bitboard other) {
+        raw_ ^= other.raw_;
+        return *this;
+    }
+
     [[nodiscard]] constexpr Bitboard operator<<(Bitboard other) const {
         return Bitboard{raw_ << other.raw_};
     }
@@ -95,6 +104,15 @@ class Bitboard {
 
     [[nodiscard]] constexpr explicit operator u64() const {
         return raw_;
+    }
+
+    template<int rank, int file>
+    [[nodiscard]] constexpr Bitboard shift_masked() const {
+        constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff); 
+        auto res = *this;
+        res = file > 0 ? res << file : res >> -file;
+        res = rank > 0 ? res << rank * 8 : res >> -rank * 8;
+        return res & FILE_MASK;
     }
 
     class Iterator {

@@ -5,7 +5,7 @@
 
 class MoveFlag {
   public:
-    enum {
+    enum MoveFlagEnum {
         NORMAL = 0b0000,
         CASTLE = 0b0001,
         CAPTURE_BIT = 0b0100,
@@ -23,6 +23,7 @@ class MoveFlag {
     };
     constexpr MoveFlag() : raw_{NORMAL} {}
     explicit constexpr MoveFlag(u8 raw) : raw_(raw) {}
+    constexpr MoveFlag(MoveFlagEnum e) : raw_(e) {}
 
     [[nodiscard]] constexpr operator u8() const {
         return raw_;
@@ -33,6 +34,8 @@ class MoveFlag {
 };
 
 class Move {
+    [[nodiscard]] constexpr explicit Move(Square from, Square to, MoveFlag flag = MoveFlag::NORMAL) : raw_{static_cast<u16>(flag << 12 | to << 6 | from)} {
+    }
 
     [[nodiscard]] constexpr Square from() const {
         return Square{static_cast<u8>(raw_ & 0b111111)};
