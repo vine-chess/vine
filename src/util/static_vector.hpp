@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cassert>
+#include <memory>
 
 namespace util {
 

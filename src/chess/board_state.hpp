@@ -6,6 +6,7 @@
 #include "zobrist.hpp"
 #include "bitboard.hpp"
 #include "castle_rights.hpp"
+#include "move.hpp"
 
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
@@ -29,6 +30,8 @@ struct BoardState {
 
     [[nodiscard]] PieceType get_piece_type(Square sq) const;
     [[nodiscard]] Color get_piece_color(Square sq) const;
+
+    void make_move(Move move);
 
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};
