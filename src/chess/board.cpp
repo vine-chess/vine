@@ -34,7 +34,7 @@ Board::Board(std::string_view fen) {
 
     char side_to_move;
     stream >> side_to_move;
-    state_.side_to_move = side_to_move == 'w' ? Color(Color::WHITE) : Color(Color::BLACK);
+    state_.side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
 
     std::string castle_rights;
     stream >> castle_rights;
