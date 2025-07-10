@@ -10,6 +10,8 @@
 
 namespace uci {
 
+Handler handler;
+
 void Handler::handle_perft(std::ostream &out, int depth) {
     const auto start = std::chrono::high_resolution_clock::now();
     const auto nodes = 0;
@@ -30,7 +32,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, 0);
         } else if (parts[0] == "print") {
-            board_.print();
+            std::cout << board_ << std::endl;
         }
     }
 }

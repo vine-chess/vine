@@ -10,6 +10,7 @@
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
     void remove_piece(PieceType piece_type, Square sq, Color color);
+    void set_en_passant_sq(Square sq);
 
     [[nodiscard]] Bitboard occupancy() const;
     [[nodiscard]] Bitboard occupancy(Color color) const;
@@ -31,7 +32,7 @@ struct BoardState {
 
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};
-    std::array<PieceType, 64> piece_type_on_square{};
+    std::array<PieceType, 64> piece_type_on_sq{};
     Color side_to_move{};
     Square en_passant_sq{};
     CastleRights castle_rights{};

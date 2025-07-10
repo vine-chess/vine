@@ -9,7 +9,9 @@ class Board {
     Board(std::string_view fen);
     Board();
 
-    void print();
+    [[nodiscard]] BoardState &state();
+
+    friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
   private:
     BoardState state_;

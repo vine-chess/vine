@@ -3,17 +3,25 @@
 #include <iostream>
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
-    piece_type_on_square[sq] = piece_type;
+    piece_type_on_sq[sq] = piece_type;
     piece_bbs[piece_type - 1].set(sq);
     side_bbs[color].set(sq);
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
 }
 
 void BoardState::remove_piece(PieceType piece_type, Square sq, Color color) {
-    piece_type_on_square[sq] = NONE;
+    piece_type_on_sq[sq] = NONE;
     piece_bbs[piece_type - 1].unset(sq);
     side_bbs[color].unset(sq);
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
+}
+
+void BoardState::set_en_passant_sq(Square sq) {
+    if (en_passant_sq.is_valid()) {
+        hash_key ^= zobrist::en_passant[sq.file()];
+    }
+    en_passant_sq = sq;
+    hash_key ^= zobrist::en_passant[sq.file()];
 }
 
 Bitboard BoardState::occupancy() const {
@@ -73,10 +81,10 @@ Bitboard BoardState::king(Color color) const {
 }
 
 PieceType BoardState::get_piece_type(Square sq) const {
-    return piece_type_on_square[sq];
+    return piece_type_on_sq[sq];
 }
 
 Color BoardState::get_piece_color(Square sq) const {
-    assert(piece_type_on_square[sq] != NONE);
+    assert(piece_type_on_sq[sq] != NONE);
     return side_bbs[WHITE].is_set(sq) ? WHITE : BLACK;
 }

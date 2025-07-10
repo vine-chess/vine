@@ -15,4 +15,6 @@ class Handler {
     Board board_;
 };
 
+extern Handler handler;
+
 } // namespace uci
