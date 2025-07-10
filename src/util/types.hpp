@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <cctype>
 #include <cstdint>
+#include <iostream>
 #include <unordered_map>
 
 using u8 = uint8_t;
@@ -72,24 +74,45 @@ enum Color : u8 {
     BLACK
 };
 
-enum PieceType : u8 {
-    NONE,
-    PAWN,
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    QUEEN,
-    KING
-};
+class PieceType {
+  public:
+    enum PieceTypeEnum {
+        NONE,
+        PAWN,
+        KNIGHT,
+        BISHOP,
+        ROOK,
+        QUEEN,
+        KING,
+    };
+    constexpr PieceType() {}
+    constexpr explicit PieceType(u8 i) : raw_(i) {}
 
-const std::unordered_map<char, PieceType> CHAR_TO_PIECE_TYPE = {
-    {'p', PieceType::PAWN}, {'n', PieceType::KNIGHT}, {'b', PieceType::BISHOP},
-    {'r', PieceType::ROOK}, {'q', PieceType::QUEEN},  {'k', PieceType::KING},
-};
+    constexpr PieceType(PieceTypeEnum pte) : raw_(pte) {}
 
-constexpr std::array<std::array<char, 7>, 2> PIECE_TYPE_TO_CHAR = {{
-    // WHITE
-    {' ', 'P', 'N', 'B', 'R', 'Q', 'K'},
-    // BLACK
-    {' ', 'p', 'n', 'b', 'r', 'q', 'k'},
-}};
+    [[nodiscard]] constexpr static PieceType from_char(char ch) {
+        return CHAR_TO_PIECE[std::tolower(ch)];
+    }
+
+    [[nodiscard]] constexpr char to_char(Color col) const {
+        return col == Color::WHITE ? std::toupper(PIECE_TO_CHAR[raw_]) : PIECE_TO_CHAR[raw_];
+    }
+
+    [[nodiscard]] constexpr operator u8() const {
+        return raw_;
+    }
+
+  private:
+    constexpr static auto PIECE_TO_CHAR = " pnbrqk";
+    constexpr static auto CHAR_TO_PIECE = []() {
+        std::array<PieceTypeEnum, 256> res{};
+        res['p'] = PieceTypeEnum::PAWN;
+        res['n'] = PieceTypeEnum::KNIGHT;
+        res['b'] = PieceTypeEnum::BISHOP;
+        res['r'] = PieceTypeEnum::ROOK;
+        res['q'] = PieceTypeEnum::QUEEN;
+        res['k'] = PieceTypeEnum::KING;
+        return res;
+    }();
+    u8 raw_ = NONE;
+};

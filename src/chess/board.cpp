@@ -7,7 +7,7 @@ constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RN
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
         return ' ';
-    return PIECE_TYPE_TO_CHAR[state.get_piece_color(sq)][state.get_piece_type(sq)];
+    return state.get_piece_type(sq).to_char(state.get_piece_color(sq));
 }
 
 Board::Board(std::string_view fen) {
@@ -28,8 +28,7 @@ Board::Board(std::string_view fen) {
             continue;
         }
 
-        state_.place_piece(CHAR_TO_PIECE_TYPE.at(static_cast<char>(std::tolower(ch))), square,
-                           std::islower(ch) ? BLACK : WHITE);
+        state_.place_piece(PieceType::from_char(ch), square, std::islower(ch) ? BLACK : WHITE);
         square++;
     }
 

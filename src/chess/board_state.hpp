@@ -3,10 +3,10 @@
 
 #include "../util/types.hpp"
 
-#include "zobrist.hpp"
 #include "bitboard.hpp"
 #include "castle_rights.hpp"
 #include "move.hpp"
+#include "zobrist.hpp"
 
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
