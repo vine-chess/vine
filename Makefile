@@ -6,11 +6,6 @@ OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3
 
-ifeq ($(debug),1)
-    OPTIMIZE := -Og -g
-    FLAGS += -DDEBUG
-endif
-
 FLAGS = -std=c++20
 FLAGS += $(EXTRA_FLAGS) 
 FLAGS += $(OPTIMIZE)
