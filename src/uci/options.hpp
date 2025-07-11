@@ -67,6 +67,13 @@ class StringOption : public Option {
     std::string value_;
 };
 
+struct CaseInsensitive {
+    bool operator()(std::string_view one, std::string_view two) const {
+        return std::lexicographical_compare(one.begin(), one.end(), two.begin(), two.end(),
+                                            [](char c1, char c2) { return tolower(c1) < tolower(c2); });
+    }
+};
+
 class Options {
   public:
     void add(std::unique_ptr<Option> option);
@@ -75,7 +82,7 @@ class Options {
     friend std::ostream &operator<<(std::ostream &os, const Options &options);
 
   private:
-    std::unordered_map<std::string, std::unique_ptr<Option>> map_;
+    std::unordered_map<std::string, std::unique_ptr<Option>, CaseInsensitive> map_;
 };
 
 } // namespace uci
