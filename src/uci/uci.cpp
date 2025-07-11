@@ -14,9 +14,10 @@ Options options;
 Handler handler;
 
 Handler::Handler() {
-    options.add(std::make_unique<IntegerOption>("Hash", 16, 1, INT32_MAX, [](const Option &option) {
-        // resize hash table
-    }));
+    options.add(
+        std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [](const Option &option) {
+            // resize hash table
+        }));
 }
 
 void Handler::handle_perft(std::ostream &out, int depth) {
