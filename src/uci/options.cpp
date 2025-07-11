@@ -82,7 +82,7 @@ std::string_view BoolOption::type() const {
 
 void BoolOption::print(std::ostream &os) const {
     os << "option name " << name_
-       << " type spin"
+       << " type check"
        << " default " << value_;
 }
 
@@ -108,7 +108,7 @@ std::string_view StringOption::type() const {
 
 void StringOption::print(std::ostream &os) const {
     os << "option name " << name_
-       << " type spin"
+       << " type string"
        << " default " << value_;
 }
 
