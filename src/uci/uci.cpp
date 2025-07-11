@@ -10,7 +10,14 @@
 
 namespace uci {
 
+Options options;
 Handler handler;
+
+Handler::Handler() {
+    options.add(std::make_unique<IntegerOption>("Hash", 16, 1, INT32_MAX, [](const Option &option) {
+        // resize hash table
+    }));
+}
 
 void Handler::handle_perft(std::ostream &out, int depth) {
     const auto start = std::chrono::high_resolution_clock::now();
@@ -28,11 +35,20 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         if (parts[0] == "uci") {
             out << "id name Vine\n";
             out << "id author Aron Petkovski, Jonathan Hallström\n";
+            out << options;
             out << "uciok\n";
         } else if (parts[0] == "perft") {
             handle_perft(out, 0);
         } else if (parts[0] == "print") {
             std::cout << board_ << std::endl;
+        } else if (parts[0] == "setoption") {
+            if (parts[1] != "name") {
+                out << "invalid second argument, expected 'name'" << std::endl;
+            } else if (parts[3] != "value") {
+                out << "invalid fourth argument, expected 'value'" << std::endl;
+            }
+
+            options.get(parts[2])->set_value(parts[4]);
         }
     }
 }
