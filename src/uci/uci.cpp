@@ -29,10 +29,24 @@ void Handler::handle_perft(std::ostream &out, int depth) {
     out << "Nodes searched: " << nodes << " (" << nps << "nps)\n";
 }
 
+void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_view> &parts) {
+    if (parts[1] != "name") {
+        out << "invalid second argument, expected 'name'" << std::endl;
+        return;
+    }
+
+    if (parts[3] != "value") {
+        out << "invalid fourth argument, expected 'value'" << std::endl;
+        return;
+    }
+
+    options.get(parts[2])->set_value(parts[4]);
+}
+
 void Handler::process_input(std::istream &in, std::ostream &out) {
     std::string line;
     while (std::getline(in, line)) {
-        std::vector<std::string_view> parts = util::split_string(line);
+        const auto parts = util::split_string(line);
         if (parts[0] == "uci") {
             out << "id name Vine\n";
             out << "id author Aron Petkovski, Jonathan Hallström\n";
@@ -43,13 +57,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "print") {
             std::cout << board_ << std::endl;
         } else if (parts[0] == "setoption") {
-            if (parts[1] != "name") {
-                out << "invalid second argument, expected 'name'" << std::endl;
-            } else if (parts[3] != "value") {
-                out << "invalid fourth argument, expected 'value'" << std::endl;
-            }
-
-            options.get(parts[2])->set_value(parts[4]);
+            handle_setoption(out, parts);
         }
     }
 }

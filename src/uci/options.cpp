@@ -94,7 +94,7 @@ StringOption::StringOption(std::string_view name, std::string value, std::functi
 }
 
 void StringOption::set_value(std::string_view str_value) {
-    value_ = str_value;
+    value_ = std::string(str_value);
     callback_(*this);
 }
 
