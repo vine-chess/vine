@@ -70,7 +70,7 @@ class StringOption : public Option {
 struct CaseInsensitive {
     bool operator()(std::string_view one, std::string_view two) const {
         return std::lexicographical_compare(one.begin(), one.end(), two.begin(), two.end(),
-                                            [](char c1, char c2) { return tolower(c1) < tolower(c2); });
+                                            [](char c1, char c2) { return std::tolower(c1) < std::tolower(c2); });
     }
 };
 
