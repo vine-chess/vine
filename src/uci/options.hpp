@@ -4,7 +4,7 @@
 #include "../util/types.hpp"
 #include <functional>
 #include <string>
-#include <unordered_map>
+#include <map>
 
 namespace uci {
 
@@ -82,7 +82,7 @@ class Options {
     friend std::ostream &operator<<(std::ostream &os, const Options &options);
 
   private:
-    std::unordered_map<std::string, std::unique_ptr<Option>, CaseInsensitive> map_;
+    std::map<std::string, std::unique_ptr<Option>, CaseInsensitive> map_;
 };
 
 } // namespace uci
