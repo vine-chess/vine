@@ -8,14 +8,19 @@
 
 using MoveList = util::StaticVector<Move, 218>;
 
+constexpr static auto UP = Bitboard::UP;
+constexpr static auto DOWN = Bitboard::DOWN;
+constexpr static auto LEFT = Bitboard::LEFT;
+constexpr static auto RIGHT = Bitboard::RIGHT;
+
 constexpr static auto KNIGHT_MOVES = []() {
     std::array<Bitboard, 64> res;
     for (int i = 0; i < 64; ++i) {
         const auto sq = Bitboard(1ull << i);
-        const auto forward_back = sq.shift_masked<2, 0>() | sq.shift_masked<-2, 0>();
-        const auto left_right = sq.shift_masked<0, 2>() | sq.shift_masked<0, -2>();
-        res[i] = forward_back.shift_masked<0, 1>() | forward_back.shift_masked<0, -1>() |
-                 left_right.shift_masked<1, 0>() | left_right.shift_masked<-1, 0>();
+        const auto forward_back = sq.shift_masked<UP * 2, 0>() | sq.shift_masked<DOWN * 2, 0>();
+        const auto left_right = sq.shift_masked<0, LEFT * 2>() | sq.shift_masked<0, RIGHT * 2>();
+        res[i] = forward_back.shift_masked<0, LEFT>() | forward_back.shift_masked<0, RIGHT>() |
+                 left_right.shift_masked<UP, 0>() | left_right.shift_masked<DOWN, 0>();
     }
     return res;
 }();
@@ -24,10 +29,10 @@ constexpr static auto KING_MOVES = []() {
     std::array<Bitboard, 64> res;
     for (int i = 0; i < 64; ++i) {
         res[i] = 1ull << i;
-        res[i] |= res[i].shift_masked<1, 0>();
-        res[i] |= res[i].shift_masked<-1, 0>();
-        res[i] |= res[i].shift_masked<0, 1>();
-        res[i] |= res[i].shift_masked<0, -1>();
+        res[i] |= res[i].shift_masked<UP, 0>();
+        res[i] |= res[i].shift_masked<DOWN, 0>();
+        res[i] |= res[i].shift_masked<0, RIGHT>();
+        res[i] |= res[i].shift_masked<0, LEFT>();
         res[i] ^= 1ull << i;
     }
     return res;
@@ -46,8 +51,8 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
 
     const auto one_forward = pawns << 8 * forward & allowed_destinations & ~occ;
     const auto two_forward = one_forward << 8 * forward & allowed_destinations & ~occ & allowed_double_push_rank;
-    const auto left_captures = one_forward.shift_masked<0, -1>() & board.occupancy(~board.side_to_move);
-    const auto right_captures = one_forward.shift_masked<0, 1>() & board.occupancy(~board.side_to_move);
+    const auto left_captures = one_forward.shift_masked<0, LEFT>() & board.occupancy(~board.side_to_move);
+    const auto right_captures = one_forward.shift_masked<0, RIGHT>() & board.occupancy(~board.side_to_move);
 
     for (auto sq : one_forward & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8, sq);
@@ -82,6 +87,17 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
 }
 
 inline void knight_moves(const BoardState &board, MoveList &move_list,
+                         Bitboard allowed_destionations = Bitboard::ALL_SET) {
+    for (auto knight : board.knights(board.side_to_move)) {
+        for (auto destination : KNIGHT_MOVES[knight] & allowed_destionations & ~board.occupancy(board.side_to_move)) {
+            move_list.emplace_back(knight, destination,
+                                   board.occupancy(~board.side_to_move).is_set(destination) ? MoveFlag::CAPTURE_BIT
+                                                                                            : MoveFlag::NORMAL);
+        }
+    }
+}
+
+inline void slider_moves(const BoardState &board, MoveList &move_list,
                          Bitboard allowed_destionations = Bitboard::ALL_SET) {
     for (auto knight : board.knights(board.side_to_move)) {
         for (auto destination : KNIGHT_MOVES[knight] & allowed_destionations & ~board.occupancy(board.side_to_move)) {

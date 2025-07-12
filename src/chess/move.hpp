@@ -42,12 +42,12 @@ class Move {
 
     [[nodiscard]] constexpr Square king_castling_to() {
         assert(is_castling());
-        return from() > to() ? Square(from().rank(), 2) : Square(from().rank(), 6);
+        return from() > to() ? Square(from().rank(), File(2)) : Square(from().rank(), File(6));
     }
 
     [[nodiscard]] constexpr Square rook_castling_to() {
         assert(is_castling());
-        return from() > to() ? Square(from().rank(), 3) : Square(from().rank(), 5);
+        return from() > to() ? Square(from().rank(), File(3)) : Square(from().rank(), File(5));
     }
 
     [[nodiscard]] constexpr Square from() const {

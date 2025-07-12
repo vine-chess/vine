@@ -3,6 +3,9 @@
 #include "../util/types.hpp"
 
 #include <bit>
+#include <iostream>
+#include <type_traits>
+#include <utility>
 
 class Bitboard {
   public:
@@ -108,8 +111,43 @@ class Bitboard {
         return raw_;
     }
 
-    template <int rank, int file>
+    class RankDifference {
+      public:
+        [[nodiscard]] constexpr RankDifference operator*(int i) const {
+            return RankDifference{raw_ * i};
+        }
+        constexpr explicit operator int() const {
+            return raw_;
+        }
+
+        int raw_;
+    };
+
+    class FileDifference {
+      public:
+        [[nodiscard]] constexpr FileDifference operator*(int i) const {
+            return FileDifference{raw_ * i};
+        }
+        constexpr explicit operator int() const {
+            return raw_;
+        }
+        int raw_;
+    };
+
+    constexpr static auto UP = RankDifference{1};
+    constexpr static auto DOWN = RankDifference{-1};
+    constexpr static auto LEFT = FileDifference{-1};
+    constexpr static auto RIGHT = FileDifference{1};
+
+    template <auto rank_diff, auto file_diff>
+        requires((std::is_same_v<decltype(rank_diff), RankDifference> ||
+                  (std::is_same_v<decltype(rank_diff), int> && rank_diff == 0)) &&
+                 (std::is_same_v<decltype(file_diff), FileDifference> ||
+                  (std::is_same_v<decltype(file_diff), int> and file_diff == 0)))
     [[nodiscard]] constexpr Bitboard shift_masked() const {
+        constexpr auto rank = static_cast<int>(rank_diff);
+        constexpr auto file = static_cast<int>(file_diff);
+
         constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff);
         auto res = *this;
         res = file > 0 ? res << file : res >> -file;

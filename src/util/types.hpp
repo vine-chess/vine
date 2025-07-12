@@ -17,6 +17,92 @@ using f32 = float;
 using f64 = double;
 using usize = std::size_t;
 
+class Rank {
+  public:
+    enum {
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH,
+        FIFTH,
+        SIXTH,
+        SEVENTH,
+        EIGHTH,
+        NO_RANK
+    };
+
+    constexpr Rank() : raw_(NO_RANK) {}
+    constexpr explicit Rank(u8 r) : raw_(r) {}
+
+    [[nodiscard]] constexpr operator u8() const {
+        return raw_;
+    }
+
+    [[nodiscard]] constexpr static Rank from_char(char ch) {
+        return Rank(ch - '1');
+    }
+    [[nodiscard]] constexpr char to_char() const {
+        return raw_ + '1';
+    }
+
+    constexpr Rank operator++(int) {
+        const Rank tmp = *this;
+        raw_++;
+        return tmp;
+    }
+
+    constexpr Rank &operator++() {
+        ++raw_;
+        return *this;
+    }
+
+  private:
+    u8 raw_;
+};
+
+class File {
+  public:
+    enum {
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        NO_FILE
+    };
+
+    constexpr File() : raw_(NO_FILE) {}
+    constexpr explicit File(u8 f) : raw_(f) {}
+
+    [[nodiscard]] constexpr operator u8() const {
+        return raw_;
+    }
+
+    [[nodiscard]] constexpr static File from_char(char ch) {
+        return File(ch - 'a');
+    }
+    [[nodiscard]] constexpr char to_char() const {
+        return raw_ + 'a';
+    }
+
+    constexpr File operator++(int) {
+        const File tmp = *this;
+        raw_++;
+        return tmp;
+    }
+
+    constexpr File &operator++() {
+        ++raw_;
+        return *this;
+    }
+
+  private:
+    u8 raw_;
+};
+
 class Square {
   public:
     // clang-format off
@@ -33,20 +119,23 @@ class Square {
     };
     // clang-format on
 
-    constexpr Square() {}
+    constexpr Square() : raw_(NO_SQUARE) {}
     constexpr Square(u8 sq) : raw_(sq) {}
-    constexpr Square(u8 rank, u8 file) : raw_(rank * 8 + file) {}
+    constexpr Square(Rank rank, File file) : raw_(rank * 8 + file) {}
+    [[nodiscard]] constexpr static Square from_string(std::string_view sv) {
+        return Square(Rank::from_char(sv[1]), File::from_char(sv[0]));
+    }
 
     [[nodiscard]] constexpr bool is_valid() {
         return raw_ < 64;
     }
 
-    [[nodiscard]] constexpr u8 rank() const {
-        return raw_ >> 3;
+    [[nodiscard]] constexpr Rank rank() const {
+        return Rank(raw_ >> 3);
     }
 
-    [[nodiscard]] constexpr u8 file() const {
-        return raw_ & 7;
+    [[nodiscard]] constexpr File file() const {
+        return File(raw_ & 7);
     }
 
     [[nodiscard]] constexpr operator u8() const {
@@ -69,7 +158,7 @@ class Square {
 };
 
 inline std::ostream &operator<<(std::ostream &os, Square sq) {
-    os << (char)('a' + sq.file()) << (char)('1' + sq.rank());
+    os << sq.file().to_char() << sq.rank().to_char();
     return os;
 }
 

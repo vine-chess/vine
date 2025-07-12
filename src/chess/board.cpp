@@ -53,7 +53,7 @@ Board::Board(std::string_view fen) {
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state_.set_en_passant_sq(Square(static_cast<u8>(en_passant[1] - '1'), static_cast<u8>(en_passant[0] - 'a')));
+        state_.set_en_passant_sq(Square(Rank::from_char(en_passant[1]), File::from_char(en_passant[0])));
     }
 
     stream >> state_.fifty_moves_clock;
@@ -69,7 +69,7 @@ std::ostream &operator<<(std::ostream &out, const Board &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';
         for (int file = 0; file < 8; file++) {
-            const auto square = Square(rank, file);
+            const auto square = Square(Rank(rank), File(file));
             out << get_piece_ch(board.state_, square);
             if (file < 7)
                 out << ' ';
