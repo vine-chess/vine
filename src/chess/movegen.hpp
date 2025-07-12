@@ -5,6 +5,7 @@
 #include "bitboard.hpp"
 #include "board_state.hpp"
 #include <array>
+#include <iostream>
 
 using MoveList = util::StaticVector<Move, 218>;
 
@@ -65,15 +66,28 @@ constexpr static auto QUEEN_MOVES = []() {
 }();
 
 inline Bitboard compute_bishop_attacks(Square sq, Bitboard occ) {
-    auto up_left = Bitboard::get_ray_precomputed<UP, LEFT>(sq) & occ;
-    auto up_right = Bitboard::get_ray_precomputed<UP, RIGHT>(sq) & occ;
-    auto down_left = Bitboard::get_ray_precomputed<DOWN, LEFT>(sq) & occ;
-    auto down_right = Bitboard::get_ray_precomputed<DOWN, RIGHT>(sq) & occ;
-    up_left &= Bitboard::get_ray_precomputed<UP, LEFT>(up_left.lsb());
-    up_right &= Bitboard::get_ray_precomputed<UP, RIGHT>(up_right.lsb());
-    down_left &= Bitboard::get_ray_precomputed<DOWN, LEFT>(down_left.msb());
-    down_right &= Bitboard::get_ray_precomputed<DOWN, RIGHT>(down_right.msb());
+    auto up_left = Bitboard::get_ray_precomputed<UP, LEFT>(sq);
+    auto up_right = Bitboard::get_ray_precomputed<UP, RIGHT>(sq);
+    auto down_left = Bitboard::get_ray_precomputed<DOWN, LEFT>(sq);
+    auto down_right = Bitboard::get_ray_precomputed<DOWN, RIGHT>(sq);
+    up_left &= ~Bitboard::get_ray_precomputed<UP, LEFT>((up_left & occ).lsb());
+    up_right &= ~Bitboard::get_ray_precomputed<UP, RIGHT>((up_right & occ).lsb());
+    down_left &= ~Bitboard::get_ray_precomputed<DOWN, LEFT>((down_left & occ).msb());
+    down_right &= ~Bitboard::get_ray_precomputed<DOWN, RIGHT>((down_right & occ).msb());
     return up_left | up_right | down_left | down_right;
+}
+
+inline Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
+    auto up = Bitboard::get_ray_precomputed<UP, 0>(sq);
+    auto right = Bitboard::get_ray_precomputed<0, RIGHT>(sq);
+    auto left = Bitboard::get_ray_precomputed<0, LEFT>(sq);
+    auto down = Bitboard::get_ray_precomputed<DOWN, 0>(sq);
+    up &= ~Bitboard::get_ray_precomputed<UP, 0>((up & occ).lsb());
+    right &= ~Bitboard::get_ray_precomputed<0, RIGHT>((right & occ).lsb());
+    left &= ~Bitboard::get_ray_precomputed<0, LEFT>((left & occ).msb());
+    std::cout << (u64)down << ' ' << (u64)~Bitboard::get_ray_precomputed<DOWN, 0>((down & occ).msb()) << ' ' << (u64)occ<< '\n';
+    down &= ~Bitboard::get_ray_precomputed<DOWN, 0>((down & occ).msb());
+    return up | right | left | down;
 }
 
 inline void pawn_moves(const BoardState &board, MoveList &move_list,

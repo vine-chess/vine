@@ -57,6 +57,9 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             handle_perft(out, 0);
         } else if (parts[0] == "print") {
             out << board_ << std::endl;
+            out << (u64)compute_bishop_attacks(0, 0) << '\n';
+            out << (u64)compute_bishop_attacks(0, 1 << 9) << '\n';
+            out << (u64)compute_rook_attacks(Square::E4, 1157442699691823120) << '\n';
             MoveList moves;
             pawn_moves(board_.state(), moves);
             knight_moves(board_.state(), moves);

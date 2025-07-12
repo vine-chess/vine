@@ -27,7 +27,7 @@ class Bitboard {
     }
 
     [[nodiscard]] constexpr Square msb() const {
-        return std::countl_zero(raw_);
+        return raw_ ? 63 - std::countl_zero(raw_) : 64;
     }
 
     constexpr void clear_lsb() {
@@ -152,15 +152,15 @@ class Bitboard {
     constexpr static auto RIGHT = FileDifference{1};
 
     template <auto rank_diff, auto file_diff>
-        requires((std::is_same_v<decltype(rank_diff), RankDifference> ||
-                  (std::is_same_v<decltype(rank_diff), int> && rank_diff == 0)) &&
-                 (std::is_same_v<decltype(file_diff), FileDifference> ||
-                  (std::is_same_v<decltype(file_diff), int> and file_diff == 0)))
+        requires((std::is_same_v<std::remove_cvref_t<decltype(rank_diff)>, RankDifference> ||
+                  (std::is_same_v<std::remove_cvref_t<decltype(rank_diff)>, int> && rank_diff == 0)) &&
+                 (std::is_same_v<std::remove_cvref_t<decltype(file_diff)>, FileDifference> ||
+                  (std::is_same_v<std::remove_cvref_t<decltype(file_diff)>, int> and file_diff == 0)))
     [[nodiscard]] constexpr Bitboard shift() const {
         constexpr auto rank = static_cast<int>(rank_diff);
         constexpr auto file = static_cast<int>(file_diff);
 
-        constexpr auto FILE_MASK = (std::rotl<u64>(0xff, file) & 0xff) * (-1ull / 0xff);
+        constexpr auto FILE_MASK = (std::rotl<u64>(FIRST_RANK, file) & FIRST_RANK) * (ALL_SET / FIRST_RANK);
         auto res = *this;
         if constexpr (file > 0) {
             res <<= file;
@@ -188,15 +188,16 @@ class Bitboard {
     }
 
     template <auto rank_diff, auto file_diff>
+    static constexpr auto ray_precomp = []() {
+        std::array<u64, 65> ray_precomp_res{};
+        for (int i = 0; i < 65; ++i) {
+            ray_precomp_res[i] = static_cast<u64>(get_ray<rank_diff, file_diff>(i));
+        }
+        return ray_precomp_res;
+    }();
+    template <auto rank_diff, auto file_diff>
     [[nodiscard]] static constexpr Bitboard get_ray_precomputed(Square sq) {
-        constexpr auto precomp = [](){
-            std::array<Bitboard, 65> res;
-            for (int i = 0; i < 65; ++i) {
-                res[i] = get_ray<rank_diff, file_diff>(i);
-            }
-            return res;
-        }();
-        return precomp[sq];
+        return ray_precomp<rank_diff, file_diff>[sq];
     }
 
     class Iterator {
