@@ -3,19 +3,31 @@
 #include "../util/types.hpp"
 
 #include <bit>
-#include <iostream>
 #include <type_traits>
-#include <utility>
 
 class Bitboard {
   public:
     constexpr Bitboard() : raw_{} {}
     constexpr Bitboard(u64 bb) : raw_{bb} {}
+    constexpr explicit Bitboard(Square sq) : raw_{1ull << sq} {}
 
     constexpr static u64 ALL_SET = 0xffffffffffffffff;
+    constexpr static u64 FIRST_RANK = 0xff;
+
+    constexpr static Bitboard rank_mask(Rank which) {
+        return u64{FIRST_RANK} << 8 * which;
+    }
+
+    constexpr static Bitboard file_mask(File which) {
+        return ALL_SET / FIRST_RANK << which;
+    }
 
     [[nodiscard]] constexpr Square lsb() const {
         return std::countr_zero(raw_);
+    }
+
+    [[nodiscard]] constexpr Square msb() const {
+        return std::countl_zero(raw_);
     }
 
     constexpr void clear_lsb() {
@@ -144,15 +156,47 @@ class Bitboard {
                   (std::is_same_v<decltype(rank_diff), int> && rank_diff == 0)) &&
                  (std::is_same_v<decltype(file_diff), FileDifference> ||
                   (std::is_same_v<decltype(file_diff), int> and file_diff == 0)))
-    [[nodiscard]] constexpr Bitboard shift_masked() const {
+    [[nodiscard]] constexpr Bitboard shift() const {
         constexpr auto rank = static_cast<int>(rank_diff);
         constexpr auto file = static_cast<int>(file_diff);
 
-        constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff);
+        constexpr auto FILE_MASK = (std::rotl<u64>(0xff, file) & 0xff) * (-1ull / 0xff);
         auto res = *this;
-        res = file > 0 ? res << file : res >> -file;
-        res = rank > 0 ? res << rank * 8 : res >> -rank * 8;
+        if constexpr (file > 0) {
+            res <<= file;
+        } else {
+            res >>= -file;
+        }
+        if constexpr (rank > 0) {
+            res <<= rank * 8;
+        } else {
+            res >>= -rank * 8;
+        }
         return res & FILE_MASK;
+    }
+
+    template <auto rank_diff, auto file_diff>
+    [[nodiscard]] static constexpr Bitboard get_ray(Square sq) {
+        if (sq == Square::NO_SQUARE) {
+            return 0;
+        }
+        auto res = Bitboard(sq);
+        for (int i = 0; i < 7; ++i) {
+            res |= res.shift<rank_diff, file_diff>();
+        }
+        return res ^ Bitboard(sq);
+    }
+
+    template <auto rank_diff, auto file_diff>
+    [[nodiscard]] static constexpr Bitboard get_ray_precomputed(Square sq) {
+        constexpr auto precomp = [](){
+            std::array<Bitboard, 65> res;
+            for (int i = 0; i < 65; ++i) {
+                res[i] = get_ray<rank_diff, file_diff>(i);
+            }
+            return res;
+        }();
+        return precomp[sq];
     }
 
     class Iterator {

@@ -16,11 +16,11 @@ constexpr static auto RIGHT = Bitboard::RIGHT;
 constexpr static auto KNIGHT_MOVES = []() {
     std::array<Bitboard, 64> res;
     for (int i = 0; i < 64; ++i) {
-        const auto sq = Bitboard(1ull << i);
-        const auto forward_back = sq.shift_masked<UP * 2, 0>() | sq.shift_masked<DOWN * 2, 0>();
-        const auto left_right = sq.shift_masked<0, LEFT * 2>() | sq.shift_masked<0, RIGHT * 2>();
-        res[i] = forward_back.shift_masked<0, LEFT>() | forward_back.shift_masked<0, RIGHT>() |
-                 left_right.shift_masked<UP, 0>() | left_right.shift_masked<DOWN, 0>();
+        const auto sq = Bitboard(Square(i));
+        const auto forward_back = sq.shift<UP * 2, 0>() | sq.shift<DOWN * 2, 0>();
+        const auto left_right = sq.shift<0, LEFT * 2>() | sq.shift<0, RIGHT * 2>();
+        res[i] = forward_back.shift<0, LEFT>() | forward_back.shift<0, RIGHT>() | left_right.shift<UP, 0>() |
+                 left_right.shift<DOWN, 0>();
     }
     return res;
 }();
@@ -28,15 +28,53 @@ constexpr static auto KNIGHT_MOVES = []() {
 constexpr static auto KING_MOVES = []() {
     std::array<Bitboard, 64> res;
     for (int i = 0; i < 64; ++i) {
-        res[i] = 1ull << i;
-        res[i] |= res[i].shift_masked<UP, 0>();
-        res[i] |= res[i].shift_masked<DOWN, 0>();
-        res[i] |= res[i].shift_masked<0, RIGHT>();
-        res[i] |= res[i].shift_masked<0, LEFT>();
-        res[i] ^= 1ull << i;
+        res[i] = Bitboard(Square(i));
+        res[i] |= res[i].shift<UP, 0>();
+        res[i] |= res[i].shift<DOWN, 0>();
+        res[i] |= res[i].shift<0, RIGHT>();
+        res[i] |= res[i].shift<0, LEFT>();
+        res[i] ^= Bitboard(Square(i));
     }
     return res;
 }();
+
+constexpr static auto BISHOP_MOVES = []() {
+    std::array<Bitboard, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        res[i] = Bitboard::get_ray<UP, LEFT>(Square(i)) | Bitboard::get_ray<UP, RIGHT>(Square(i)) |
+                 Bitboard::get_ray<DOWN, LEFT>(Square(i)) | Bitboard::get_ray<DOWN, RIGHT>(Square(i));
+    }
+    return res;
+}();
+
+constexpr static auto ROOK_MOVES = []() {
+    std::array<Bitboard, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        res[i] = Bitboard::get_ray<UP, 0>(Square(i)) | Bitboard::get_ray<0, RIGHT>(Square(i)) |
+                 Bitboard::get_ray<0, LEFT>(Square(i)) | Bitboard::get_ray<DOWN, 0>(Square(i));
+    }
+    return res;
+}();
+
+constexpr static auto QUEEN_MOVES = []() {
+    std::array<Bitboard, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        res[i] = BISHOP_MOVES[i] | ROOK_MOVES[i];
+    }
+    return res;
+}();
+
+inline Bitboard compute_bishop_attacks(Square sq, Bitboard occ) {
+    auto up_left = Bitboard::get_ray_precomputed<UP, LEFT>(sq) & occ;
+    auto up_right = Bitboard::get_ray_precomputed<UP, RIGHT>(sq) & occ;
+    auto down_left = Bitboard::get_ray_precomputed<DOWN, LEFT>(sq) & occ;
+    auto down_right = Bitboard::get_ray_precomputed<DOWN, RIGHT>(sq) & occ;
+    up_left &= Bitboard::get_ray_precomputed<UP, LEFT>(up_left.lsb());
+    up_right &= Bitboard::get_ray_precomputed<UP, RIGHT>(up_right.lsb());
+    down_left &= Bitboard::get_ray_precomputed<DOWN, LEFT>(down_left.msb());
+    down_right &= Bitboard::get_ray_precomputed<DOWN, RIGHT>(down_right.msb());
+    return up_left | up_right | down_left | down_right;
+}
 
 inline void pawn_moves(const BoardState &board, MoveList &move_list,
                        Bitboard allowed_destinations = Bitboard::ALL_SET) {
@@ -46,13 +84,14 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
 
     const auto pawns = board.pawns(board.side_to_move);
 
-    const Bitboard allowed_double_push_rank = 0xffull << 8 * (board.side_to_move == Color::WHITE ? 3 : 4);
-    const Bitboard promo_ranks = 0xff'00'00'00'00'00'00'ff;
+    const Bitboard allowed_double_push_rank =
+        Bitboard::rank_mask(board.side_to_move == Color::WHITE ? Rank::THIRD : Rank::FOURTH);
+    const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
     const auto one_forward = pawns << 8 * forward & allowed_destinations & ~occ;
     const auto two_forward = one_forward << 8 * forward & allowed_destinations & ~occ & allowed_double_push_rank;
-    const auto left_captures = one_forward.shift_masked<0, LEFT>() & board.occupancy(~board.side_to_move);
-    const auto right_captures = one_forward.shift_masked<0, RIGHT>() & board.occupancy(~board.side_to_move);
+    const auto left_captures = one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move);
+    const auto right_captures = one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move);
 
     for (auto sq : one_forward & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8, sq);
@@ -99,13 +138,11 @@ inline void knight_moves(const BoardState &board, MoveList &move_list,
 
 inline void slider_moves(const BoardState &board, MoveList &move_list,
                          Bitboard allowed_destionations = Bitboard::ALL_SET) {
-    for (auto knight : board.knights(board.side_to_move)) {
-        for (auto destination : KNIGHT_MOVES[knight] & allowed_destionations & ~board.occupancy(board.side_to_move)) {
-            move_list.emplace_back(knight, destination,
-                                   board.occupancy(~board.side_to_move).is_set(destination) ? MoveFlag::CAPTURE_BIT
-                                                                                            : MoveFlag::NORMAL);
-        }
+    for (auto bishop : board.bishops(board.side_to_move)) {
+        // move_list.emplace
     }
 }
+
+inline void king_moves(const BoardState &board, MoveList &move_list) {}
 
 #endif // MOVEGEN_HPP

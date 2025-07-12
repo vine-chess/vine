@@ -19,7 +19,7 @@ using usize = std::size_t;
 
 class Rank {
   public:
-    enum {
+    enum RankEnum {
         FIRST,
         SECOND,
         THIRD,
@@ -33,6 +33,7 @@ class Rank {
 
     constexpr Rank() : raw_(NO_RANK) {}
     constexpr explicit Rank(u8 r) : raw_(r) {}
+    constexpr Rank(RankEnum r) : raw_(r) {}
 
     [[nodiscard]] constexpr operator u8() const {
         return raw_;
@@ -62,7 +63,7 @@ class Rank {
 
 class File {
   public:
-    enum {
+    enum FileEnum {
         A,
         B,
         C,
@@ -76,6 +77,7 @@ class File {
 
     constexpr File() : raw_(NO_FILE) {}
     constexpr explicit File(u8 f) : raw_(f) {}
+    constexpr File(FileEnum f) : raw_(f) {}
 
     [[nodiscard]] constexpr operator u8() const {
         return raw_;
