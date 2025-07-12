@@ -53,7 +53,7 @@ Board::Board(std::string_view fen) {
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state_.set_en_passant_sq(Square(Rank::from_char(en_passant[1]), File::from_char(en_passant[0])));
+        state_.set_en_passant_sq(Square::from_string(en_passant));
     }
 
     stream >> state_.fifty_moves_clock;
