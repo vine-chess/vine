@@ -1,4 +1,6 @@
-#pragma once
+#ifndef STRING_HPP
+#define STRING_HPP
+
 #include <algorithm>
 #include <cstddef>
 #include <string_view>
@@ -21,3 +23,4 @@ namespace util {
 }
 
 } // namespace util
+#endif // STRING_HPP

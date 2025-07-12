@@ -3,6 +3,7 @@
 
 #include "../util/types.hpp"
 #include <cassert>
+#include <ostream>
 
 class MoveFlag {
   public:
@@ -68,7 +69,7 @@ class Move {
     [[nodiscard]] constexpr bool is_promo() const {
         return (raw_flag() & static_cast<u8>(MoveFlag::PROMOTION_BIT)) != 0;
     }
-    
+
     [[nodiscard]] constexpr PieceType promo_type() const {
         assert(is_promo());
         return PieceType{static_cast<u8>(2 + (raw_flag() & ~MoveFlag::PROMO_CAPTURE))};
@@ -94,5 +95,13 @@ class Move {
     }
     u16 raw_;
 };
+
+inline std::ostream &operator<<(std::ostream &out, Move mv) {
+    out << mv.from() << mv.to();
+    if (mv.is_promo()) {
+        out << mv.promo_type().to_char();
+    }
+    return out;
+}
 
 #endif // MOVE_HPP

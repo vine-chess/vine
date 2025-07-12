@@ -12,8 +12,8 @@ void BoardState::make_move(Move move) {
         return;
     }
 
-    PieceType from_type = piece_type_on_sq[move.from()]; 
-    PieceType to_type = piece_type_on_sq[move.from()]; 
+    PieceType from_type = piece_type_on_sq[move.from()];
+    PieceType to_type = piece_type_on_sq[move.from()];
     if (move.is_capture()) {
         Square target_square = move.to();
         if (move.is_ep()) {
@@ -60,51 +60,51 @@ Bitboard BoardState::occupancy(Color color) const {
 }
 
 Bitboard BoardState::pawns() const {
-    return piece_bbs[PieceType::PAWN];
+    return piece_bbs[PieceType::PAWN - 1];
 }
 
 Bitboard BoardState::pawns(Color color) const {
-    return piece_bbs[PieceType::PAWN] & side_bbs[color];
+    return piece_bbs[PieceType::PAWN - 1] & side_bbs[color];
 }
 
 Bitboard BoardState::knights() const {
-    return piece_bbs[PieceType::KNIGHT];
+    return piece_bbs[PieceType::KNIGHT - 1];
 }
 
 Bitboard BoardState::knights(Color color) const {
-    return piece_bbs[PieceType::KNIGHT] & side_bbs[color];
+    return piece_bbs[PieceType::KNIGHT - 1] & side_bbs[color];
 }
 
 Bitboard BoardState::bishops() const {
-    return piece_bbs[PieceType::BISHOP];
+    return piece_bbs[PieceType::BISHOP - 1];
 }
 
 Bitboard BoardState::bishops(Color color) const {
-    return piece_bbs[PieceType::BISHOP] & side_bbs[color];
+    return piece_bbs[PieceType::BISHOP - 1] & side_bbs[color];
 }
 
 Bitboard BoardState::rooks() const {
-    return piece_bbs[PieceType::ROOK];
+    return piece_bbs[PieceType::ROOK - 1];
 }
 
 Bitboard BoardState::rooks(Color color) const {
-    return piece_bbs[PieceType::ROOK] & side_bbs[color];
+    return piece_bbs[PieceType::ROOK - 1] & side_bbs[color];
 }
 
 Bitboard BoardState::queens() const {
-    return piece_bbs[PieceType::QUEEN];
+    return piece_bbs[PieceType::QUEEN - 1];
 }
 
 Bitboard BoardState::queens(Color color) const {
-    return piece_bbs[PieceType::QUEEN] & side_bbs[color];
+    return piece_bbs[PieceType::QUEEN - 1] & side_bbs[color];
 }
 
 Bitboard BoardState::kings() const {
-    return piece_bbs[PieceType::KING];
+    return piece_bbs[PieceType::KING - 1];
 }
 
 Bitboard BoardState::king(Color color) const {
-    return piece_bbs[PieceType::KING] & side_bbs[color];
+    return piece_bbs[PieceType::KING - 1] & side_bbs[color];
 }
 
 PieceType BoardState::get_piece_type(Square sq) const {

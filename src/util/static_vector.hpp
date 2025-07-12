@@ -29,13 +29,21 @@ class StaticVector {
 
     iterator push_back(const T &value) {
         assert(size_ < max_size);
-        const T *res = std::construct_at(data() + size_, value);
+        T *res = std::construct_at(data() + size_, value);
         size_++;
         return res;
     }
 
     iterator push_back(T &&value) {
         return emplace_back(std::move(value));
+    }
+
+    template <typename... Args>
+    iterator emplace_back(Args &&...args) {
+        assert(size_ < max_size);
+        T *res = std::construct_at(data() + size_, std::forward<Args>(args)...);
+        size_++;
+        return res;
     }
 
     T pop_back() {

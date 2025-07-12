@@ -3,8 +3,7 @@
 #include <array>
 #include <cctype>
 #include <cstdint>
-#include <iostream>
-#include <unordered_map>
+#include <ostream>
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -69,6 +68,11 @@ class Square {
     u8 raw_;
 };
 
+inline std::ostream &operator<<(std::ostream &os, Square sq) {
+    os << (char)('a' + sq.file()) << (char)('1' + sq.rank());
+    return os;
+}
+
 class Color {
   public:
     enum ColorEnum : u8 {
@@ -127,6 +131,10 @@ class PieceType {
 
     [[nodiscard]] constexpr char to_char(Color col) const {
         return col == Color::WHITE ? std::toupper(PIECE_TO_CHAR[raw_]) : PIECE_TO_CHAR[raw_];
+    }
+
+    [[nodiscard]] constexpr char to_char() const {
+        return PIECE_TO_CHAR[raw_];
     }
 
     [[nodiscard]] constexpr operator u8() const {

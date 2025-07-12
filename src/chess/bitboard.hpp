@@ -9,6 +9,8 @@ class Bitboard {
     constexpr Bitboard() : raw_{} {}
     constexpr Bitboard(u64 bb) : raw_{bb} {}
 
+    constexpr static u64 ALL_SET = 0xffffffffffffffff;
+
     [[nodiscard]] constexpr Square lsb() const {
         return std::countr_zero(raw_);
     }
@@ -108,7 +110,7 @@ class Bitboard {
 
     template<int rank, int file>
     [[nodiscard]] constexpr Bitboard shift_masked() const {
-        constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff); 
+        constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff);
         auto res = *this;
         res = file > 0 ? res << file : res >> -file;
         res = rank > 0 ? res << rank * 8 : res >> -rank * 8;

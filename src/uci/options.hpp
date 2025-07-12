@@ -3,6 +3,7 @@
 
 #include "../util/types.hpp"
 #include <functional>
+#include <memory>
 #include <string>
 #include <map>
 

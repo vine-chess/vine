@@ -1,4 +1,5 @@
 #include "uci.hpp"
+#include "../chess/movegen.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
 
@@ -55,9 +56,22 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, 0);
         } else if (parts[0] == "print") {
-            std::cout << board_ << std::endl;
+            out << board_ << std::endl;
+            MoveList moves;
+            pawn_moves(board_.state(), moves);
+            knight_moves(board_.state(), moves);
+            for (auto move : moves) {
+                out << move << '\n';
+            }
+
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
+        } else if (parts[0] == "position") {
+            using namespace std::string_view_literals;
+            if (parts[1] == "fen") {
+                board_ = Board(std::string_view(line).substr("position fen "sv.size()));
+            } else if (parts[1] == "startpos") {
+            }
         }
     }
 }
