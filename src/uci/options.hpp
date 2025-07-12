@@ -3,9 +3,9 @@
 
 #include "../util/types.hpp"
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
-#include <map>
 
 namespace uci {
 

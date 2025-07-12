@@ -108,7 +108,7 @@ class Bitboard {
         return raw_;
     }
 
-    template<int rank, int file>
+    template <int rank, int file>
     [[nodiscard]] constexpr Bitboard shift_masked() const {
         constexpr auto FILE_MASK = ((file > 0 ? 0xff << file : 0xff >> -file) & 0xff) * (-1ull / 0xff);
         auto res = *this;

@@ -1,7 +1,7 @@
 #include "options.hpp"
 #include <iostream>
-#include <sstream>
 #include <memory>
+#include <sstream>
 
 namespace uci {
 
@@ -43,11 +43,8 @@ void IntegerOption::set_value(std::string_view str_value) {
 }
 
 void IntegerOption::print(std::ostream &os) const {
-    os << "option name " << name_
-       << " type spin"
-       << " default " << value_
-       << " min " << min_
-       << " max " << max_;
+    os << "option name " << name_ << " type spin"
+       << " default " << value_ << " min " << min_ << " max " << max_;
 }
 
 BoolOption::BoolOption(std::string_view name, bool value, std::function<void(const Option &)> callback)
@@ -82,8 +79,7 @@ std::string_view BoolOption::type() const {
 }
 
 void BoolOption::print(std::ostream &os) const {
-    os << "option name " << name_
-       << " type check"
+    os << "option name " << name_ << " type check"
        << " default " << value_;
 }
 
@@ -108,8 +104,7 @@ std::string_view StringOption::type() const {
 }
 
 void StringOption::print(std::ostream &os) const {
-    os << "option name " << name_
-       << " type string"
+    os << "option name " << name_ << " type string"
        << " default " << value_;
 }
 

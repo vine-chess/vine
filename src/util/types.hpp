@@ -85,7 +85,7 @@ class Color {
     constexpr explicit Color(u8 i) : raw_(i) {}
     constexpr Color(ColorEnum c) : raw_(c) {}
 
-    [[nodiscard]] constexpr bool operator==(const Color& other) const {
+    [[nodiscard]] constexpr bool operator==(const Color &other) const {
         return raw_ == other.raw_;
     }
 
@@ -93,7 +93,7 @@ class Color {
         return raw_ == c;
     }
 
-    [[nodiscard]] constexpr bool operator!=(const Color& other) const {
+    [[nodiscard]] constexpr bool operator!=(const Color &other) const {
         return raw_ != other.raw_;
     }
 
