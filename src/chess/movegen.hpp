@@ -55,7 +55,7 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     for (auto sq : two_forward) {
         move_list.emplace_back(sq - forward * 16, sq);
     }
-    for (auto sq : one_forward &promo_ranks) {
+    for (auto sq : (one_forward & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_KNIGHT);
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_BISHOP);
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_ROOK);
@@ -67,13 +67,13 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     for (auto sq : right_captures & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::CAPTURE_BIT);
     }
-    for (auto sq : left_captures &promo_ranks) {
+    for (auto sq : (left_captures & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_KNIGHT_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_BISHOP_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_ROOK_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_QUEEN_CAPTURE);
     }
-    for (auto sq : right_captures &promo_ranks) {
+    for (auto sq : (right_captures & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_KNIGHT_CAPTURE);
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_BISHOP_CAPTURE);
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_ROOK_CAPTURE);
