@@ -16,8 +16,7 @@ std::vector<Bitboard> create_blockers(Bitboard moves) {
     std::vector<Bitboard> blockers;
     Bitboard subset = moves;
 
-    const u64 num_permutations = 1ULL << set_bits.size();
-    for (u64 i = 0; i <= num_permutations; i++) {
+    for (u64 i = 0; i <= 1ull << set_bits.size(); i++) {
         Bitboard blocker;
         for (const auto bit : set_bits) {
             // check if the bit is set in subset, not in the index
@@ -81,20 +80,17 @@ u32 get_rook_attack_idx(Square sq, Bitboard occ) {
 #endif
 }
 
-template <typename AttacksTable,
-          typename MagicEntry,
-          usize BLOCKER_COMBINATIONS>
-AttacksTable generate_attacks_table(
-    const std::array<MagicEntry, 64>& magics,
-    const std::function<Bitboard(Square, Bitboard)>& generate_moves_fn,
-    const std::function<u64(Square, Bitboard)>& get_idx_fn) {
+template <typename AttacksTable, typename MagicEntry, usize BLOCKER_COMBINATIONS>
+AttacksTable generate_attacks_table(const std::array<MagicEntry, 64> &magics,
+                                    const std::function<Bitboard(Square, Bitboard)> &generate_moves_fn,
+                                    const std::function<u64(Square, Bitboard)> &get_idx_fn) {
     AttacksTable attacks{};
 
     for (int square = 0; square < 64; square++) {
         auto blockers = create_blockers(magics[square].mask);
         std::array<Bitboard, BLOCKER_COMBINATIONS> square_attacks{};
 
-        for (const auto& occupied : blockers) {
+        for (const auto &occupied : blockers) {
             const u64 index = get_idx_fn(Square(square), occupied);
             square_attacks[index] = generate_moves_fn(Square(square), occupied);
         }
@@ -106,15 +102,11 @@ AttacksTable generate_attacks_table(
 }
 
 MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS = []() {
-    return generate_attacks_table<decltype(BISHOP_ATTACKS),
-                           decltype(BISHOP_MAGICS)::value_type,
-                           512>(
+    return generate_attacks_table<decltype(BISHOP_ATTACKS), decltype(BISHOP_MAGICS)::value_type, 512>(
         BISHOP_MAGICS, compute_bishop_attacks, get_bishop_attack_idx);
 }();
 
 MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS = []() {
-    return generate_attacks_table<decltype(ROOK_ATTACKS),
-                           decltype(ROOK_MAGICS)::value_type,
-                           4096>(
+    return generate_attacks_table<decltype(ROOK_ATTACKS), decltype(ROOK_MAGICS)::value_type, 4096>(
         ROOK_MAGICS, compute_rook_attacks, get_rook_attack_idx);
 }();
