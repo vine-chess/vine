@@ -1,5 +1,5 @@
 #include "uci.hpp"
-#include "../chess/movegen.hpp"
+#include "../chess/move_gen.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
 

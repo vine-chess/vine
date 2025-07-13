@@ -80,7 +80,7 @@ inline Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
     return up | right | left | down;
 }
 
-inline void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
+void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto forward = board.side_to_move == Color::WHITE ? 1 : -1;
 
     const auto occ = board.occupancy();
@@ -134,7 +134,7 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard al
     }
 }
 
-inline void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
+void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
@@ -146,7 +146,7 @@ inline void knight_moves(const BoardState &board, MoveList &move_list, Bitboard 
     }
 }
 
-inline void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
+void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
@@ -166,7 +166,7 @@ inline void slider_moves(const BoardState &board, MoveList &move_list, Bitboard 
     }
 }
 
-inline void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
+void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
@@ -178,7 +178,7 @@ inline void king_moves(const BoardState &board, MoveList &move_list, Bitboard al
     }
 }
 
-inline void generate_moves(const BoardState &board, MoveList &move_list) {
+void generate_moves(const BoardState &board, MoveList &move_list) {
     pawn_moves(board, move_list);
     knight_moves(board, move_list);
     slider_moves(board, move_list);
