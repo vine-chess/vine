@@ -1,6 +1,6 @@
 #include "board_state.hpp"
 #include "move.hpp"
-#include "movegen.hpp"
+#include "move_gen.hpp"
 
 #include <cassert>
 #include <ostream>

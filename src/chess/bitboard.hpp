@@ -22,6 +22,10 @@ class Bitboard {
         return ALL_SET / FIRST_RANK << which;
     }
 
+    [[nodiscard]] constexpr u16 pop_count() const {
+        return std::popcount(raw_);
+    }
+
     [[nodiscard]] constexpr Square lsb() const {
         return std::countr_zero(raw_);
     }

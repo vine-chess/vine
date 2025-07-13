@@ -8,6 +8,11 @@
 
 using MoveList = util::StaticVector<Move, 218>;
 
+constexpr static auto UP = Bitboard::UP;
+constexpr static auto DOWN = Bitboard::DOWN;
+constexpr static auto LEFT = Bitboard::LEFT;
+constexpr static auto RIGHT = Bitboard::RIGHT;
+
 Bitboard compute_bishop_attacks(Square sq, Bitboard occ);
 Bitboard compute_rook_attacks(Square sq, Bitboard occ);
 
