@@ -30,7 +30,6 @@ void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     const auto forward = board.side_to_move == Color::WHITE ? 1 : -1;
 
     const auto occ = board.occupancy();
-
     const auto pawns = board.pawns(board.side_to_move);
 
     const Bitboard allowed_double_push_rank =
@@ -84,6 +83,7 @@ void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
+
     for (auto from : board.knights(board.side_to_move)) {
         const auto legal = KNIGHT_MOVES[from] & allowed_destinations;
         for (auto to : legal & ~us) {
