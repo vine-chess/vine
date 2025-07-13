@@ -1,14 +1,4 @@
-#ifndef MOVEGEN_HPP
-#define MOVEGEN_HPP
-
-#include "../util/static_vector.hpp"
-#include "bitboard.hpp"
-#include "board_state.hpp"
-#include <array>
-#include <bit>
-#include <iostream>
-
-using MoveList = util::StaticVector<Move, 218>;
+#include "move_gen.hpp"
 
 constexpr static auto UP = Bitboard::UP;
 constexpr static auto DOWN = Bitboard::DOWN;
@@ -90,8 +80,7 @@ inline Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
     return up | right | left | down;
 }
 
-inline void pawn_moves(const BoardState &board, MoveList &move_list,
-                       Bitboard allowed_destinations = Bitboard::ALL_SET) {
+inline void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto forward = board.side_to_move == Color::WHITE ? 1 : -1;
 
     const auto occ = board.occupancy();
@@ -110,27 +99,33 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     for (auto sq : one_forward & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8, sq);
     }
+
     for (auto sq : two_forward) {
         move_list.emplace_back(sq - forward * 16, sq);
     }
+
     for (auto sq : (one_forward & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_KNIGHT);
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_BISHOP);
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_ROOK);
         move_list.emplace_back(sq - forward * 8, sq, MoveFlag::PROMO_QUEEN);
     }
+
     for (auto sq : left_captures & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::CAPTURE_BIT);
     }
+
     for (auto sq : right_captures & ~promo_ranks) {
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::CAPTURE_BIT);
     }
+
     for (auto sq : (left_captures & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_KNIGHT_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_BISHOP_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_ROOK_CAPTURE);
         move_list.emplace_back(sq - forward * 8 + 1, sq, MoveFlag::PROMO_QUEEN_CAPTURE);
     }
+    
     for (auto sq : (right_captures & promo_ranks)) {
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_KNIGHT_CAPTURE);
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_BISHOP_CAPTURE);
@@ -139,49 +134,48 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     }
 }
 
-
-inline void knight_moves(const BoardState &board, MoveList &move_list,
-                         Bitboard allowed_destionations = Bitboard::ALL_SET) {
+inline void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
     for (auto from : board.knights(board.side_to_move)) {
-        const auto legal = KNIGHT_MOVES[from] & allowed_destionations;
+        const auto legal = KNIGHT_MOVES[from] & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }
     }
 }
 
-inline void slider_moves(const BoardState &board, MoveList &move_list,
-                         Bitboard allowed_destionations = Bitboard::ALL_SET) {
+inline void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
+
     for (auto from : board.queens(board.side_to_move) | board.bishops(board.side_to_move)) {
-        const auto legal = compute_bishop_attacks(from, board.occupancy()) & allowed_destionations;
+        const auto legal = compute_bishop_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }
     }
+
     for (auto from : board.queens(board.side_to_move) | board.rooks(board.side_to_move)) {
-        const auto legal = compute_rook_attacks(from, board.occupancy()) & allowed_destionations;
+        const auto legal = compute_rook_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }
     }
 }
 
-inline void king_moves(const BoardState &board, MoveList &move_list,
-                       Bitboard allowed_destionations = Bitboard::ALL_SET) {
+inline void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto occ = board.occupancy();
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
     const auto king = board.king(board.side_to_move).lsb();
-    const auto legal = KING_MOVES[king] & allowed_destionations;
-        for (auto to : legal & ~us) {
-            move_list.emplace_back(king, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
-        }
+    const auto legal = KING_MOVES[king] & allowed_destinations;
+
+    for (auto to : legal & ~us) {
+        move_list.emplace_back(king, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+    }
 }
 
 inline void generate_moves(const BoardState &board, MoveList &move_list) {
@@ -190,5 +184,3 @@ inline void generate_moves(const BoardState &board, MoveList &move_list) {
     slider_moves(board, move_list);
     king_moves(board, move_list);
 }
-
-#endif // MOVEGEN_HPP

@@ -33,6 +33,7 @@ namespace util {
     }
     return std::nullopt;
 }
+
 } // namespace util
 
 #endif // STRING_HPP
