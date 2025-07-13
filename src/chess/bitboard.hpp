@@ -30,6 +30,14 @@ class Bitboard {
         return raw_ ? 63 - std::countl_zero(raw_) : 64;
     }
 
+    [[nodiscard]] constexpr Bitboard rotl(i8 shift) const {
+        return std::rotl(raw_, shift);
+    }
+
+    [[nodiscard]] constexpr Bitboard rotr(i8 shift) const {
+        return std::rotr(raw_, shift);
+    }
+
     constexpr void clear_lsb() {
         raw_ &= raw_ - 1;
     }

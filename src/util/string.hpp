@@ -2,8 +2,11 @@
 #define STRING_HPP
 
 #include <algorithm>
+#include <charconv>
 #include <cstddef>
+#include <optional>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace util {
@@ -22,5 +25,14 @@ namespace util {
     return res;
 }
 
+[[nodiscard]] inline std::optional<int> parse_int(std::string_view s) {
+    int result;
+    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), result);
+    if (ec == std::errc{}) {
+        return result;
+    }
+    return std::nullopt;
+}
 } // namespace util
+
 #endif // STRING_HPP

@@ -7,6 +7,7 @@
 #include "castle_rights.hpp"
 #include "move.hpp"
 #include "zobrist.hpp"
+#include <ostream>
 
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
@@ -32,6 +33,8 @@ struct BoardState {
     [[nodiscard]] Color get_piece_color(Square sq) const;
 
     void make_move(Move move);
+    u64 perft(int depth);
+    u64 perft_print(int depth, std::ostream& out);
 
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};

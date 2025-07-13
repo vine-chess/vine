@@ -23,7 +23,7 @@ Handler::Handler() {
 
 void Handler::handle_perft(std::ostream &out, int depth) {
     const auto start = std::chrono::high_resolution_clock::now();
-    const auto nodes = 0;
+    const auto nodes = board_.state().perft_print(depth, out);
     const auto end = std::chrono::high_resolution_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     const auto nps = static_cast<u64>(static_cast<double>(nodes) * 1e9 / elapsed.count());
@@ -54,19 +54,9 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             out << options;
             out << "uciok\n";
         } else if (parts[0] == "perft") {
-            handle_perft(out, 0);
+            handle_perft(out, *util::parse_int(parts[1]));
         } else if (parts[0] == "print") {
             out << board_ << std::endl;
-            out << (u64)compute_bishop_attacks(0, 0) << '\n';
-            out << (u64)compute_bishop_attacks(0, 1 << 9) << '\n';
-            out << (u64)compute_rook_attacks(Square::E4, 1157442699691823120) << '\n';
-            MoveList moves;
-            pawn_moves(board_.state(), moves);
-            knight_moves(board_.state(), moves);
-            for (auto move : moves) {
-                out << move << '\n';
-            }
-
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
         } else if (parts[0] == "position") {

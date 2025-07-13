@@ -1,7 +1,9 @@
 #include "board_state.hpp"
 #include "move.hpp"
+#include "movegen.hpp"
 
 #include <cassert>
+#include <ostream>
 
 void BoardState::make_move(Move move) {
     if (move.is_castling()) {
@@ -27,6 +29,39 @@ void BoardState::make_move(Move move) {
     remove_piece(from_type, move.from(), side_to_move);
     place_piece(to_type, move.to(), side_to_move);
     side_to_move = ~side_to_move;
+}
+
+[[nodiscard]] u64 BoardState::perft(int depth) {
+    MoveList moves;
+    generate_moves(*this, moves);
+    if (depth == 0) {
+        return 1;
+    }
+    u64 result = 0;
+    for (auto move : moves) {
+        auto cp = *this;
+        cp.make_move(move);
+        result += cp.perft(depth - 1);
+    }
+    return result;
+}
+
+[[nodiscard]] u64 BoardState::perft_print(int depth, std::ostream &out) {
+    MoveList moves;
+    generate_moves(*this, moves);
+    if (depth == 0) {
+        return 1;
+    }
+    u64 result = 0;
+    for (auto move : moves) {
+        auto cp = *this;
+        cp.make_move(move);
+        const auto nodes = cp.perft(depth - 1);
+        out << move << ": " << nodes << '\n';
+
+        result += nodes;
+    }
+    return result;
 }
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {

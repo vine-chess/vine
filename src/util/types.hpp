@@ -132,6 +132,10 @@ class Square {
         return raw_ < 64;
     }
 
+    [[nodiscard]] constexpr u64 to_bb() const {
+        return 1ull << *this;
+    }
+
     [[nodiscard]] constexpr Rank rank() const {
         return Rank(raw_ >> 3);
     }

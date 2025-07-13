@@ -5,6 +5,7 @@
 #include "bitboard.hpp"
 #include "board_state.hpp"
 #include <array>
+#include <bit>
 #include <iostream>
 
 using MoveList = util::StaticVector<Move, 218>;
@@ -85,7 +86,6 @@ inline Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
     up &= ~Bitboard::get_ray_precomputed<UP, 0>((up & occ).lsb());
     right &= ~Bitboard::get_ray_precomputed<0, RIGHT>((right & occ).lsb());
     left &= ~Bitboard::get_ray_precomputed<0, LEFT>((left & occ).msb());
-    std::cout << (u64)down << ' ' << (u64)~Bitboard::get_ray_precomputed<DOWN, 0>((down & occ).msb()) << ' ' << (u64)occ<< '\n';
     down &= ~Bitboard::get_ray_precomputed<DOWN, 0>((down & occ).msb());
     return up | right | left | down;
 }
@@ -99,11 +99,11 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     const auto pawns = board.pawns(board.side_to_move);
 
     const Bitboard allowed_double_push_rank =
-        Bitboard::rank_mask(board.side_to_move == Color::WHITE ? Rank::THIRD : Rank::FOURTH);
+        Bitboard::rank_mask(board.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
     const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
-    const auto one_forward = pawns << 8 * forward & allowed_destinations & ~occ;
-    const auto two_forward = one_forward << 8 * forward & allowed_destinations & ~occ & allowed_double_push_rank;
+    const auto one_forward = pawns.rotl(8 * forward) & allowed_destinations & ~occ;
+    const auto two_forward = one_forward.rotl(8 * forward) & allowed_destinations & ~occ & allowed_double_push_rank;
     const auto left_captures = one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move);
     const auto right_captures = one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move);
 
@@ -139,24 +139,56 @@ inline void pawn_moves(const BoardState &board, MoveList &move_list,
     }
 }
 
+
 inline void knight_moves(const BoardState &board, MoveList &move_list,
                          Bitboard allowed_destionations = Bitboard::ALL_SET) {
-    for (auto knight : board.knights(board.side_to_move)) {
-        for (auto destination : KNIGHT_MOVES[knight] & allowed_destionations & ~board.occupancy(board.side_to_move)) {
-            move_list.emplace_back(knight, destination,
-                                   board.occupancy(~board.side_to_move).is_set(destination) ? MoveFlag::CAPTURE_BIT
-                                                                                            : MoveFlag::NORMAL);
+    const auto occ = board.occupancy();
+    const auto us = board.occupancy(board.side_to_move);
+    const auto them = board.occupancy(~board.side_to_move);
+    for (auto from : board.knights(board.side_to_move)) {
+        const auto legal = KNIGHT_MOVES[from] & allowed_destionations;
+        for (auto to : legal & ~us) {
+            move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }
     }
 }
 
 inline void slider_moves(const BoardState &board, MoveList &move_list,
                          Bitboard allowed_destionations = Bitboard::ALL_SET) {
-    for (auto bishop : board.bishops(board.side_to_move)) {
-        // move_list.emplace
+    const auto occ = board.occupancy();
+    const auto us = board.occupancy(board.side_to_move);
+    const auto them = board.occupancy(~board.side_to_move);
+    for (auto from : board.queens(board.side_to_move) | board.bishops(board.side_to_move)) {
+        const auto legal = compute_bishop_attacks(from, board.occupancy()) & allowed_destionations;
+        for (auto to : legal & ~us) {
+            move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+        }
+    }
+    for (auto from : board.queens(board.side_to_move) | board.rooks(board.side_to_move)) {
+        const auto legal = compute_rook_attacks(from, board.occupancy()) & allowed_destionations;
+        for (auto to : legal & ~us) {
+            move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+        }
     }
 }
 
-inline void king_moves(const BoardState &board, MoveList &move_list) {}
+inline void king_moves(const BoardState &board, MoveList &move_list,
+                       Bitboard allowed_destionations = Bitboard::ALL_SET) {
+    const auto occ = board.occupancy();
+    const auto us = board.occupancy(board.side_to_move);
+    const auto them = board.occupancy(~board.side_to_move);
+    const auto king = board.king(board.side_to_move).lsb();
+    const auto legal = KING_MOVES[king] & allowed_destionations;
+        for (auto to : legal & ~us) {
+            move_list.emplace_back(king, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+        }
+}
+
+inline void generate_moves(const BoardState &board, MoveList &move_list) {
+    pawn_moves(board, move_list);
+    knight_moves(board, move_list);
+    slider_moves(board, move_list);
+    king_moves(board, move_list);
+}
 
 #endif // MOVEGEN_HPP
