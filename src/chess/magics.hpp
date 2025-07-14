@@ -1,8 +1,8 @@
 #ifndef PRECOMPUTED_HPP
 #define PRECOMPUTED_HPP
 
-#include "../util/types.hpp"
 #include "../util/multi_array.hpp"
+#include "../util/types.hpp"
 #include "bitboard.hpp"
 
 struct MagicEntry {

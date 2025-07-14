@@ -67,7 +67,7 @@ BoardState &Board::state() {
 }
 
 const BoardState &Board::state() const {
-    return  state_history_.back();
+    return state_history_.back();
 }
 
 void Board::make_move(Move move) {

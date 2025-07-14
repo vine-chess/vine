@@ -29,8 +29,8 @@ void IntegerOption::set_value(std::string_view str_value) {
         value_ = new_value;
         callback_(*this);
     } else {
-        std::cerr << "IntegerOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to " << max_
-                  << ")" << std::endl;
+        std::cerr << "IntegerOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to "
+                  << max_ << ")" << std::endl;
     }
 }
 
