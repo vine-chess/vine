@@ -43,18 +43,19 @@ u64 perft_print(Board &board, i32 depth, std::ostream &out) {
     return nodes;
 }
 
-void run_perft_tests(const std::vector<PerftTestCase> &tests, std::ostream &out) {
-    for (const auto &[fen, depth, expected] : tests) {
-        Board board(fen);
-        u64 result = perft(board, depth);
+void run_perft_tests(std::ostream &out) {
+    for (const auto &batch : PERFT_BATCHES) {
+        Board board(batch.fen);
+        out << "FEN: " << batch.fen << "\n";
 
-        out << "FEN: " << fen << "\n";
-        out << "Depth: " << depth << " → Got: " << result << ", Expected: " << expected;
-
-        if (result == expected) {
-            out << " ✅\n";
-        } else {
-            out << " ❌\n";
+        for (const auto &[depth, expected] : batch.depths) {
+            u64 result = perft(board, depth);
+            out << "Depth: " << depth << " → Got: " << result << ", Expected: " << expected;
+            if (result == expected) {
+                out << " ✅" << std::endl;
+            } else {
+                out << " ❌" << std::endl;
+            }
         }
     }
 }
