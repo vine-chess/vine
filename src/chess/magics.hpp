@@ -150,7 +150,10 @@ constexpr std::array<MagicEntry, 64> BISHOP_MAGICS = {
 extern MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS;
 extern MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS;
 
-[[nodiscard]] u32 get_bishop_attack_idx(Square sq, Bitboard occ);
-[[nodiscard]] u32 get_rook_attack_idx(Square sq, Bitboard occ);
+[[nodiscard]] Bitboard compute_bishop_attacks(Square sq, Bitboard occ);
+[[nodiscard]] Bitboard compute_rook_attacks(Square sq, Bitboard occ);
+
+[[nodiscard]] Bitboard get_bishop_attacks(Square sq, Bitboard occ);
+[[nodiscard]] Bitboard get_rook_attacks(Square sq, Bitboard occ);
 
 #endif // PRECOMPUTED_HPP

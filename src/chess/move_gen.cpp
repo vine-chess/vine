@@ -1,7 +1,7 @@
 #include "move_gen.hpp"
 #include "bitboard.hpp"
 #include "magics.hpp"
-
+#include <iostream>
 constexpr static auto KNIGHT_MOVES = []() {
     std::array<Bitboard, 64> res;
     for (int i = 0; i < 64; ++i) {
@@ -99,14 +99,14 @@ void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed
     const auto them = board.occupancy(~board.side_to_move);
 
     for (auto from : board.queens(board.side_to_move) | board.bishops(board.side_to_move)) {
-        const auto legal = BISHOP_ATTACKS[from][get_bishop_attack_idx(from, occ)] & allowed_destinations;
+        const auto legal = get_bishop_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }
     }
 
     for (auto from : board.queens(board.side_to_move) | board.rooks(board.side_to_move)) {
-        const auto legal = ROOK_ATTACKS[from][get_rook_attack_idx(from, occ)] & allowed_destinations;
+        const auto legal = get_rook_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
         }

@@ -35,34 +35,6 @@ std::vector<Bitboard> create_blockers(Bitboard moves) {
     return blockers;
 }
 
-Bitboard compute_bishop_attacks(Square sq, Bitboard occ) {
-    auto up_left = Bitboard::get_ray_precomputed<UP, LEFT>(sq);
-    auto up_right = Bitboard::get_ray_precomputed<UP, RIGHT>(sq);
-    auto down_left = Bitboard::get_ray_precomputed<DOWN, LEFT>(sq);
-    auto down_right = Bitboard::get_ray_precomputed<DOWN, RIGHT>(sq);
-
-    up_left &= ~Bitboard::get_ray_precomputed<UP, LEFT>((up_left & occ).lsb());
-    up_right &= ~Bitboard::get_ray_precomputed<UP, RIGHT>((up_right & occ).lsb());
-    down_left &= ~Bitboard::get_ray_precomputed<DOWN, LEFT>((down_left & occ).msb());
-    down_right &= ~Bitboard::get_ray_precomputed<DOWN, RIGHT>((down_right & occ).msb());
-
-    return up_left | up_right | down_left | down_right;
-}
-
-Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
-    auto up = Bitboard::get_ray_precomputed<UP, 0>(sq);
-    auto right = Bitboard::get_ray_precomputed<0, RIGHT>(sq);
-    auto left = Bitboard::get_ray_precomputed<0, LEFT>(sq);
-    auto down = Bitboard::get_ray_precomputed<DOWN, 0>(sq);
-
-    up &= ~Bitboard::get_ray_precomputed<UP, 0>((up & occ).lsb());
-    right &= ~Bitboard::get_ray_precomputed<0, RIGHT>((right & occ).lsb());
-    left &= ~Bitboard::get_ray_precomputed<0, LEFT>((left & occ).msb());
-    down &= ~Bitboard::get_ray_precomputed<DOWN, 0>((down & occ).msb());
-
-    return up | right | left | down;
-}
-
 u32 get_bishop_attack_idx(Square sq, Bitboard occ) {
 #ifdef USE_PEXT
     return _pext_u64(static_cast<u64>(occupied), BISHOP_MAGICS[square].mask);
@@ -102,6 +74,46 @@ AttacksTable generate_attacks_table(const std::array<MagicEntry, 64> &magics,
     return attacks;
 }
 
+Bitboard compute_bishop_attacks(Square sq, Bitboard occ) {
+    const Bitboard s = sq.to_bb();
+    const Bitboard diag = static_cast<u64>(BISHOP_RAYS[sq] & Bitboard::get_ray_precomputed<UP, LEFT>(sq) |
+                                           Bitboard::get_ray_precomputed<DOWN, RIGHT>(sq));
+    const Bitboard adiag = static_cast<u64>(BISHOP_RAYS[sq] & Bitboard::get_ray_precomputed<UP, RIGHT>(sq) |
+                                            Bitboard::get_ray_precomputed<DOWN, LEFT>(sq));
+    const Bitboard occ_diag = occ & diag;
+    const Bitboard occ_adiag = occ & adiag;
+
+    const Bitboard attacks_diag =
+        (occ_diag - 2 * static_cast<u64>(s)) ^
+        Bitboard(occ_diag.reverse_bits() - 2 * static_cast<u64>(s.reverse_bits())).reverse_bits();
+    const Bitboard attacks_adiag =
+        (occ_adiag - 2 * static_cast<u64>(s)) ^
+        Bitboard(occ_adiag.reverse_bits() - 2 * static_cast<u64>(s.reverse_bits())).reverse_bits();
+
+    return (attacks_diag & diag) | (attacks_adiag & adiag);
+}
+
+Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
+    const Bitboard s = sq.to_bb();
+    const Bitboard rank = static_cast<u64>(ROOK_RAYS[sq] & Bitboard::get_ray_precomputed<0, LEFT>(sq) |
+                                           Bitboard::get_ray_precomputed<0, RIGHT>(sq));
+    const Bitboard file = static_cast<u64>(ROOK_RAYS[sq] & Bitboard::get_ray_precomputed<UP, 0>(sq) |
+                                           Bitboard::get_ray_precomputed<DOWN, 0>(sq));
+
+    const Bitboard occ_rank = occ & rank;
+    const Bitboard occ_file = occ & file;
+
+    const Bitboard attacks_rank =
+        (occ_rank - 2 * static_cast<u64>(s)) ^
+        Bitboard(occ_rank.reverse_bits() - 2 * static_cast<u64>(s.reverse_bits())).reverse_bits();
+
+    const Bitboard attacks_file =
+        (occ_file - 2 * static_cast<u64>(s)) ^
+        Bitboard(occ_file.reverse_bits() - 2 * static_cast<u64>(s.reverse_bits())).reverse_bits();
+
+    return (attacks_rank & rank) | (attacks_file & file);
+}
+
 MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS = []() {
     return generate_attacks_table<decltype(BISHOP_ATTACKS), decltype(BISHOP_MAGICS)::value_type, 512>(
         BISHOP_MAGICS, compute_bishop_attacks, get_bishop_attack_idx);
@@ -111,3 +123,17 @@ MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS = []() {
     return generate_attacks_table<decltype(ROOK_ATTACKS), decltype(ROOK_MAGICS)::value_type, 4096>(
         ROOK_MAGICS, compute_rook_attacks, get_rook_attack_idx);
 }();
+
+[[nodiscard]] Bitboard get_bishop_attacks(Square sq, Bitboard occ) {
+#ifdef USE_HYPERBOLA_QUINTESSENCE
+    return compute_bishop_attacks(sq, occ);
+#endif
+    return BISHOP_ATTACKS[sq][get_bishop_attack_idx(sq, occ)];
+}
+
+[[nodiscard]] Bitboard get_rook_attacks(Square sq, Bitboard occ) {
+#ifdef USE_HYPERBOLA_QUINTESSENCE
+    return compute_rook_attacks(sq, occ);
+#endif
+    return ROOK_ATTACKS[sq][get_rook_attack_idx(sq, occ)];
+}

@@ -4,10 +4,10 @@ FILES = $(shell find src -name '*.cpp')
 
 OBJS = $(FILES:.cpp=.o)
 
-OPTIMIZE ?= -O3 -flto
+OPTIMIZE ?= -O3 -flto -fconstexpr-steps=100000000
 
 FLAGS = -std=c++20
-FLAGS += $(EXTRA_FLAGS) 
+FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 
 CC ?= gcc

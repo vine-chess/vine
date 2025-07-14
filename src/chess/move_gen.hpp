@@ -75,9 +75,6 @@ constexpr static auto RAY_BETWEEN = []() {
     return res;
 }();
 
-Bitboard compute_bishop_attacks(Square sq, Bitboard occ);
-Bitboard compute_rook_attacks(Square sq, Bitboard occ);
-
 void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations = Bitboard::ALL_SET);
 void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
 void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
