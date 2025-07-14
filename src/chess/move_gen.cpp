@@ -1,4 +1,5 @@
 #include "move_gen.hpp"
+#include "bitboard.hpp"
 #include "magics.hpp"
 
 constexpr static auto KNIGHT_MOVES = []() {

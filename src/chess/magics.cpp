@@ -1,6 +1,7 @@
 #include "magics.hpp"
 #include "move_gen.hpp"
 #include <vector>
+#include <functional>
 
 std::vector<Bitboard> create_blockers(Bitboard moves) {
     std::vector<u8> set_bits;

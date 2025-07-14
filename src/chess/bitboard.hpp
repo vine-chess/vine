@@ -15,7 +15,7 @@ class Bitboard {
     constexpr static u64 FIRST_RANK = 0xff;
 
     constexpr static Bitboard rank_mask(Rank which) {
-        return u64{FIRST_RANK} << 8 * which;
+        return FIRST_RANK << 8 * which;
     }
 
     constexpr static Bitboard file_mask(File which) {

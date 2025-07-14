@@ -11,6 +11,7 @@ constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RN
 }
 
 Board::Board(std::string_view fen) {
+    state_history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
     std::string position;
@@ -28,80 +29,81 @@ Board::Board(std::string_view fen) {
             continue;
         }
 
-        state_.place_piece(PieceType::from_char(ch), square, std::islower(ch) ? Color::BLACK : Color::WHITE);
+        state().place_piece(PieceType::from_char(ch), square, std::islower(ch) ? Color::BLACK : Color::WHITE);
         square++;
     }
 
     char side_to_move;
     stream >> side_to_move;
-    state_.side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
+    state().side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
 
     std::string castle_rights;
     stream >> castle_rights;
     for (const char &ch : castle_rights) {
         if (ch == 'K')
-            state_.castle_rights.set_kingside_castle(Color::WHITE, true);
+            state().castle_rights.set_kingside_castle(Color::WHITE, true);
         else if (ch == 'Q')
-            state_.castle_rights.set_queenside_castle(Color::WHITE, true);
+            state().castle_rights.set_queenside_castle(Color::WHITE, true);
         else if (ch == 'k')
-            state_.castle_rights.set_kingside_castle(Color::BLACK, true);
+            state().castle_rights.set_kingside_castle(Color::BLACK, true);
         else if (ch == 'q')
-            state_.castle_rights.set_queenside_castle(Color::BLACK, true);
+            state().castle_rights.set_queenside_castle(Color::BLACK, true);
     }
 
     std::string en_passant;
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state_.set_en_passant_sq(Square::from_string(en_passant));
+        state().set_en_passant_sq(Square::from_string(en_passant));
     }
 
-    stream >> state_.fifty_moves_clock;
+    stream >> state().fifty_moves_clock;
 }
 
 Board::Board() : Board(STARTPOS_FEN) {}
 
 BoardState &Board::state() {
-    return state_;
+    return state_history_.back();
 }
 
 const BoardState &Board::state() const {
-    return state_;
+    return  state_history_.back();
 }
 
 void Board::make_move(Move move) {
-    state_history_.push_back(state_);
+    state_history_.push_back(state());
 
     if (move.is_castling()) {
-        state_.remove_piece(PieceType::KING, move.from(), state_.side_to_move);
-        state_.remove_piece(PieceType::ROOK, move.to(), state_.side_to_move);
-        state_.place_piece(PieceType::KING, move.king_castling_to(), state_.side_to_move);
-        state_.place_piece(PieceType::ROOK, move.rook_castling_to(), state_.side_to_move);
+        state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
+        state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
+        state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
+        state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
         return;
     }
 
-    const auto from_type = state_.get_piece_type(move.from());
-    auto to_type = state_.get_piece_type(move.from());
+    const auto from_type = state().get_piece_type(move.from());
+    auto to_type = state().get_piece_type(move.from());
 
     if (move.is_capture()) {
         Square target_square = move.to();
         if (move.is_ep()) {
             target_square = Square{move.from().rank(), move.to().file()};
         }
-        state_.remove_piece(state_.get_piece_type(target_square), target_square, ~state_.side_to_move);
+        state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
     }
 
     if (move.is_promo()) {
         to_type = move.promo_type();
     }
 
-    state_.remove_piece(from_type, move.from(), state_.side_to_move);
-    state_.place_piece(to_type, move.to(), state_.side_to_move);
-    state_.side_to_move = ~state_.side_to_move;
+    state().remove_piece(from_type, move.from(), state().side_to_move);
+    state().place_piece(to_type, move.to(), state().side_to_move);
+    state().compute_masks();
+    state().side_to_move = ~state().side_to_move;
 }
 
 void Board::undo_move() {
-    state_ = state_history_.pop_back();
+    state_history_.pop_back();
 }
 
 std::ostream &operator<<(std::ostream &out, const Board &board) {
@@ -109,7 +111,7 @@ std::ostream &operator<<(std::ostream &out, const Board &board) {
         out << rank + 1 << ' ';
         for (int file = 0; file < 8; file++) {
             const auto square = Square(Rank(rank), File(file));
-            out << get_piece_ch(board.state_, square);
+            out << get_piece_ch(board.state(), square);
             if (file < 7)
                 out << ' ';
         }

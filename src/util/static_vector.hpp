@@ -6,6 +6,7 @@
 #include <array>
 #include <cassert>
 #include <memory>
+#include <type_traits>
 
 namespace util {
 
@@ -44,6 +45,12 @@ class StaticVector {
         T *res = std::construct_at(data() + size_, std::forward<Args>(args)...);
         size_++;
         return res;
+    }
+
+    void push_back_conditional(const T &value, bool condition) {
+        static_assert(std::is_trivial_v<T>, "T has to be a completely trivial type for this");
+        data()[size_] = value;
+        size_ += condition;
     }
 
     T pop_back() {
