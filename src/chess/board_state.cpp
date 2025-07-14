@@ -5,65 +5,6 @@
 #include <cassert>
 #include <ostream>
 
-void BoardState::make_move(Move move) {
-    if (move.is_castling()) {
-        remove_piece(PieceType::KING, move.from(), side_to_move);
-        remove_piece(PieceType::ROOK, move.to(), side_to_move);
-        place_piece(PieceType::KING, move.king_castling_to(), side_to_move);
-        place_piece(PieceType::ROOK, move.rook_castling_to(), side_to_move);
-        return;
-    }
-
-    PieceType from_type = piece_type_on_sq[move.from()];
-    PieceType to_type = piece_type_on_sq[move.from()];
-    if (move.is_capture()) {
-        Square target_square = move.to();
-        if (move.is_ep()) {
-            target_square = Square{move.from().rank(), move.to().file()};
-        }
-        remove_piece(piece_type_on_sq[target_square], target_square, ~side_to_move);
-    }
-    if (move.is_promo()) {
-        to_type = move.promo_type();
-    }
-    remove_piece(from_type, move.from(), side_to_move);
-    place_piece(to_type, move.to(), side_to_move);
-    side_to_move = ~side_to_move;
-}
-
-[[nodiscard]] u64 BoardState::perft(int depth) {
-    MoveList moves;
-    generate_moves(*this, moves);
-    if (depth == 0) {
-        return 1;
-    }
-    u64 result = 0;
-    for (auto move : moves) {
-        auto cp = *this;
-        cp.make_move(move);
-        result += cp.perft(depth - 1);
-    }
-    return result;
-}
-
-[[nodiscard]] u64 BoardState::perft_print(int depth, std::ostream &out) {
-    MoveList moves;
-    generate_moves(*this, moves);
-    if (depth == 0) {
-        return 1;
-    }
-    u64 result = 0;
-    for (auto move : moves) {
-        auto cp = *this;
-        cp.make_move(move);
-        const auto nodes = cp.perft(depth - 1);
-        out << move << ": " << nodes << '\n';
-
-        result += nodes;
-    }
-    return result;
-}
-
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
     piece_type_on_sq[sq] = piece_type;
     piece_bbs[piece_type - 1].set(sq);

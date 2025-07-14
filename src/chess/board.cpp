@@ -65,6 +65,45 @@ BoardState &Board::state() {
     return state_;
 }
 
+const BoardState &Board::state() const {
+    return state_;
+}
+
+void Board::make_move(Move move) {
+    state_history_.push_back(state_);
+
+    if (move.is_castling()) {
+        state_.remove_piece(PieceType::KING, move.from(), state_.side_to_move);
+        state_.remove_piece(PieceType::ROOK, move.to(), state_.side_to_move);
+        state_.place_piece(PieceType::KING, move.king_castling_to(), state_.side_to_move);
+        state_.place_piece(PieceType::ROOK, move.rook_castling_to(), state_.side_to_move);
+        return;
+    }
+
+    const auto from_type = state_.get_piece_type(move.from());
+    auto to_type = state_.get_piece_type(move.from());
+
+    if (move.is_capture()) {
+        Square target_square = move.to();
+        if (move.is_ep()) {
+            target_square = Square{move.from().rank(), move.to().file()};
+        }
+        state_.remove_piece(state_.get_piece_type(target_square), target_square, ~state_.side_to_move);
+    }
+
+    if (move.is_promo()) {
+        to_type = move.promo_type();
+    }
+
+    state_.remove_piece(from_type, move.from(), state_.side_to_move);
+    state_.place_piece(to_type, move.to(), state_.side_to_move);
+    state_.side_to_move = ~state_.side_to_move;
+}
+
+void Board::undo_move() {
+    state_ = state_history_.pop_back();
+}
+
 std::ostream &operator<<(std::ostream &out, const Board &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';

@@ -10,6 +10,10 @@ class Board {
     Board();
 
     [[nodiscard]] BoardState &state();
+    [[nodiscard]] const BoardState &state() const;
+
+    void make_move(Move move);
+    void undo_move();
 
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
