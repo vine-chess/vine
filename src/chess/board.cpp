@@ -2,7 +2,7 @@
 #include <iostream>
 #include <sstream>
 
-constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKQBNR w KQkq - 0 1";
+constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
