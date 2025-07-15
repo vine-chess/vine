@@ -58,6 +58,7 @@ Board::Board(std::string_view fen) {
     }
 
     stream >> state().fifty_moves_clock;
+    state().compute_masks();
 }
 
 Board::Board() : Board(STARTPOS_FEN) {}
@@ -98,8 +99,8 @@ void Board::make_move(Move move) {
 
     state().remove_piece(from_type, move.from(), state().side_to_move);
     state().place_piece(to_type, move.to(), state().side_to_move);
-    state().compute_masks();
     state().side_to_move = ~state().side_to_move;
+    state().compute_masks();
 }
 
 void Board::undo_move() {

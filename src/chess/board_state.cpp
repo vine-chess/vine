@@ -101,11 +101,11 @@ void BoardState::compute_masks() {
     for (auto potential_pinner : (BISHOP_RAYS[our_king] & diag)) {
         const auto blockers = occ & RAY_BETWEEN[our_king][potential_pinner];
         checkers |= blockers.pop_count() == 0 ? potential_pinner.to_bb() : 0;
-        diag_pins |= blockers.pop_count() == 1 ? potential_pinner.to_bb() : 0;
+        diag_pins |= blockers.pop_count() == 1 ? blockers : 0;
     }
     for (auto potential_pinner : (ROOK_RAYS[our_king] & ortho)) {
         const auto blockers = occ & RAY_BETWEEN[our_king][potential_pinner];
         checkers |= blockers.pop_count() == 0 ? potential_pinner.to_bb() : 0;
-        ortho_pins |= blockers.pop_count() == 1 ? potential_pinner.to_bb() : 0;
+        ortho_pins |= blockers.pop_count() == 1 ? blockers : 0;
     }
 }
