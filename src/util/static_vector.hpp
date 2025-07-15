@@ -48,7 +48,7 @@ class StaticVector {
     }
 
     void push_back_conditional(const T &value, bool condition) {
-        static_assert(std::is_trivial_v<T>, "T has to be a completely trivial type for this");
+        static_assert(std::is_trivially_destructible_v<T>, "T has to be a completely trivial type for this");
         data()[size_] = value;
         size_ += condition;
     }

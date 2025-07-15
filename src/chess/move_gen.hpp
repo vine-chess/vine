@@ -13,6 +13,41 @@ constexpr static auto DOWN = Bitboard::DOWN;
 constexpr static auto LEFT = Bitboard::LEFT;
 constexpr static auto RIGHT = Bitboard::RIGHT;
 
+constexpr static auto KNIGHT_MOVES = []() {
+    std::array<Bitboard, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        const auto sq = Bitboard(Square(i));
+        const auto forward_back = sq.shift<UP * 2, 0>() | sq.shift<DOWN * 2, 0>();
+        const auto left_right = sq.shift<0, LEFT * 2>() | sq.shift<0, RIGHT * 2>();
+        res[i] = forward_back.shift<0, LEFT>() | forward_back.shift<0, RIGHT>() | left_right.shift<UP, 0>() |
+                 left_right.shift<DOWN, 0>();
+    }
+    return res;
+}();
+
+constexpr static auto KING_MOVES = []() {
+    std::array<Bitboard, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        res[i] = Bitboard(Square(i));
+        res[i] |= res[i].shift<UP, 0>();
+        res[i] |= res[i].shift<DOWN, 0>();
+        res[i] |= res[i].shift<0, RIGHT>();
+        res[i] |= res[i].shift<0, LEFT>();
+        res[i] ^= Bitboard(Square(i));
+    }
+    return res;
+}();
+
+/// [SQ][COLOR]
+constexpr static auto PAWN_ATTACKS = []() {
+    std::array<std::array<Bitboard, 2>, 64> res;
+    for (int i = 0; i < 64; ++i) {
+        res[i][0] = Bitboard(Square(i)).shift<UP, LEFT>() | Bitboard(Square(i)).shift<UP, RIGHT>();
+        res[i][1] = Bitboard(Square(i)).shift<DOWN, LEFT>() | Bitboard(Square(i)).shift<DOWN, RIGHT>();
+    }
+    return res;
+}();
+
 constexpr static auto BISHOP_RAYS = []() {
     std::array<Bitboard, 65> res;
     for (int i = 0; i < 65; ++i) {

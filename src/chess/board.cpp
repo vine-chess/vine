@@ -1,4 +1,5 @@
 #include "board.hpp"
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 
@@ -73,7 +74,7 @@ const BoardState &Board::state() const {
 
 void Board::make_move(Move move) {
     state_history_.push_back(state());
-
+    state().fifty_moves_clock += 1;
     if (move.is_castling()) {
         state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
@@ -86,6 +87,7 @@ void Board::make_move(Move move) {
     auto to_type = state().get_piece_type(move.from());
 
     if (move.is_capture()) {
+        state().fifty_moves_clock = 0;
         Square target_square = move.to();
         if (move.is_ep()) {
             target_square = Square{move.from().rank(), move.to().file()};
@@ -99,6 +101,12 @@ void Board::make_move(Move move) {
 
     state().remove_piece(from_type, move.from(), state().side_to_move);
     state().place_piece(to_type, move.to(), state().side_to_move);
+    if (from_type == PieceType::PAWN) {
+        state().fifty_moves_clock = 0;
+        if (std::abs(move.from() - move.to()) == 16) {
+            state().en_passant_sq = (move.from() + move.to()) / 2;
+        }
+    }
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
 }
@@ -107,12 +115,12 @@ void Board::undo_move() {
     state_history_.pop_back();
 }
 
-std::ostream &operator<<(std::ostream &out, const Board &board) {
+std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';
         for (int file = 0; file < 8; file++) {
             const auto square = Square(Rank(rank), File(file));
-            out << get_piece_ch(board.state(), square);
+            out << get_piece_ch(board, square);
             if (file < 7)
                 out << ' ';
         }
@@ -124,4 +132,7 @@ std::ostream &operator<<(std::ostream &out, const Board &board) {
         out << static_cast<char>('a' + file) << ' ';
 
     return out;
+}
+std::ostream &operator<<(std::ostream &out, const Board &board) {
+    return out << board.state();
 }

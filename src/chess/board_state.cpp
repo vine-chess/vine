@@ -3,6 +3,7 @@
 #include "move_gen.hpp"
 
 #include <cassert>
+#include <filesystem>
 #include <ostream>
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
@@ -97,15 +98,22 @@ void BoardState::compute_masks() {
     const auto ortho = rooks(~side_to_move) | queens(~side_to_move);
     const auto diag = bishops(~side_to_move) | queens(~side_to_move);
 
+    checkers = diag_pins = ortho_pins = 0;
     const auto occ = occupancy();
     for (auto potential_pinner : (BISHOP_RAYS[our_king] & diag)) {
-        const auto blockers = occ & RAY_BETWEEN[our_king][potential_pinner];
+        const auto ray = RAY_BETWEEN[our_king][potential_pinner];
+        const auto blockers = occ & ray;
         checkers |= blockers.pop_count() == 0 ? potential_pinner.to_bb() : 0;
-        diag_pins |= blockers.pop_count() == 1 ? blockers : 0;
+        diag_pins |= blockers.pop_count() == 1 ? ray | potential_pinner.to_bb() : 0;
     }
     for (auto potential_pinner : (ROOK_RAYS[our_king] & ortho)) {
-        const auto blockers = occ & RAY_BETWEEN[our_king][potential_pinner];
+        const auto ray = RAY_BETWEEN[our_king][potential_pinner];
+        const auto blockers = occ & ray;
+
         checkers |= blockers.pop_count() == 0 ? potential_pinner.to_bb() : 0;
-        ortho_pins |= blockers.pop_count() == 1 ? blockers : 0;
+        ortho_pins |= blockers.pop_count() == 1 ? ray | potential_pinner.to_bb() : 0;
     }
+    checkers |= knights(~side_to_move) & KNIGHT_MOVES[our_king];
+    checkers |= king(~side_to_move) & KING_MOVES[our_king];
+    checkers |= pawns(~side_to_move) & PAWN_ATTACKS[our_king][side_to_move];
 }

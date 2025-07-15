@@ -33,8 +33,55 @@ u64 perft_print(Board &board, i32 depth, std::ostream &out) {
     u64 nodes = 0;
     for (const auto move : moves) {
         board.make_move(move);
+        // if (move.to() == Square::D3) {
+        //     const auto parsed = Board("8/8/6k1/8/8/3b4/2B5/K7 w - - 1 2");
+        //     if (parsed.state().pawns() != board.state().pawns()) {
+        //         out << "pawns mismatch\n";
+        //     }
+        //     if (parsed.state().knights() != board.state().knights()) {
+        //         out << "knights mismatch\n";
+        //     }
+        //     if (parsed.state().bishops() != board.state().bishops()) {
+        //         out << "bishops mismatch\n";
+        //     }
+        //     if (parsed.state().rooks() != board.state().rooks()) {
+        //         out << "rooks mismatch\n";
+        //     }
+        //     if (parsed.state().queens() != board.state().queens()) {
+        //         out << "queens mismatch\n";
+        //     }
+        //     if (parsed.state().kings() != board.state().kings()) {
+        //         out << "kings mismatch\n";
+        //     }
+        //     if (parsed.state().checkers != board.state().checkers) {
+        //         out << "checkers mismatch\n";
+        //     }
+        //     if (parsed.state().castle_rights != board.state().castle_rights) {
+        //         out << "castle_rights mismatch\n";
+        //     }
+        //     if (parsed.state().side_to_move != board.state().side_to_move) {
+        //         out << "side_to_move mismatch\n";
+        //     }
+        //     if (parsed.state().en_passant_sq != board.state().en_passant_sq) {
+        //         out << "en_passant_sq mismatch\n";
+        //     }
+        //     if (parsed.state().fifty_moves_clock != board.state().fifty_moves_clock) {
+        //         out << parsed.state().fifty_moves_clock << ' ' << board.state().fifty_moves_clock << '\n';
+        //         out << "fifty_moves_clock mismatch\n";
+        //     }
+        //     if (parsed.state().hash_key != board.state().hash_key) {
+        //         out << "hash_key mismatch\n";
+        //     }
+        //     if (parsed.state().ortho_pins != board.state().ortho_pins) {
+        //         out << "ortho_pins mismatch\n";
+        //     }
+        //     if (parsed.state().diag_pins != board.state().diag_pins) {
+        //         out << "diag_pins mismatch\n";
+        //     }
+        // }
         const auto child_nodes = perft(board, depth - 1);
         board.undo_move();
+
         out << move << ": " << child_nodes << '\n';
 
         nodes += child_nodes;

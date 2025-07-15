@@ -3,30 +3,11 @@
 #include "magics.hpp"
 #include <ios>
 #include <iostream>
-constexpr static auto KNIGHT_MOVES = []() {
-    std::array<Bitboard, 64> res;
-    for (int i = 0; i < 64; ++i) {
-        const auto sq = Bitboard(Square(i));
-        const auto forward_back = sq.shift<UP * 2, 0>() | sq.shift<DOWN * 2, 0>();
-        const auto left_right = sq.shift<0, LEFT * 2>() | sq.shift<0, RIGHT * 2>();
-        res[i] = forward_back.shift<0, LEFT>() | forward_back.shift<0, RIGHT>() | left_right.shift<UP, 0>() |
-                 left_right.shift<DOWN, 0>();
-    }
-    return res;
-}();
 
-constexpr static auto KING_MOVES = []() {
-    std::array<Bitboard, 64> res;
-    for (int i = 0; i < 64; ++i) {
-        res[i] = Bitboard(Square(i));
-        res[i] |= res[i].shift<UP, 0>();
-        res[i] |= res[i].shift<DOWN, 0>();
-        res[i] |= res[i].shift<0, RIGHT>();
-        res[i] |= res[i].shift<0, LEFT>();
-        res[i] ^= Bitboard(Square(i));
-    }
-    return res;
-}();
+Bitboard compute_pawn_attacks(Bitboard pawns, Color side_to_move) {
+    Bitboard forward = pawns.rotl(side_to_move == Color::WHITE ? 8 : -8);
+    return forward.shift<0, LEFT>() | forward.shift<0, RIGHT>();
+}
 
 void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
     const auto forward = board.side_to_move == Color::WHITE ? 1 : -1;
@@ -43,9 +24,9 @@ void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     const auto one_forward = pawns.rotl(8 * forward);
     const auto pushable = one_forward & ~(board.diag_pins | horizontal_pins).rotl(8 * forward) & ~occ;
     const auto two_forward = pushable.rotl(8 * forward) & ~occ & allowed_double_push_rank;
-    const auto left_captures = one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move) & ~board.ortho_pins;
+    const auto left_captures = one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, RIGHT>());
     const auto right_captures =
-        one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move) & ~board.ortho_pins;
+        one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, LEFT>());
 
     for (auto sq : pushable & ~promo_ranks & allowed_destinations) {
         move_list.emplace_back(sq - forward * 8, sq);
@@ -90,7 +71,7 @@ void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
 
-    for (auto from : board.knights(board.side_to_move)) {
+    for (auto from : board.knights(board.side_to_move) & ~(board.ortho_pins | board.diag_pins)) {
         const auto legal = KNIGHT_MOVES[from] & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
@@ -103,17 +84,23 @@ void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed
     const auto us = board.occupancy(board.side_to_move);
     const auto them = board.occupancy(~board.side_to_move);
 
-    for (auto from : board.queens(board.side_to_move) | board.bishops(board.side_to_move)) {
+    for (auto from : (board.queens(board.side_to_move) | board.bishops(board.side_to_move)) & ~board.ortho_pins) {
         const auto legal = get_bishop_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
-            move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+            const auto from_pinned = board.diag_pins.is_set(from);
+            const auto to_pinned = board.diag_pins.is_set(to);
+            move_list.push_back_conditional(Move(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL),
+                                            !from_pinned || to_pinned);
         }
     }
 
-    for (auto from : board.queens(board.side_to_move) | board.rooks(board.side_to_move)) {
+    for (auto from : (board.queens(board.side_to_move) | board.rooks(board.side_to_move)) & ~board.diag_pins) {
         const auto legal = get_rook_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
-            move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+            const auto from_pinned = board.ortho_pins.is_set(from);
+            const auto to_pinned = board.ortho_pins.is_set(to);
+            move_list.push_back_conditional(Move(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL),
+                                            !from_pinned || to_pinned);
         }
     }
 }
@@ -144,7 +131,7 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     const auto king_sq = king.lsb();
 
     for (auto knight : KING_SUPERPIECE[king_sq][0] & board.knights(~board.side_to_move)) {
-        allowed_destinations &= ~KNIGHT_MOVES[knight];
+        allowed_destinations &= ~KNIGHT_MOVES[knight] | knight.to_bb();
     }
     // std::cout << (u64)KING_SUPERPIECE[king_sq][1] << '\n';
     for (auto bishop : KING_SUPERPIECE[king_sq][1] & them & (board.bishops() | board.queens())) {
@@ -154,6 +141,9 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     for (auto rook : KING_SUPERPIECE[king_sq][2] & them & (board.rooks() | board.queens())) {
         allowed_destinations &= ~get_rook_attacks(rook, occ ^ king);
     }
+    allowed_destinations &= ~KING_MOVES[board.king(~board.side_to_move).lsb()];
+    allowed_destinations &= ~compute_pawn_attacks(board.pawns(~board.side_to_move), ~board.side_to_move);
+
     const auto legal = KING_MOVES[king_sq] & allowed_destinations;
 
     for (auto to : legal & ~us) {
@@ -171,9 +161,10 @@ void generate_moves(const BoardState &board, MoveList &move_list) {
         const auto checker = board.checkers;
         const auto king = board.king(board.side_to_move);
         allowed = RAY_BETWEEN[checker.lsb()][king.lsb()] | checker;
+        // std::cout << (u64)allowed << '\n';
     }
     pawn_moves(board, move_list, allowed);
     knight_moves(board, move_list, allowed);
     slider_moves(board, move_list, allowed);
-    king_moves(board, move_list, allowed);
+    king_moves(board, move_list);
 }
