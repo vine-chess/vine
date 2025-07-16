@@ -157,16 +157,19 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
         constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_SQUARES = {0xeull, 0xe00000000000000ull};
 
         const auto kingside_rook_sq = board.castle_rights.kingside_rook_sq(board.side_to_move);
+        const auto kingside_castle_path = KINGSIDE_OCCUPANCY_SQUARES[board.side_to_move];
         if (board.castle_rights.can_kingside_castle(board.side_to_move) &&
             (KINGSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
-            allowed_destinations.is_set(kingside_rook_sq)) {
+            (allowed_destinations & kingside_castle_path) == kingside_castle_path) {
             move_list.emplace_back(king_sq, kingside_rook_sq, MoveFlag::CASTLE);
         }
 
         const auto queenside_rook_sq = board.castle_rights.queenside_rook_sq(board.side_to_move);
+        const auto queenside_castle_path = QUEENSIDE_OCCUPANCY_SQUARES[board.side_to_move];
+        std::cout << (u64)allowed_destinations << std::endl;
         if (board.castle_rights.can_queenside_castle(board.side_to_move) &&
             (QUEENSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
-            allowed_destinations.is_set(queenside_rook_sq)) {
+            (allowed_destinations & queenside_castle_path) == queenside_castle_path) {
             move_list.emplace_back(king_sq, queenside_rook_sq, MoveFlag::CASTLE);
         }
     }

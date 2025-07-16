@@ -50,10 +50,10 @@ Board::Board(std::string_view fen) {
             state().castle_rights.set_queenside_rook_sq(Color::WHITE, Square::A1);
         } else if (ch == 'k') {
             state().castle_rights.set_kingside_castle(Color::BLACK, true);
-            state().castle_rights.set_kingside_rook_sq(Color::BLACK, Square::A8);
+            state().castle_rights.set_kingside_rook_sq(Color::BLACK, Square::H8);
         } else if (ch == 'q') {
             state().castle_rights.set_queenside_castle(Color::BLACK, true);
-            state().castle_rights.set_queenside_rook_sq(Color::BLACK, Square::H8);
+            state().castle_rights.set_queenside_rook_sq(Color::BLACK, Square::A8);
         }
     }
 
