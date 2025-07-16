@@ -24,7 +24,8 @@ void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     const auto one_forward = pawns.rotl(8 * forward);
     const auto pushable = one_forward & ~(board.diag_pins | horizontal_pins).rotl(8 * forward) & ~occ;
     const auto two_forward = pushable.rotl(8 * forward) & ~occ & allowed_double_push_rank;
-    const auto left_captures = one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, RIGHT>());
+    const auto left_captures =
+        one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, RIGHT>());
     const auto right_captures =
         one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, LEFT>());
 
@@ -148,6 +149,26 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
 
     for (auto to : legal & ~us) {
         move_list.emplace_back(king_sq, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
+    }
+
+    if (board.checkers == 0) {
+        // TODO: fix for FRC
+        constexpr std::array<Bitboard, 2> KINGSIDE_OCCUPANCY_SQUARES = {0x60ull, 0x6000000000000000ull};
+        constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_SQUARES = {0xeull, 0xe00000000000000ull};
+
+        const auto kingside_rook_sq = board.castle_rights.kingside_rook_sq(board.side_to_move);
+        if (board.castle_rights.can_kingside_castle(board.side_to_move) &&
+            (KINGSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
+            allowed_destinations.is_set(kingside_rook_sq)) {
+            move_list.emplace_back(king_sq, kingside_rook_sq, MoveFlag::CASTLE);
+        }
+
+        const auto queenside_rook_sq = board.castle_rights.queenside_rook_sq(board.side_to_move);
+        if (board.castle_rights.can_queenside_castle(board.side_to_move) &&
+            (QUEENSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
+            allowed_destinations.is_set(queenside_rook_sq)) {
+            move_list.emplace_back(king_sq, queenside_rook_sq, MoveFlag::CASTLE);
+        }
     }
 }
 

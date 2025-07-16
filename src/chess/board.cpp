@@ -38,17 +38,23 @@ Board::Board(std::string_view fen) {
     stream >> side_to_move;
     state().side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
 
+    // TODO: fix for FRC
     std::string castle_rights;
     stream >> castle_rights;
     for (const char &ch : castle_rights) {
-        if (ch == 'K')
+        if (ch == 'K') {
             state().castle_rights.set_kingside_castle(Color::WHITE, true);
-        else if (ch == 'Q')
+            state().castle_rights.set_kingside_rook_sq(Color::WHITE, Square::H1);
+        } else if (ch == 'Q') {
             state().castle_rights.set_queenside_castle(Color::WHITE, true);
-        else if (ch == 'k')
+            state().castle_rights.set_queenside_rook_sq(Color::WHITE, Square::A1);
+        } else if (ch == 'k') {
             state().castle_rights.set_kingside_castle(Color::BLACK, true);
-        else if (ch == 'q')
+            state().castle_rights.set_kingside_rook_sq(Color::BLACK, Square::A8);
+        } else if (ch == 'q') {
             state().castle_rights.set_queenside_castle(Color::BLACK, true);
+            state().castle_rights.set_queenside_rook_sq(Color::BLACK, Square::H8);
+        }
     }
 
     std::string en_passant;
@@ -92,6 +98,11 @@ void Board::make_move(Move move) {
         if (move.is_ep()) {
             target_square = Square{move.from().rank(), move.to().file()};
         }
+        if (move.to() == state().castle_rights.kingside_rook_sq(~state().side_to_move)) {
+            state().castle_rights.set_kingside_castle(~state().side_to_move, false);
+        } else if (move.to() == state().castle_rights.queenside_rook_sq(~state().side_to_move)) {
+            state().castle_rights.set_queenside_rook_sq(~state().side_to_move, false);
+        }
         state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
     }
 
@@ -107,6 +118,13 @@ void Board::make_move(Move move) {
             state().en_passant_sq = (move.from() + move.to()) / 2;
         }
     }
+
+    if (move.from() == state().castle_rights.kingside_rook_sq(state().side_to_move)) {
+        state().castle_rights.set_kingside_castle(state().side_to_move, false);
+    } else if (move.from() == state().castle_rights.queenside_rook_sq(state().side_to_move)) {
+        state().castle_rights.set_queenside_castle(state().side_to_move, false);
+    }
+
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
 }
