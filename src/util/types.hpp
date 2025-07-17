@@ -86,6 +86,7 @@ class File {
     [[nodiscard]] constexpr static File from_char(char ch) {
         return File(ch - 'a');
     }
+
     [[nodiscard]] constexpr char to_char() const {
         return raw_ + 'a';
     }

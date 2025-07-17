@@ -1,12 +1,11 @@
 #include "board.hpp"
 
+#include "../uci/uci.hpp"
 #include "move_gen.hpp"
 
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
-
-constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
@@ -41,22 +40,32 @@ Board::Board(std::string_view fen) {
     stream >> side_to_move;
     state().side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
 
-    // TODO: fix for FRC
-    std::string castle_rights;
-    stream >> castle_rights;
-    for (const char &ch : castle_rights) {
-        if (ch == 'K') {
-            state().castle_rights.set_kingside_castle(Color::WHITE, true);
-            state().castle_rights.set_kingside_rook_sq(Color::WHITE, Square::H1);
-        } else if (ch == 'Q') {
-            state().castle_rights.set_queenside_castle(Color::WHITE, true);
-            state().castle_rights.set_queenside_rook_sq(Color::WHITE, Square::A1);
-        } else if (ch == 'k') {
-            state().castle_rights.set_kingside_castle(Color::BLACK, true);
-            state().castle_rights.set_kingside_rook_sq(Color::BLACK, Square::H8);
-        } else if (ch == 'q') {
-            state().castle_rights.set_queenside_castle(Color::BLACK, true);
-            state().castle_rights.set_queenside_rook_sq(Color::BLACK, Square::A8);
+    std::string castle_data;
+    stream >> castle_data;
+
+    if (castle_data != "-") {
+        if (std::get<bool>(uci::options.get("UCI_Chess960")->value_as_variant())) {
+            for (const char ch : castle_data) {
+                const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
+                const auto rook_file = File::from_char(ch);
+                if (rook_file > state().king(color).lsb().file()) {
+                    state().castle_rights.set_kingside_rook_file(color, rook_file);
+                } else {
+                    state().castle_rights.set_queenside_rook_file(color, rook_file);
+                }
+            }
+        } else {
+            for (const char ch : castle_data) {
+                if (ch == 'K') {
+                    state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
+                } else if (ch == 'Q') {
+                    state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
+                } else if (ch == 'k') {
+                    state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
+                } else if (ch == 'q') {
+                    state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
+                }
+            }
         }
     }
 
@@ -70,8 +79,6 @@ Board::Board(std::string_view fen) {
     stream >> state().fifty_moves_clock;
     state().compute_masks();
 }
-
-Board::Board() : Board(STARTPOS_FEN) {}
 
 BoardState &Board::state() {
     return state_history_.back();
@@ -96,7 +103,9 @@ Move Board::create_move(std::string_view uci_move) const {
 
 void Board::make_move(Move move) {
     state_history_.push_back(state());
+
     state().fifty_moves_clock += 1;
+
     if (move.is_castling()) {
         state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
@@ -112,15 +121,18 @@ void Board::make_move(Move move) {
 
     if (move.is_capture()) {
         state().fifty_moves_clock = 0;
+
         Square target_square = move.to();
         if (move.is_ep()) {
             target_square = Square{move.from().rank(), move.to().file()};
         }
+
         if (move.to() == state().castle_rights.kingside_rook_sq(~state().side_to_move)) {
-            state().castle_rights.set_kingside_castle(~state().side_to_move, false);
+            state().castle_rights.set_kingside_rook_file(~state().side_to_move, File::NO_FILE);
         } else if (move.to() == state().castle_rights.queenside_rook_sq(~state().side_to_move)) {
-            state().castle_rights.set_queenside_rook_sq(~state().side_to_move, false);
+            state().castle_rights.set_queenside_rook_file(~state().side_to_move, File::NO_FILE);
         }
+
         state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
     }
 
@@ -130,19 +142,20 @@ void Board::make_move(Move move) {
 
     state().remove_piece(from_type, move.from(), state().side_to_move);
     state().place_piece(to_type, move.to(), state().side_to_move);
+
     if (from_type == PieceType::PAWN) {
         state().fifty_moves_clock = 0;
         if (std::abs(move.from() - move.to()) == 16) {
             state().en_passant_sq = (move.from() + move.to()) / 2;
         }
     } else if (from_type == PieceType::KING) {
-        state().castle_rights.clear_rights(state().side_to_move);
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
     if (move.from() == state().castle_rights.kingside_rook_sq(state().side_to_move)) {
-        state().castle_rights.set_kingside_castle(state().side_to_move, false);
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
     } else if (move.from() == state().castle_rights.queenside_rook_sq(state().side_to_move)) {
-        state().castle_rights.set_queenside_castle(state().side_to_move, false);
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
     state().side_to_move = ~state().side_to_move;

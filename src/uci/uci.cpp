@@ -20,6 +20,8 @@ Handler::Handler() {
         std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [](const Option &option) {
             // resize hash table
         }));
+    options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
+    board_ = Board(STARTPOS_FEN);
 }
 
 void Handler::handle_perft(std::ostream &out, int depth) {
@@ -61,8 +63,6 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
         } else if (parts[0] == "position") {
-            constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
             if (parts[1] == "fen" || parts[1] == "startpos") {
                 std::string fen;
                 size_t moves_pos = line.find(" moves ");
@@ -78,12 +78,9 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                     fen = std::string(STARTPOS_FEN);
                 }
 
-
                 board_ = Board(fen);
 
                 if (moves_pos != std::string::npos) {
-                    out << fen << std::endl;
-
                     std::istringstream moves_stream(line.substr(moves_pos + 7));
                     std::string move_str;
                     while (moves_stream >> move_str) {

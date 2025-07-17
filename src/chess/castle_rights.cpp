@@ -1,48 +1,28 @@
 #include "castle_rights.hpp"
 
-bool CastleRights::operator==(const CastleRights &other) const {
-    return rights_ == other.rights_;
-}
+constexpr i32 KINGSIDE = 0;
+constexpr i32 QUEENSIDE = 1;
 
 bool CastleRights::can_kingside_castle(Color color) const {
-    return rights_ & MASKS[color][1];
+    return rook_files_[color][KINGSIDE] != File::NO_FILE;
 }
 
 bool CastleRights::can_queenside_castle(Color color) const {
-    return rights_ & MASKS[color][0];
+    return rook_files_[color][QUEENSIDE] != File::NO_FILE;
 }
 
 Square CastleRights::kingside_rook_sq(Color color) const {
-    return rook_squares_[color][0];
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, rook_files_[color][KINGSIDE]};
 }
 
 Square CastleRights::queenside_rook_sq(Color color) const {
-    return rook_squares_[color][1];
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, rook_files_[color][QUEENSIDE]};
 }
 
-void CastleRights::clear_rights(Color color) {
-    rights_ &= ~(MASKS[color][0] | MASKS[color][1]);
+void CastleRights::set_kingside_rook_file(Color color, File file) {
+    rook_files_[color][KINGSIDE] = file;
 }
 
-void CastleRights::set_kingside_castle(Color color, bool enabled) {
-    const u8 mask = MASKS[color][1];
-    enabled ? rights_ |= mask : rights_ &= ~mask;
-}
-
-void CastleRights::set_queenside_castle(Color color, bool enabled) {
-    const u8 mask = MASKS[color][0];
-    enabled ? rights_ |= mask : rights_ &= ~mask;
-}
-
-void CastleRights::set_kingside_rook_sq(Color color, Square sq) {
-    rook_squares_[color][0] = sq;
-}
-
-void CastleRights::set_queenside_rook_sq(Color color, Square sq) {
-    rook_squares_[color][1] = sq;
-}
-
-u8 CastleRights::operator&=(u8 mask) {
-    rights_ &= mask;
-    return rights_;
+void CastleRights::set_queenside_rook_file(Color color, File file) {
+    rook_files_[color][QUEENSIDE] = file;
 }

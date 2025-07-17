@@ -19,7 +19,7 @@ IntegerOption::IntegerOption(std::string_view name, i32 value, i32 min, i32 max,
     : value_(value), min_(min), max_(max) {
     name_ = name;
     callback_ = std::move(callback);
-    callback_(*this);
+    if (callback_) callback_(*this);
 }
 
 void IntegerOption::set_value(std::string_view str_value) {
@@ -27,7 +27,7 @@ void IntegerOption::set_value(std::string_view str_value) {
     i32 new_value;
     if (ss >> new_value && new_value >= min_ && new_value <= max_) {
         value_ = new_value;
-        callback_(*this);
+        if (callback_) callback_(*this);
     } else {
         std::cerr << "IntegerOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to "
                   << max_ << ")" << std::endl;
@@ -38,20 +38,24 @@ void IntegerOption::set_value(std::string_view str_value) {
     return std::to_string(value_);
 }
 
+std::variant<i32, bool, std::string> IntegerOption::value_as_variant() const {
+    return value_;
+}
+
 [[nodiscard]] std::string_view IntegerOption::type() const {
     return "spin";
 }
 
 void IntegerOption::print(std::ostream &os) const {
     os << "option name " << name_ << " type spin"
-       << " default " << value_ << " min " << min_ << " max " << max_;
+       << " default " << value() << " min " << min_ << " max " << max_;
 }
 
 BoolOption::BoolOption(std::string_view name, bool value, std::function<void(const Option &)> callback)
     : value_(value) {
     name_ = name;
     callback_ = std::move(callback);
-    callback_(*this);
+    if (callback_) callback_(*this);
 }
 
 void BoolOption::set_value(std::string_view str_value) {
@@ -67,11 +71,15 @@ void BoolOption::set_value(std::string_view str_value) {
         return;
     }
 
-    callback_(*this);
+    if (callback_) callback_(*this);
 }
 
 std::string BoolOption::value() const {
-    return value_ ? "true" : "false";
+    return value_ ? "True" : "False";
+}
+
+std::variant<i32, bool, std::string> BoolOption::value_as_variant() const {
+    return value_;
 }
 
 std::string_view BoolOption::type() const {
@@ -80,23 +88,27 @@ std::string_view BoolOption::type() const {
 
 void BoolOption::print(std::ostream &os) const {
     os << "option name " << name_ << " type check"
-       << " default " << value_;
+       << " default " << value();
 }
 
 StringOption::StringOption(std::string_view name, std::string value, std::function<void(const Option &)> callback)
     : value_(std::move(value)) {
     name_ = name;
     callback_ = std::move(callback);
-    callback_(*this);
+    if (callback_) callback_(*this);
 }
 
 void StringOption::set_value(std::string_view str_value) {
     value_ = std::string(str_value);
-    callback_(*this);
+    if (callback_) callback_(*this);
 }
 
 std::string StringOption::value() const {
     return std::string(value_);
+}
+
+std::variant<i32, bool, std::string> StringOption::value_as_variant() const {
+    return value_;
 }
 
 std::string_view StringOption::type() const {

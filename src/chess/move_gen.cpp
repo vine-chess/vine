@@ -180,7 +180,6 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     }
 
     if (board.checkers == 0) {
-        // TODO: fix for FRC
         constexpr std::array<Bitboard, 2> KINGSIDE_OCCUPANCY_SQUARES = {0x60ull, 0x6000000000000000ull};
         constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_SQUARES = {0xeull, 0xe00000000000000ull};
         constexpr std::array<Bitboard, 2> KINGSIDE_ATTACKED_SQUARES = {0x60ull, 0x6000000000000000ull};

@@ -3,7 +3,6 @@
 
 #include "../util/types.hpp"
 #include <cassert>
-#include <ostream>
 #include <sstream>
 
 class MoveFlag {
@@ -41,12 +40,12 @@ class Move {
     [[nodiscard]] constexpr explicit Move(Square from, Square to, MoveFlag flag = MoveFlag::NORMAL)
         : raw_{static_cast<u16>(flag << 12 | to << 6 | from)} {}
 
-    [[nodiscard]] constexpr Square king_castling_to() {
+    [[nodiscard]] constexpr Square king_castling_to() const {
         assert(is_castling());
         return from() > to() ? Square(from().rank(), File(2)) : Square(from().rank(), File(6));
     }
 
-    [[nodiscard]] constexpr Square rook_castling_to() {
+    [[nodiscard]] constexpr Square rook_castling_to() const {
         assert(is_castling());
         return from() > to() ? Square(from().rank(), File(3)) : Square(from().rank(), File(5));
     }
@@ -91,12 +90,8 @@ class Move {
     [[nodiscard]] constexpr bool operator==(Move const &) const = default;
 
     friend std::ostream &operator<<(std::ostream &out, const Move &mv);
-    
-    [[nodiscard]] std::string to_string() const {
-        std::ostringstream ss;
-        ss << *this;
-        return ss.str();
-    }
+
+    [[nodiscard]] std::string to_string() const;
 
   private:
     [[nodiscard]] constexpr u8 raw_flag() const {
@@ -104,13 +99,5 @@ class Move {
     }
     u16 raw_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const Move &mv) {
-    out << mv.from() << mv.to();
-    if (mv.is_promo()) {
-        out << mv.promo_type().to_char();
-    }
-    return out;
-}
 
 #endif // MOVE_HPP
