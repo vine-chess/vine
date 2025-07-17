@@ -88,7 +88,6 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                     }
                 }
             }
-
         }
     }
 }

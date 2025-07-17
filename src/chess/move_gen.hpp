@@ -110,10 +110,10 @@ constexpr static auto RAY_BETWEEN = []() {
     return res;
 }();
 
-void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations = Bitboard::ALL_SET);
-void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
-void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
-void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
-void generate_moves(const BoardState &board, MoveList &move_list);
+void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations = Bitboard::ALL_SET);
+void knight_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
+void slider_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
+void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destionations = Bitboard::ALL_SET);
+void generate_moves(const BoardState &state, MoveList &move_list);
 
 #endif // MOVE_GEN_HPP

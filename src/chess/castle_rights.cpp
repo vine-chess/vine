@@ -11,11 +11,11 @@ bool CastleRights::can_queenside_castle(Color color) const {
     return rook_files_[color][QUEENSIDE] != File::NO_FILE;
 }
 
-Square CastleRights::kingside_rook_sq(Color color) const {
+Square CastleRights::kingside_rook(Color color) const {
     return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, rook_files_[color][KINGSIDE]};
 }
 
-Square CastleRights::queenside_rook_sq(Color color) const {
+Square CastleRights::queenside_rook(Color color) const {
     return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, rook_files_[color][QUEENSIDE]};
 }
 

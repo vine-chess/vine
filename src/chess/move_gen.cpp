@@ -9,25 +9,25 @@ Bitboard compute_pawn_attacks(Bitboard pawns, Color side_to_move) {
     return forward.shift<0, LEFT>() | forward.shift<0, RIGHT>();
 }
 
-void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
-    const auto forward = board.side_to_move == Color::WHITE ? 1 : -1;
+void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations) {
+    const auto forward = state.side_to_move == Color::WHITE ? 1 : -1;
 
-    const auto occ = board.occupancy();
-    const auto pawns = board.pawns(board.side_to_move);
+    const auto occ = state.occupancy();
+    const auto pawns = state.pawns(state.side_to_move);
 
     const Bitboard allowed_double_push_rank =
-        Bitboard::rank_mask(board.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
+        Bitboard::rank_mask(state.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
     const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
-    const auto horizontal_pins = board.ortho_pins & (board.ortho_pins << 1);
-    const auto vertical_pins = board.ortho_pins & board.ortho_pins.shift<UP, 0>();
+    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins << 1);
+    const auto vertical_pins = state.ortho_pins & state.ortho_pins.shift<UP, 0>();
     const auto one_forward = pawns.rotl(8 * forward);
-    const auto pushable = one_forward & ~(board.diag_pins | horizontal_pins).rotl(8 * forward) & ~occ;
+    const auto pushable = one_forward & ~(state.diag_pins | horizontal_pins).rotl(8 * forward) & ~occ;
     const auto two_forward = pushable.rotl(8 * forward) & ~occ & allowed_double_push_rank;
     const auto left_captures =
-        one_forward.shift<0, LEFT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, RIGHT>());
+        one_forward.shift<0, LEFT>() & state.occupancy(~state.side_to_move) & ~(state.ortho_pins.shift<0, RIGHT>());
     const auto right_captures =
-        one_forward.shift<0, RIGHT>() & board.occupancy(~board.side_to_move) & ~(board.ortho_pins.shift<0, LEFT>());
+        one_forward.shift<0, RIGHT>() & state.occupancy(~state.side_to_move) & ~(state.ortho_pins.shift<0, LEFT>());
 
     for (auto sq : pushable & ~promo_ranks & allowed_destinations) {
         move_list.emplace_back(sq - forward * 8, sq);
@@ -67,12 +67,12 @@ void pawn_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
     }
 }
 
-void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
-    const auto occ = board.occupancy();
-    const auto us = board.occupancy(board.side_to_move);
-    const auto them = board.occupancy(~board.side_to_move);
+void knight_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations) {
+    const auto occ = state.occupancy();
+    const auto us = state.occupancy(state.side_to_move);
+    const auto them = state.occupancy(~state.side_to_move);
 
-    for (auto from : board.knights(board.side_to_move) & ~(board.ortho_pins | board.diag_pins)) {
+    for (auto from : state.knights(state.side_to_move) & ~(state.ortho_pins | state.diag_pins)) {
         const auto legal = KNIGHT_MOVES[from] & allowed_destinations;
         for (auto to : legal & ~us) {
             move_list.emplace_back(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
@@ -80,33 +80,33 @@ void knight_moves(const BoardState &board, MoveList &move_list, Bitboard allowed
     }
 }
 
-void slider_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
-    const auto occ = board.occupancy();
-    const auto us = board.occupancy(board.side_to_move);
-    const auto them = board.occupancy(~board.side_to_move);
+void slider_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations) {
+    const auto occ = state.occupancy();
+    const auto us = state.occupancy(state.side_to_move);
+    const auto them = state.occupancy(~state.side_to_move);
 
-    for (auto from : (board.queens(board.side_to_move) | board.bishops(board.side_to_move)) & ~board.ortho_pins) {
+    for (auto from : (state.queens(state.side_to_move) | state.bishops(state.side_to_move)) & ~state.ortho_pins) {
         const auto legal = get_bishop_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
-            const auto from_pinned = board.diag_pins.is_set(from);
-            const auto to_pinned = board.diag_pins.is_set(to);
+            const auto from_pinned = state.diag_pins.is_set(from);
+            const auto to_pinned = state.diag_pins.is_set(to);
             move_list.push_back_conditional(Move(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL),
                                             !from_pinned || to_pinned);
         }
     }
 
-    for (auto from : (board.queens(board.side_to_move) | board.rooks(board.side_to_move)) & ~board.diag_pins) {
+    for (auto from : (state.queens(state.side_to_move) | state.rooks(state.side_to_move)) & ~state.diag_pins) {
         const auto legal = get_rook_attacks(from, occ) & allowed_destinations;
         for (auto to : legal & ~us) {
-            const auto from_pinned = board.ortho_pins.is_set(from);
-            const auto to_pinned = board.ortho_pins.is_set(to);
+            const auto from_pinned = state.ortho_pins.is_set(from);
+            const auto to_pinned = state.ortho_pins.is_set(to);
             move_list.push_back_conditional(Move(from, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL),
                                             !from_pinned || to_pinned);
         }
     }
 }
 
-void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_destinations) {
+void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations) {
     constexpr static auto KING_SUPERPIECE = []() {
         std::array<std::array<Bitboard, 3>, 64> res;
         for (int i = 0; i < 64; ++i) {
@@ -153,25 +153,25 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
         }
         return res;
     }();
-    const auto occ = board.occupancy();
-    const auto us = board.occupancy(board.side_to_move);
-    const auto them = board.occupancy(~board.side_to_move);
-    const auto king = board.king(board.side_to_move);
+    const auto occ = state.occupancy();
+    const auto us = state.occupancy(state.side_to_move);
+    const auto them = state.occupancy(~state.side_to_move);
+    const auto king = state.king(state.side_to_move);
     const auto king_sq = king.lsb();
 
-    for (auto knight : KING_SUPERPIECE[king_sq][0] & board.knights(~board.side_to_move)) {
+    for (auto knight : KING_SUPERPIECE[king_sq][0] & state.knights(~state.side_to_move)) {
         allowed_destinations &= ~KNIGHT_MOVES[knight] | knight.to_bb();
     }
     // std::cout << (u64)KING_SUPERPIECE[king_sq][1] << '\n';
-    for (auto bishop : KING_SUPERPIECE[king_sq][1] & them & (board.bishops() | board.queens())) {
+    for (auto bishop : KING_SUPERPIECE[king_sq][1] & them & (state.bishops() | state.queens())) {
         // std::cout << (u64)get_bishop_attacks(bishop, occ ^ king) << '\n';
         allowed_destinations &= ~get_bishop_attacks(bishop, occ ^ king);
     }
-    for (auto rook : KING_SUPERPIECE[king_sq][2] & them & (board.rooks() | board.queens())) {
+    for (auto rook : KING_SUPERPIECE[king_sq][2] & them & (state.rooks() | state.queens())) {
         allowed_destinations &= ~get_rook_attacks(rook, occ ^ king);
     }
-    allowed_destinations &= ~KING_MOVES[board.king(~board.side_to_move).lsb()];
-    allowed_destinations &= ~compute_pawn_attacks(board.pawns(~board.side_to_move), ~board.side_to_move);
+    allowed_destinations &= ~KING_MOVES[state.king(~state.side_to_move).lsb()];
+    allowed_destinations &= ~compute_pawn_attacks(state.pawns(~state.side_to_move), ~state.side_to_move);
 
     const auto legal = KING_MOVES[king_sq] & allowed_destinations;
 
@@ -179,43 +179,41 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
         move_list.emplace_back(king_sq, to, them.is_set(to) ? MoveFlag::CAPTURE_BIT : MoveFlag::NORMAL);
     }
 
-    if (board.checkers == 0) {
-        constexpr std::array<Bitboard, 2> KINGSIDE_OCCUPANCY_SQUARES = {0x60ull, 0x6000000000000000ull};
-        constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_SQUARES = {0xeull, 0xe00000000000000ull};
-        constexpr std::array<Bitboard, 2> KINGSIDE_ATTACKED_SQUARES = {0x60ull, 0x6000000000000000ull};
-        constexpr std::array<Bitboard, 2> QUEENSIDE_ATTACKED_SQUARES = {0xcull, 0xc00000000000000ull};
+    if (state.checkers == 0) {
+        constexpr std::array<Bitboard, 2> KINGSIDE_OCCUPANCY_MASK = {0x60ull, 0x6000000000000000ull};
+        constexpr std::array<Bitboard, 2> KINGSIDE_PATH_MASK = {0x60ull, 0x6000000000000000ull};
 
-        if (board.castle_rights.can_kingside_castle(board.side_to_move) &&
-            (KINGSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
-            (allowed_destinations & KINGSIDE_ATTACKED_SQUARES[board.side_to_move]) ==
-                KINGSIDE_ATTACKED_SQUARES[board.side_to_move]) {
-            move_list.emplace_back(king_sq, board.castle_rights.kingside_rook_sq(board.side_to_move), MoveFlag::CASTLE);
+        if (state.castle_rights.can_kingside_castle(state.side_to_move) &&
+            allowed_destinations.has_squares_set(KINGSIDE_PATH_MASK[state.side_to_move]) &&
+            !occ.has_squares_set(KINGSIDE_OCCUPANCY_MASK[state.side_to_move])) {
+            move_list.emplace_back(king_sq, state.castle_rights.kingside_rook(state.side_to_move), MoveFlag::CASTLE);
         }
 
-        if (board.castle_rights.can_queenside_castle(board.side_to_move) &&
-            (QUEENSIDE_OCCUPANCY_SQUARES[board.side_to_move] & occ) == 0 &&
-            (allowed_destinations & QUEENSIDE_ATTACKED_SQUARES[board.side_to_move]) ==
-                QUEENSIDE_ATTACKED_SQUARES[board.side_to_move]) {
-            move_list.emplace_back(king_sq, board.castle_rights.queenside_rook_sq(board.side_to_move),
-                                   MoveFlag::CASTLE);
+        constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_MASK = {0xeull, 0xe00000000000000ull};
+        constexpr std::array<Bitboard, 2> QUEENSIDE_PATH_MASK = {0xcull, 0xc00000000000000ull};
+
+        if (state.castle_rights.can_queenside_castle(state.side_to_move) &&
+            allowed_destinations.has_squares_set(QUEENSIDE_PATH_MASK[state.side_to_move]) &&
+            !occ.has_squares_set(QUEENSIDE_OCCUPANCY_MASK[state.side_to_move])) {
+            move_list.emplace_back(king_sq, state.castle_rights.queenside_rook(state.side_to_move), MoveFlag::CASTLE);
         }
     }
 }
 
-void generate_moves(const BoardState &board, MoveList &move_list) {
+void generate_moves(const BoardState &state, MoveList &move_list) {
     Bitboard allowed = Bitboard::ALL_SET;
-    if (board.checkers != 0) {
-        if (board.checkers.pop_count() > 1) {
-            king_moves(board, move_list);
+    if (state.checkers != 0) {
+        if (state.checkers.pop_count() > 1) {
+            king_moves(state, move_list);
             return;
         }
-        const auto checker = board.checkers;
-        const auto king = board.king(board.side_to_move);
-        allowed = RAY_BETWEEN[checker.lsb()][king.lsb()] | checker;
-        // std::cout << (u64)allowed << '\n';
+
+        const auto checker = state.checkers;
+        allowed = RAY_BETWEEN[checker.lsb()][state.king(state.side_to_move).lsb()] | checker;
     }
-    pawn_moves(board, move_list, allowed);
-    knight_moves(board, move_list, allowed);
-    slider_moves(board, move_list, allowed);
-    king_moves(board, move_list);
+
+    pawn_moves(state, move_list, allowed);
+    knight_moves(state, move_list, allowed);
+    slider_moves(state, move_list, allowed);
+    king_moves(state, move_list);
 }
