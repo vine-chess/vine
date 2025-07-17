@@ -4,6 +4,7 @@
 #include "../util/types.hpp"
 #include <cassert>
 #include <ostream>
+#include <sstream>
 
 class MoveFlag {
   public:
@@ -89,6 +90,14 @@ class Move {
 
     [[nodiscard]] constexpr bool operator==(Move const &) const = default;
 
+    friend std::ostream &operator<<(std::ostream &out, const Move &mv);
+    
+    [[nodiscard]] std::string to_string() const {
+        std::ostringstream ss;
+        ss << *this;
+        return ss.str();
+    }
+
   private:
     [[nodiscard]] constexpr u8 raw_flag() const {
         return static_cast<u8>(raw_ >> 12);
@@ -96,7 +105,7 @@ class Move {
     u16 raw_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, Move mv) {
+inline std::ostream &operator<<(std::ostream &out, const Move &mv) {
     out << mv.from() << mv.to();
     if (mv.is_promo()) {
         out << mv.promo_type().to_char();

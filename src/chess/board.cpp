@@ -1,4 +1,7 @@
 #include "board.hpp"
+
+#include "move_gen.hpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
@@ -78,6 +81,19 @@ const BoardState &Board::state() const {
     return state_history_.back();
 }
 
+Move Board::create_move(std::string_view uci_move) const {
+    MoveList moves;
+    generate_moves(state(), moves);
+
+    for (const auto move : moves) {
+        if (move.to_string() == uci_move) {
+            return move;
+        }
+    }
+
+    throw std::runtime_error("cannot create illegal move");
+}
+
 void Board::make_move(Move move) {
     state_history_.push_back(state());
     state().fifty_moves_clock += 1;
@@ -86,6 +102,8 @@ void Board::make_move(Move move) {
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
         state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
         state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
+        state().side_to_move = ~state().side_to_move;
+        state().compute_masks();
         return;
     }
 
@@ -117,6 +135,8 @@ void Board::make_move(Move move) {
         if (std::abs(move.from() - move.to()) == 16) {
             state().en_passant_sq = (move.from() + move.to()) / 2;
         }
+    } else if (from_type == PieceType::KING) {
+        state().castle_rights.clear_rights(state().side_to_move);
     }
 
     if (move.from() == state().castle_rights.kingside_rook_sq(state().side_to_move)) {

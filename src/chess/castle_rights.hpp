@@ -18,6 +18,7 @@ class CastleRights {
     [[nodiscard]] Square kingside_rook_sq(Color color) const;
     [[nodiscard]] Square queenside_rook_sq(Color color) const;
 
+    void clear_rights(Color color);
     void set_kingside_castle(Color color, bool value);
     void set_queenside_castle(Color color, bool value);
     void set_kingside_rook_sq(Color color, Square sq);

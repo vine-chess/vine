@@ -61,11 +61,37 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
         } else if (parts[0] == "position") {
-            using namespace std::string_view_literals;
-            if (parts[1] == "fen") {
-                board_ = Board(std::string_view(line).substr("position fen "sv.size()));
-            } else if (parts[1] == "startpos") {
+            constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+            if (parts[1] == "fen" || parts[1] == "startpos") {
+                std::string fen;
+                size_t moves_pos = line.find(" moves ");
+
+                if (parts[1] == "fen") {
+                    const size_t fen_start = line.find("fen ") + 4;
+                    if (moves_pos != std::string::npos) {
+                        fen = line.substr(fen_start, moves_pos - fen_start);
+                    } else {
+                        fen = line.substr(fen_start);
+                    }
+                } else { // startpos
+                    fen = std::string(STARTPOS_FEN);
+                }
+
+
+                board_ = Board(fen);
+
+                if (moves_pos != std::string::npos) {
+                    out << fen << std::endl;
+
+                    std::istringstream moves_stream(line.substr(moves_pos + 7));
+                    std::string move_str;
+                    while (moves_stream >> move_str) {
+                        board_.make_move(board_.create_move(move_str));
+                    }
+                }
             }
+
         }
     }
 }

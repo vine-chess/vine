@@ -12,6 +12,8 @@ class Board {
     [[nodiscard]] BoardState &state();
     [[nodiscard]] const BoardState &state() const;
 
+    [[nodiscard]] Move create_move(std::string_view uci_move) const;
+
     void make_move(Move move);
     void undo_move();
 
