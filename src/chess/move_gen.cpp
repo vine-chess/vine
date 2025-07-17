@@ -122,6 +122,34 @@ void king_moves(const BoardState &board, MoveList &move_list, Bitboard allowed_d
             for (auto from : res[i][2]) {
                 res[i][2] |= ROOK_RAYS[from];
             }
+            if (i < 8) {
+                for (int j = 0; j < 8; ++j) {
+                    if (i <= 2 and 2 <= j) {
+                        res[i][0] |= KNIGHT_MOVES[j];
+                        res[i][1] |= BISHOP_RAYS[j];
+                        res[i][2] |= ROOK_RAYS[j];
+                    }
+                    if (i <= 6 and 6 <= j) {
+                        res[i][0] |= KNIGHT_MOVES[j];
+                        res[i][1] |= BISHOP_RAYS[j];
+                        res[i][2] |= ROOK_RAYS[j];
+                    }
+                }
+            }
+            if (i >= 56) {
+                for (int j = 56; j < 64; ++j) {
+                    if (i <= 58 and 58 <= j) {
+                        res[i][0] |= KNIGHT_MOVES[j];
+                        res[i][1] |= BISHOP_RAYS[j];
+                        res[i][2] |= ROOK_RAYS[j];
+                    }
+                    if (i <= 62 and 62 <= j) {
+                        res[i][0] |= KNIGHT_MOVES[j];
+                        res[i][1] |= BISHOP_RAYS[j];
+                        res[i][2] |= ROOK_RAYS[j];
+                    }
+                }
+            }
         }
         return res;
     }();
