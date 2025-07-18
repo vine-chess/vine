@@ -50,8 +50,12 @@ class Bitboard {
         return (raw_ >> static_cast<u8>(sq)) & 1;
     }
 
-    [[nodiscard]] constexpr bool has_squares_set(Bitboard bb) const {
+    [[nodiscard]] constexpr bool has_all_squares_set(Bitboard bb) const {
         return (bb & raw_) == bb;
+    }
+    
+    [[nodiscard]] constexpr bool has_any_squares_set(Bitboard bb) const {
+        return (bb & raw_) != 0;
     }
 
     constexpr void set(Square sq) {

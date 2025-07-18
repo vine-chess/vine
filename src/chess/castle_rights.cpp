@@ -19,6 +19,22 @@ Square CastleRights::queenside_rook(Color color) const {
     return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, rook_files_[color][QUEENSIDE]};
 }
 
+Square CastleRights::kingside_king_dest(Color color) const {
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, File::G};
+}
+
+Square CastleRights::queenside_king_dest(Color color) const {
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, File::C};
+}
+
+Square CastleRights::kingside_rook_dest(Color color) const {
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, File::F};
+}
+
+Square CastleRights::queenside_rook_dest(Color color) const {
+    return {color == Color::WHITE ? Rank::FIRST : Rank::EIGHTH, File::D};
+}
+
 void CastleRights::set_kingside_rook_file(Color color, File file) {
     rook_files_[color][KINGSIDE] = file;
 }

@@ -84,7 +84,7 @@ class File {
     }
 
     [[nodiscard]] constexpr static File from_char(char ch) {
-        return File(ch - 'a');
+        return File(std::tolower(ch) - 'a');
     }
 
     [[nodiscard]] constexpr char to_char() const {

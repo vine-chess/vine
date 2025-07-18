@@ -44,30 +44,31 @@ Board::Board(std::string_view fen) {
     stream >> castle_data;
 
     if (castle_data != "-") {
-        if (std::get<bool>(uci::options.get("UCI_Chess960")->value_as_variant())) {
-            for (const char ch : castle_data) {
+        for (const char ch : castle_data) {
+            if (ch == 'K') {
+                state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
+            } else if (ch == 'Q') {
+                state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
+            } else if (ch == 'k') {
+                state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
+            } else if (ch == 'q') {
+                state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
+            } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
                 const auto rook_file = File::from_char(ch);
+                // std::cout << (int)rook_file << ' ' << (int)state().king(color).lsb().file() << '\n';
                 if (rook_file > state().king(color).lsb().file()) {
                     state().castle_rights.set_kingside_rook_file(color, rook_file);
                 } else {
                     state().castle_rights.set_queenside_rook_file(color, rook_file);
                 }
             }
-        } else {
-            for (const char ch : castle_data) {
-                if (ch == 'K') {
-                    state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
-                } else if (ch == 'Q') {
-                    state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
-                } else if (ch == 'k') {
-                    state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
-                } else if (ch == 'q') {
-                    state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
-                }
-            }
         }
     }
+    // std::cout << state().castle_rights.can_queenside_castle(Color::WHITE)
+    //           << state().castle_rights.can_kingside_castle(Color::WHITE)
+    //           << state().castle_rights.can_queenside_castle(Color::BLACK)
+    //           << state().castle_rights.can_kingside_castle(Color::BLACK) << '\n';
 
     std::string en_passant;
     stream >> en_passant;
@@ -150,6 +151,7 @@ void Board::make_move(Move move) {
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
     if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {

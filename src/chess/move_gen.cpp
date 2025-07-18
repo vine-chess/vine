@@ -123,13 +123,17 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
                 res[i][2] |= ROOK_RAYS[from];
             }
             if (i < 8) {
+                const auto lo1 = i < 2 ? i : 2;
+                const auto hi1 = i < 2 ? 2 : i;
+                const auto lo2 = i < 6 ? i : 6;
+                const auto hi2 = i < 6 ? 6 : i;
                 for (int j = 0; j < 8; ++j) {
-                    if (i <= 2 and 2 <= j) {
+                    if (lo1 <= j && j <= hi1) {
                         res[i][0] |= KNIGHT_MOVES[j];
                         res[i][1] |= BISHOP_RAYS[j];
                         res[i][2] |= ROOK_RAYS[j];
                     }
-                    if (i <= 6 and 6 <= j) {
+                    if (lo2 <= j && j <= hi2) {
                         res[i][0] |= KNIGHT_MOVES[j];
                         res[i][1] |= BISHOP_RAYS[j];
                         res[i][2] |= ROOK_RAYS[j];
@@ -137,13 +141,17 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
                 }
             }
             if (i >= 56) {
+                const auto lo1 = i < 58 ? i : 58;
+                const auto hi1 = i < 58 ? 58 : i;
+                const auto lo2 = i < 62 ? i : 62;
+                const auto hi2 = i < 62 ? 62 : i;
                 for (int j = 56; j < 64; ++j) {
-                    if (i <= 58 and 58 <= j) {
+                    if (lo1 <= j && j <= hi1) {
                         res[i][0] |= KNIGHT_MOVES[j];
                         res[i][1] |= BISHOP_RAYS[j];
                         res[i][2] |= ROOK_RAYS[j];
                     }
-                    if (i <= 62 and 62 <= j) {
+                    if (lo2 <= j && j <= hi2) {
                         res[i][0] |= KNIGHT_MOVES[j];
                         res[i][1] |= BISHOP_RAYS[j];
                         res[i][2] |= ROOK_RAYS[j];
@@ -180,22 +188,31 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
     }
 
     if (state.checkers == 0) {
-        constexpr std::array<Bitboard, 2> KINGSIDE_OCCUPANCY_MASK = {0x60ull, 0x6000000000000000ull};
-        constexpr std::array<Bitboard, 2> KINGSIDE_PATH_MASK = {0x60ull, 0x6000000000000000ull};
+        const auto kingside_rook = state.castle_rights.kingside_rook(state.side_to_move);
+        const auto queenside_rook = state.castle_rights.queenside_rook(state.side_to_move);
+        const auto kingside_king = state.castle_rights.kingside_king_dest(state.side_to_move);
+        const auto queenside_king = state.castle_rights.queenside_king_dest(state.side_to_move);
+        const auto kingside_occupancy_mask = ROOK_RAY_BETWEEN[king_sq][kingside_rook] | kingside_king.to_bb() |
+                                             state.castle_rights.kingside_rook_dest(state.side_to_move).to_bb();
+        const auto queenside_occupancy_mask = ROOK_RAY_BETWEEN[king_sq][queenside_rook] | queenside_king.to_bb() |
+                                              state.castle_rights.queenside_rook_dest(state.side_to_move).to_bb();
+        const auto kingside_path_mask = ROOK_RAY_BETWEEN[king_sq][kingside_king] | kingside_king.to_bb();
+        const auto queenside_path_mask = ROOK_RAY_BETWEEN[king_sq][queenside_king] | queenside_king.to_bb();
 
+        std::cout << (u64)allowed_destinations << '\n';
+        std::cout << (u64)queenside_path_mask << '\n';
+        std::cout << (u64)queenside_occupancy_mask << '\n';
+        // std::cout << (u64)state.castle_rights.can_kingside_castle(Color::BLACK) << '\n';
         if (state.castle_rights.can_kingside_castle(state.side_to_move) &&
-            allowed_destinations.has_squares_set(KINGSIDE_PATH_MASK[state.side_to_move]) &&
-            !occ.has_squares_set(KINGSIDE_OCCUPANCY_MASK[state.side_to_move])) {
-            move_list.emplace_back(king_sq, state.castle_rights.kingside_rook(state.side_to_move), MoveFlag::CASTLE);
+            allowed_destinations.has_all_squares_set(kingside_path_mask) &&
+            !occ.has_any_squares_set(kingside_occupancy_mask)) {
+            move_list.emplace_back(king_sq, kingside_rook, MoveFlag::CASTLE);
         }
 
-        constexpr std::array<Bitboard, 2> QUEENSIDE_OCCUPANCY_MASK = {0xeull, 0xe00000000000000ull};
-        constexpr std::array<Bitboard, 2> QUEENSIDE_PATH_MASK = {0xcull, 0xc00000000000000ull};
-
         if (state.castle_rights.can_queenside_castle(state.side_to_move) &&
-            allowed_destinations.has_squares_set(QUEENSIDE_PATH_MASK[state.side_to_move]) &&
-            !occ.has_squares_set(QUEENSIDE_OCCUPANCY_MASK[state.side_to_move])) {
-            move_list.emplace_back(king_sq, state.castle_rights.queenside_rook(state.side_to_move), MoveFlag::CASTLE);
+            allowed_destinations.has_all_squares_set(queenside_path_mask) &&
+            !occ.has_any_squares_set(queenside_occupancy_mask)) {
+            move_list.emplace_back(king_sq, queenside_rook, MoveFlag::CASTLE);
         }
     }
 }
