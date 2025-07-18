@@ -51,8 +51,8 @@ constexpr static auto PAWN_ATTACKS = []() {
 constexpr static auto BISHOP_RAYS = []() {
     std::array<Bitboard, 65> res;
     for (int i = 0; i < 65; ++i) {
-        res[i] = Bitboard::get_ray_precomputed<UP, LEFT>(Square(i)) | Bitboard::get_ray<UP, RIGHT>(Square(i)) |
-                 Bitboard::get_ray_precomputed<DOWN, LEFT>(Square(i)) | Bitboard::get_ray<DOWN, RIGHT>(Square(i));
+        res[i] = Bitboard::get_ray_precomputed<UP, LEFT>(Square(i)) | Bitboard::get_ray_precomputed<UP, RIGHT>(Square(i)) |
+                 Bitboard::get_ray_precomputed<DOWN, LEFT>(Square(i)) | Bitboard::get_ray_precomputed<DOWN, RIGHT>(Square(i));
     }
     return res;
 }();
@@ -60,8 +60,8 @@ constexpr static auto BISHOP_RAYS = []() {
 constexpr static auto ROOK_RAYS = []() {
     std::array<Bitboard, 65> res;
     for (int i = 0; i < 65; ++i) {
-        res[i] = Bitboard::get_ray_precomputed<UP, 0>(i) | Bitboard::get_ray<0, RIGHT>(Square(i)) |
-                 Bitboard::get_ray_precomputed<0, LEFT>(Square(i)) | Bitboard::get_ray<DOWN, 0>(Square(i));
+        res[i] = Bitboard::get_ray_precomputed<UP, 0>(i) | Bitboard::get_ray_precomputed<0, RIGHT>(Square(i)) |
+                 Bitboard::get_ray_precomputed<0, LEFT>(Square(i)) | Bitboard::get_ray_precomputed<DOWN, 0>(Square(i));
     }
     return res;
 }();
@@ -79,9 +79,9 @@ constexpr static auto ROOK_RAY_BETWEEN = []() {
     for (int i = 0; i < 65; ++i) {
         for (int j = 0; j < 65; ++j) {
             res[i][j] = Bitboard::get_ray_precomputed<UP, 0>(i) & Bitboard::get_ray_precomputed<DOWN, 0>(j) |
-                        Bitboard::get_ray_precomputed<UP, 0>(j) & Bitboard::get_ray<DOWN, 0>(i) |
-                        Bitboard::get_ray_precomputed<0, LEFT>(i) & Bitboard::get_ray<0, RIGHT>(j) |
-                        Bitboard::get_ray_precomputed<0, LEFT>(j) & Bitboard::get_ray<0, RIGHT>(i);
+                        Bitboard::get_ray_precomputed<UP, 0>(j) & Bitboard::get_ray_precomputed<DOWN, 0>(i) |
+                        Bitboard::get_ray_precomputed<0, LEFT>(i) & Bitboard::get_ray_precomputed<0, RIGHT>(j) |
+                        Bitboard::get_ray_precomputed<0, LEFT>(j) & Bitboard::get_ray_precomputed<0, RIGHT>(i);
         }
     }
     return res;
@@ -91,10 +91,10 @@ constexpr static auto BISHOP_RAY_BETWEEN = []() {
     std::array<std::array<Bitboard, 65>, 65> res;
     for (int i = 0; i < 65; ++i) {
         for (int j = 0; j < 65; ++j) {
-            res[i][j] = Bitboard::get_ray_precomputed<UP, LEFT>(i) & Bitboard::get_ray<DOWN, RIGHT>(j) |
-                        Bitboard::get_ray_precomputed<UP, LEFT>(j) & Bitboard::get_ray<DOWN, RIGHT>(i) |
-                        Bitboard::get_ray_precomputed<DOWN, LEFT>(i) & Bitboard::get_ray<UP, RIGHT>(j) |
-                        Bitboard::get_ray_precomputed<DOWN, LEFT>(j) & Bitboard::get_ray<UP, RIGHT>(i);
+            res[i][j] = Bitboard::get_ray_precomputed<UP, LEFT>(i) & Bitboard::get_ray_precomputed<DOWN, RIGHT>(j) |
+                        Bitboard::get_ray_precomputed<UP, LEFT>(j) & Bitboard::get_ray_precomputed<DOWN, RIGHT>(i) |
+                        Bitboard::get_ray_precomputed<DOWN, LEFT>(i) & Bitboard::get_ray_precomputed<UP, RIGHT>(j) |
+                        Bitboard::get_ray_precomputed<DOWN, LEFT>(j) & Bitboard::get_ray_precomputed<UP, RIGHT>(i);
         }
     }
     return res;
