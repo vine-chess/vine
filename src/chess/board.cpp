@@ -57,7 +57,6 @@ Board::Board(std::string_view fen) {
             } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
                 const auto rook_file = File::from_char(ch);
-                // std::cout << (int)rook_file << ' ' << (int)state().king(color).lsb().file() << '\n';
                 if (rook_file > state().king(color).lsb().file()) {
                     state().castle_rights.set_kingside_rook_file(color, rook_file);
                 } else {
@@ -66,11 +65,6 @@ Board::Board(std::string_view fen) {
             }
         }
     }
-    // std::cout << state().castle_rights.can_queenside_castle(Color::WHITE)
-    //           << state().castle_rights.can_kingside_castle(Color::WHITE)
-    //           << state().castle_rights.can_queenside_castle(Color::BLACK)
-    //           << state().castle_rights.can_kingside_castle(Color::BLACK) << '\n';
-
     std::string en_passant;
     stream >> en_passant;
 

@@ -186,6 +186,7 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         }
         return res;
     }();
+
     const auto occ = state.occupancy();
     const auto us = state.occupancy(state.side_to_move);
     const auto them = state.occupancy(~state.side_to_move);
@@ -195,14 +196,15 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
     for (auto knight : KING_SUPERPIECE[king_sq][0] & state.knights(~state.side_to_move)) {
         allowed_destinations &= ~KNIGHT_MOVES[knight] | knight.to_bb();
     }
-    // std::cout << (u64)KING_SUPERPIECE[king_sq][1] << '\n';
+
     for (auto bishop : KING_SUPERPIECE[king_sq][1] & them & (state.bishops() | state.queens())) {
-        // std::cout << (u64)get_bishop_attacks(bishop, occ ^ king) << '\n';
         allowed_destinations &= ~get_bishop_attacks(bishop, occ ^ king);
     }
+
     for (auto rook : KING_SUPERPIECE[king_sq][2] & them & (state.rooks() | state.queens())) {
         allowed_destinations &= ~get_rook_attacks(rook, occ ^ king);
     }
+
     allowed_destinations &= ~KING_MOVES[state.king(~state.side_to_move).lsb()];
     allowed_destinations &= ~compute_pawn_attacks(state.pawns(~state.side_to_move), ~state.side_to_move);
 
