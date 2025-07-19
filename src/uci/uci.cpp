@@ -52,10 +52,10 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
     while (std::getline(in, line)) {
         const auto parts = util::split_string(line);
         if (parts[0] == "uci") {
-            out << "id name Vine\n";
-            out << "id author Aron Petkovski, Jonathan Hallström\n";
+            out << "id name Vine" << std::endl;
+            out << "id author Aron Petkovski, Jonathan Hallström" << std::endl;
             out << options;
-            out << "uciok\n";
+            out << "uciok" << std::endl;
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_int(parts[1]));
         } else if (parts[0] == "print") {
