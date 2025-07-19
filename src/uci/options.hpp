@@ -3,8 +3,11 @@
 
 #include "../util/types.hpp"
 #include <functional>
-#include <string>
+#include <iostream>
 #include <map>
+#include <memory>
+#include <string>
+#include <variant>
 
 namespace uci {
 
@@ -14,6 +17,7 @@ class Option {
 
     virtual void set_value(std::string_view str_value) = 0;
     [[nodiscard]] virtual std::string value() const = 0;
+    [[nodiscard]] virtual std::variant<i32, bool, std::string> value_as_variant() const = 0;
     [[nodiscard]] virtual std::string_view type() const = 0;
     [[nodiscard]] std::string name() const;
 
@@ -27,10 +31,12 @@ class Option {
 
 class IntegerOption : public Option {
   public:
-    IntegerOption(std::string_view name, i32 value, i32 min, i32 max, std::function<void(const Option &)> callback);
+    IntegerOption(std::string_view name, i32 value, i32 min, i32 max,
+                  std::function<void(const Option &)> callback = nullptr);
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
@@ -41,10 +47,11 @@ class IntegerOption : public Option {
 
 class BoolOption : public Option {
   public:
-    BoolOption(std::string_view name, bool value, std::function<void(const Option &)> callback);
+    BoolOption(std::string_view name, bool value, std::function<void(const Option &)> callback = nullptr);
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
@@ -55,10 +62,11 @@ class BoolOption : public Option {
 
 class StringOption : public Option {
   public:
-    StringOption(std::string_view name, std::string value, std::function<void(const Option &)> callback);
+    StringOption(std::string_view name, std::string value, std::function<void(const Option &)> callback = nullptr);
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
