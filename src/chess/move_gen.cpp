@@ -13,6 +13,7 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
     const auto forward = state.side_to_move == Color::WHITE ? 1 : -1;
 
     const auto occ = state.occupancy();
+    const auto them = state.occupancy(~state.side_to_move);
     const auto pawns = state.pawns(state.side_to_move);
 
     const Bitboard allowed_double_push_rank =
@@ -73,7 +74,7 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
 
     const auto king_sq = state.king(state.side_to_move).lsb();
     if (state.en_passant_sq != Square::NO_SQUARE) {
-        const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~(vertical_pins & pawns);
+        const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~(vertical_pins & them);
         const auto ep_pawn_bb = ep_target_bb.rotl(forward * -8);
         const auto left_pawn = ep_pawn_bb.shift<0, LEFT>() & ~left_diag_pins & pawns;
         const auto right_pawn = ep_pawn_bb.shift<0, RIGHT>() & ~right_diag_pins & pawns;
