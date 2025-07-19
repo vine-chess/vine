@@ -76,8 +76,8 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
     if (state.en_passant_sq != Square::NO_SQUARE) {
         const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~(vertical_pins & them);
         const auto ep_pawn_bb = ep_target_bb.rotl(forward * -8);
-        const auto left_pawn = ep_pawn_bb.shift<0, LEFT>() & ~left_diag_pins & pawns;
-        const auto right_pawn = ep_pawn_bb.shift<0, RIGHT>() & ~right_diag_pins & pawns;
+        const auto left_pawn = ep_pawn_bb.shift<0, LEFT>() & ~right_capture_pins & pawns;
+        const auto right_pawn = ep_pawn_bb.shift<0, RIGHT>() & ~left_capture_pins & pawns;
 
         const auto them_bishops = state.bishops(~state.side_to_move) | state.queens(~state.side_to_move);
         const auto them_rooks = state.rooks(~state.side_to_move) | state.queens(~state.side_to_move);
