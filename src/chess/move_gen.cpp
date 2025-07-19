@@ -65,6 +65,13 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_ROOK_CAPTURE);
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_QUEEN_CAPTURE);
     }
+
+    const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~vertical_pins;
+    auto ep_targeting_pawns = (ep_target_bb.shift<0, LEFT>() | ep_target_bb.shift<0, RIGHT>()).rotl(-forward * 8);
+
+    if (state.diag_pins.is_set(state.en_passant_sq)) {
+        ep_targeting_pawns &= state.diag_pins;
+    }
 }
 
 void knight_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_destinations) {
@@ -199,10 +206,6 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         const auto kingside_path_mask = ROOK_RAY_BETWEEN[king_sq][kingside_king] | kingside_king.to_bb();
         const auto queenside_path_mask = ROOK_RAY_BETWEEN[king_sq][queenside_king] | queenside_king.to_bb();
 
-        std::cout << (u64)allowed_destinations << '\n';
-        std::cout << (u64)queenside_path_mask << '\n';
-        std::cout << (u64)queenside_occupancy_mask << '\n';
-        // std::cout << (u64)state.castle_rights.can_kingside_castle(Color::BLACK) << '\n';
         if (state.castle_rights.can_kingside_castle(state.side_to_move) &&
             allowed_destinations.has_all_squares_set(kingside_path_mask) &&
             !occ.has_any_squares_set(kingside_occupancy_mask)) {

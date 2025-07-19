@@ -9,7 +9,7 @@ class Bitboard {
   public:
     constexpr Bitboard() : raw_{} {}
     constexpr Bitboard(u64 bb) : raw_{bb} {}
-    constexpr explicit Bitboard(Square sq) : raw_{1ull << sq} {}
+    constexpr explicit Bitboard(Square sq) : raw_{1ull << (sq & 63)} {}
 
     constexpr static u64 ALL_SET = 0xffffffffffffffff;
     constexpr static u64 FIRST_RANK = 0xff;
@@ -53,7 +53,7 @@ class Bitboard {
     [[nodiscard]] constexpr bool has_all_squares_set(Bitboard bb) const {
         return (bb & raw_) == bb;
     }
-    
+
     [[nodiscard]] constexpr bool has_any_squares_set(Bitboard bb) const {
         return (bb & raw_) != 0;
     }
