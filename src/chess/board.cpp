@@ -117,6 +117,8 @@ void Board::make_move(Move move) {
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
         state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
         state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
         state().side_to_move = ~state().side_to_move;
         state().compute_masks();
         return;
@@ -153,7 +155,7 @@ void Board::make_move(Move move) {
         state().fifty_moves_clock = 0;
         if ((move.from() ^ move.to()) == 16) {
             state().en_passant_sq = (move.from() + move.to()) / 2;
-        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+            state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);

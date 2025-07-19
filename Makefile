@@ -6,16 +6,13 @@ OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3 -flto
 
-FLAGS = -std=c++20
+FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 
 CC ?= gcc
 CXX ?= g++
 
-ifeq ($(CXX),clang++)
-	FLAGS += -fconstexpr-steps=100000000
-endif
 ifeq ($(OS),Windows_NT)
 	FLAGS += -static
 endif

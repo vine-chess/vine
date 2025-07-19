@@ -82,7 +82,7 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         const auto them_rooks = state.rooks(~state.side_to_move) | state.queens(~state.side_to_move);
         for (auto attacking_pawn : left_pawn | right_pawn) {
             const auto occ_after = occ ^ ep_target_bb ^ ep_pawn_bb ^ attacking_pawn.to_bb();
-            
+
             if ((get_bishop_attacks(king_sq, occ_after) & them_bishops) == 0 &&
                 (get_rook_attacks(king_sq, occ_after) & them_rooks) == 0) {
                 move_list.emplace_back(attacking_pawn, ep_target_bb.lsb(), MoveFlag::EN_PASSANT);
@@ -216,10 +216,12 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         const auto queenside_rook = state.castle_rights.queenside_rook(state.side_to_move);
         const auto kingside_king = state.castle_rights.kingside_king_dest(state.side_to_move);
         const auto queenside_king = state.castle_rights.queenside_king_dest(state.side_to_move);
-        const auto kingside_occupancy_mask = ROOK_RAY_BETWEEN[king_sq][kingside_rook] | kingside_king.to_bb() |
-                                             state.castle_rights.kingside_rook_dest(state.side_to_move).to_bb();
-        const auto queenside_occupancy_mask = ROOK_RAY_BETWEEN[king_sq][queenside_rook] | queenside_king.to_bb() |
-                                              state.castle_rights.queenside_rook_dest(state.side_to_move).to_bb();
+        const auto kingside_occupancy_mask = (ROOK_RAY_BETWEEN[king_sq][kingside_rook] | kingside_king.to_bb() |
+                                              state.castle_rights.kingside_rook_dest(state.side_to_move).to_bb()) &
+                                             ~(king_sq.to_bb() | kingside_rook.to_bb());
+        const auto queenside_occupancy_mask = (ROOK_RAY_BETWEEN[king_sq][queenside_rook] | queenside_king.to_bb() |
+                                               state.castle_rights.queenside_rook_dest(state.side_to_move).to_bb()) &
+                                              ~(king_sq.to_bb() | queenside_rook.to_bb());
         const auto kingside_path_mask = ROOK_RAY_BETWEEN[king_sq][kingside_king] | kingside_king.to_bb();
         const auto queenside_path_mask = ROOK_RAY_BETWEEN[king_sq][queenside_king] | queenside_king.to_bb();
 
