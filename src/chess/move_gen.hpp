@@ -51,8 +51,10 @@ constexpr static auto PAWN_ATTACKS = []() {
 constexpr static auto BISHOP_RAYS = []() {
     std::array<Bitboard, 65> res;
     for (int i = 0; i < 65; ++i) {
-        res[i] = Bitboard::get_ray_precomputed<UP, LEFT>(Square(i)) | Bitboard::get_ray_precomputed<UP, RIGHT>(Square(i)) |
-                 Bitboard::get_ray_precomputed<DOWN, LEFT>(Square(i)) | Bitboard::get_ray_precomputed<DOWN, RIGHT>(Square(i));
+        res[i] = Bitboard::get_ray_precomputed<UP, LEFT>(Square(i)) |
+                 Bitboard::get_ray_precomputed<UP, RIGHT>(Square(i)) |
+                 Bitboard::get_ray_precomputed<DOWN, LEFT>(Square(i)) |
+                 Bitboard::get_ray_precomputed<DOWN, RIGHT>(Square(i));
     }
     return res;
 }();
@@ -105,6 +107,27 @@ constexpr static auto RAY_BETWEEN = []() {
     for (int i = 0; i < 65; ++i) {
         for (int j = 0; j < 65; ++j) {
             res[i][j] = ROOK_RAY_BETWEEN[i][j] | BISHOP_RAY_BETWEEN[i][j];
+        }
+    }
+    return res;
+}();
+
+constexpr static auto RAY_EXTENDING = []() {
+    std::array<std::array<Bitboard, 65>, 65> res;
+    for (int i = 0; i < 65; ++i) {
+        for (int j = 0; j < 65; ++j) {
+            const auto dr = i / 8 != j / 8;
+            const auto df = i % 8 != j % 8;
+            const auto maskl = 0b11111110 * u64(Bitboard::ALL_SET / Bitboard::FIRST_RANK);
+            const auto maskr = 0b01111111 * u64(Bitboard::ALL_SET / Bitboard::FIRST_RANK);
+
+            res[i][j] = Bitboard(Square(i));
+            for (int k = 0; k < 8; ++k) {
+                res[i][j] |= res[i][j] << (8 * dr + df) & maskl;
+            }
+            for (int k = 0; k < 8; ++k) {
+                res[i][j] |= res[i][j] >> (8 * dr + df) & maskr;
+            }
         }
     }
     return res;

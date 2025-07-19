@@ -2,6 +2,7 @@
 
 #include "../uci/uci.hpp"
 #include "move_gen.hpp"
+#include "zobrist.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -106,6 +107,10 @@ void Board::make_move(Move move) {
     state_history_.push_back(state());
 
     state().fifty_moves_clock += 1;
+    if (state().en_passant_sq != Square::NO_SQUARE) {
+        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+    }
+    state().en_passant_sq = Square::NO_SQUARE;
 
     if (move.is_castling()) {
         state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
@@ -146,8 +151,9 @@ void Board::make_move(Move move) {
 
     if (from_type == PieceType::PAWN) {
         state().fifty_moves_clock = 0;
-        if (std::abs(move.from() - move.to()) == 16) {
+        if ((move.from() ^ move.to()) == 16) {
             state().en_passant_sq = (move.from() + move.to()) / 2;
+        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);

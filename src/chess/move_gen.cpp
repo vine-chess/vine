@@ -19,15 +19,20 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         Bitboard::rank_mask(state.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
     const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
-    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins << 1);
+    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins << 1 | state.ortho_pins >> 1);
+    const auto right_diag_pins =
+        state.diag_pins & (state.diag_pins.shift<UP, RIGHT>() | state.diag_pins.shift<DOWN, LEFT>());
+    const auto left_diag_pins = state.diag_pins & ~right_diag_pins;
+    const auto left_capture_pins = state.side_to_move == Color::WHITE ? right_diag_pins : left_diag_pins;
+    const auto right_capture_pins = state.side_to_move == Color::WHITE ? left_diag_pins : right_diag_pins;
     const auto vertical_pins = state.ortho_pins & state.ortho_pins.shift<UP, 0>();
     const auto one_forward = pawns.rotl(8 * forward);
-    const auto pushable = one_forward & ~(state.diag_pins | horizontal_pins).rotl(8 * forward) & ~occ;
+    const auto pushable = (pawns & ~(state.diag_pins | horizontal_pins)).rotl(8 * forward) & ~occ;
     const auto two_forward = pushable.rotl(8 * forward) & ~occ & allowed_double_push_rank;
-    const auto left_captures =
-        one_forward.shift<0, LEFT>() & state.occupancy(~state.side_to_move) & ~(state.ortho_pins.shift<0, RIGHT>());
-    const auto right_captures =
-        one_forward.shift<0, RIGHT>() & state.occupancy(~state.side_to_move) & ~(state.ortho_pins.shift<0, LEFT>());
+    const auto left_captures = (pawns & ~state.ortho_pins & ~left_capture_pins).rotl(8 * forward).shift<0, LEFT>() &
+                               state.occupancy(~state.side_to_move);
+    const auto right_captures = (pawns & ~state.ortho_pins & ~right_capture_pins).rotl(8 * forward).shift<0, RIGHT>() &
+                                state.occupancy(~state.side_to_move);
 
     for (auto sq : pushable & ~promo_ranks & allowed_destinations) {
         move_list.emplace_back(sq - forward * 8, sq);
@@ -66,11 +71,23 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         move_list.emplace_back(sq - forward * 8 - 1, sq, MoveFlag::PROMO_QUEEN_CAPTURE);
     }
 
-    const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~vertical_pins;
-    auto ep_targeting_pawns = (ep_target_bb.shift<0, LEFT>() | ep_target_bb.shift<0, RIGHT>()).rotl(-forward * 8);
+    const auto king_sq = state.king(state.side_to_move).lsb();
+    if (state.en_passant_sq != Square::NO_SQUARE) {
+        const auto ep_target_bb = Bitboard(state.en_passant_sq) & ~vertical_pins;
+        const auto ep_pawn_bb = ep_target_bb.rotl(forward * -8);
+        const auto left_pawn = ep_pawn_bb.shift<0, LEFT>() & ~left_diag_pins & pawns;
+        const auto right_pawn = ep_pawn_bb.shift<0, RIGHT>() & ~right_diag_pins & pawns;
 
-    if (state.diag_pins.is_set(state.en_passant_sq)) {
-        ep_targeting_pawns &= state.diag_pins;
+        const auto them_bishops = state.bishops(~state.side_to_move) | state.queens(~state.side_to_move);
+        const auto them_rooks = state.rooks(~state.side_to_move) | state.queens(~state.side_to_move);
+        for (auto attacking_pawn : left_pawn | right_pawn) {
+            const auto occ_after = occ ^ ep_target_bb ^ ep_pawn_bb ^ attacking_pawn.to_bb();
+
+            if ((get_bishop_attacks(king_sq, occ_after) & them_bishops) == 0 &&
+                (get_rook_attacks(king_sq, occ_after) & them_rooks) == 0) {
+                move_list.emplace_back(attacking_pawn, ep_target_bb.lsb(), MoveFlag::EN_PASSANT);
+            }
+        }
     }
 }
 
