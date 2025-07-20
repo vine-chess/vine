@@ -35,7 +35,7 @@ void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_
         return;
     }
 
-    if (parts[3] != "value") {
+    if (parts[3] != "value  ") {
         out << "invalid fourth argument, expected 'value'" << std::endl;
         return;
     }
