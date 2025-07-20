@@ -6,7 +6,7 @@ namespace search {
 Searcher::Searcher() {
     set_thread_count(1);
     // TODO: use Hash option for this
-    nodes_.reserve(1024);
+    tree_.reserve(1024);
 }
 
 void Searcher::set_thread_count(u16 thread_count) {
@@ -16,7 +16,7 @@ void Searcher::set_thread_count(u16 thread_count) {
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
     for (auto &thread : threads_) {
-        thread.go(board, time_settings);
+        thread.go(tree_, board, time_settings);
     }
 }
 

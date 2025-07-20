@@ -1,4 +1,5 @@
 #include "thread.hpp"
+#include "../chess/move_gen.hpp"
 #include <iostream>
 
 namespace search {
@@ -21,6 +22,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
 
     while (!time_manager_.times_up(board.state().side_to_move)) {
         auto node = select_node(tree);
+        expand_node(node, tree);
     }
 }
 
@@ -77,8 +79,23 @@ Node &Thread::select_node(std::vector<Node> &tree) {
             }
         }
 
-        // Keep searching through the game tree until we find a suitable node to expand
+        // Keep descending through the game tree until we find a suitable node to expand
         node_idx = best_child_idx;
+        // Update the board to reflect the current node
+        board_.make_move(tree[node_idx].move);
+    }
+}
+
+void Thread::expand_node(Node &node, std::vector<Node> &tree) {
+    MoveList move_list;
+    generate_moves(board_.state(), move_list);
+
+    node.first_child_idx = tree.size();
+    node.num_children = move_list.size();
+
+    // Append all child nodes to the tree with the move that leads to it
+    for (auto move : move_list) {
+        tree.push_back(Node{.move = move});
     }
 }
 

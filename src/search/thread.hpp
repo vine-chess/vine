@@ -32,6 +32,8 @@ class Thread {
 private:
     [[nodiscard]] Node &select_node(std::vector<Node> &tree);
 
+    void expand_node(Node &node, std::vector<Node> &tree);
+
     void thread_loop();
 
     std::thread raw_thread_;

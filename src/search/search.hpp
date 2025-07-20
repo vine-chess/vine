@@ -18,7 +18,7 @@ class Searcher {
 
   private:
     std::vector<Thread> threads_;
-    std::vector<Node> nodes_;
+    std::vector<Node> tree_;
 };
 
 } // namespace search
