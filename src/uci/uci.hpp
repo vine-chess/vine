@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../chess/board.hpp"
+#include "../search/search.hpp"
 #include "options.hpp"
+
 #include <iostream>
 
 namespace uci {
@@ -14,10 +16,11 @@ class Handler {
 
   private:
     void handle_perft(std::ostream &out, int depth);
-
     void handle_setoption(std::ostream &out, const std::vector<std::string_view> &parts);
+    void handle_go(std::ostream &out, const std::vector<std::string_view> &parts);
 
     Board board_;
+    search::Searcher searcher_;
 };
 
 extern Handler handler;

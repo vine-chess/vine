@@ -43,6 +43,23 @@ void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_
     options.get(parts[2])->set_value(parts[4]);
 }
 
+void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &parts) {
+    search::TimeSettings time_settings{};
+    for (i32 i = 1; i < parts.size(); ++i) {
+        if (parts[i] == "wtime") {
+            time_settings.time_left_per_side[Color::WHITE] = std::atoi(parts[i + 1].data());
+        } else if (parts[i] == "btime") {
+            time_settings.time_left_per_side[Color::BLACK] = std::atoi(parts[i + 1].data());
+        } else if (parts[i] == "winc") {
+            time_settings.increment_per_side[Color::WHITE] = std::atoi(parts[i + 1].data());
+        } else if (parts[i] == "binc") {
+            time_settings.increment_per_side[Color::BLACK] = std::atoi(parts[i + 1].data());
+        }
+    }
+
+    searcher_.go(board_, time_settings);
+}
+
 void Handler::process_input(std::istream &in, std::ostream &out) {
     std::string line;
     while (std::getline(in, line)) {
@@ -58,6 +75,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::cout << board_ << std::endl;
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
+        } else if (parts[0] == "go") {
+            handle_go(out, parts);
         }
     }
 }
