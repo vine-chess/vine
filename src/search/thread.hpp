@@ -3,6 +3,7 @@
 
 #include "../chess/board.hpp"
 #include "time_manager.hpp"
+#include "node.hpp"
 #include <thread>
 
 namespace search {
@@ -26,14 +27,17 @@ class Thread {
         return *this;
     }
 
-    void go(Board &board, const TimeSettings &time_settings);
+    void go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings);
+
+private:
+    [[nodiscard]] Node &select_node(std::vector<Node> &tree);
 
     void thread_loop();
 
-  private:
+    std::thread raw_thread_;
     TimeManager time_manager_;
     Board board_;
-    std::thread raw_thread_;
+    u64 num_iterations_;
 };
 
 } // namespace search

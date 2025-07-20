@@ -4,6 +4,7 @@
 #include "../chess/board.hpp"
 #include "thread.hpp"
 #include "time_manager.hpp"
+#include "node.hpp"
 
 namespace search {
 
@@ -17,6 +18,7 @@ class Searcher {
 
   private:
     std::vector<Thread> threads_;
+    std::vector<Node> nodes_;
 };
 
 } // namespace search
