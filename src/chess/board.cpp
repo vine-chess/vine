@@ -1,16 +1,21 @@
 #include "board.hpp"
+
+#include "../uci/uci.hpp"
+#include "move_gen.hpp"
+#include "zobrist.hpp"
+
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
-
-constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBKQBNR w KQkq - 0 1";
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
         return ' ';
-    return PIECE_TYPE_TO_CHAR[state.get_piece_color(sq)][state.get_piece_type(sq)];
+    return state.get_piece_type(sq).to_char(state.get_piece_color(sq));
 }
 
 Board::Board(std::string_view fen) {
+    state_history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
     std::string position;
@@ -28,50 +33,149 @@ Board::Board(std::string_view fen) {
             continue;
         }
 
-        state_.place_piece(CHAR_TO_PIECE_TYPE.at(static_cast<char>(std::tolower(ch))), square,
-                           std::islower(ch) ? BLACK : WHITE);
+        state().place_piece(PieceType::from_char(ch), square, std::islower(ch) ? Color::BLACK : Color::WHITE);
         square++;
     }
 
     char side_to_move;
     stream >> side_to_move;
-    state_.side_to_move = side_to_move == 'w' ? WHITE : BLACK;
+    state().side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
 
-    std::string castle_rights;
-    stream >> castle_rights;
-    for (const char &ch : castle_rights) {
-        if (ch == 'K')
-            state_.castle_rights.set_kingside_castle(WHITE, true);
-        else if (ch == 'Q')
-            state_.castle_rights.set_queenside_castle(WHITE, true);
-        else if (ch == 'k')
-            state_.castle_rights.set_kingside_castle(BLACK, true);
-        else if (ch == 'q')
-            state_.castle_rights.set_queenside_castle(BLACK, true);
+    std::string castle_data;
+    stream >> castle_data;
+
+    if (castle_data != "-") {
+        for (const char ch : castle_data) {
+            if (ch == 'K') {
+                state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
+            } else if (ch == 'Q') {
+                state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
+            } else if (ch == 'k') {
+                state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
+            } else if (ch == 'q') {
+                state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
+            } else {
+                const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
+                const auto rook_file = File::from_char(ch);
+                if (rook_file > state().king(color).lsb().file()) {
+                    state().castle_rights.set_kingside_rook_file(color, rook_file);
+                } else {
+                    state().castle_rights.set_queenside_rook_file(color, rook_file);
+                }
+            }
+        }
     }
-
     std::string en_passant;
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state_.set_en_passant_sq(Square(static_cast<u8>(en_passant[1] - '1'), static_cast<u8>(en_passant[0] - 'a')));
+        state().set_en_passant_sq(Square::from_string(en_passant));
     }
 
-    stream >> state_.fifty_moves_clock;
+    stream >> state().fifty_moves_clock;
+    state().compute_masks();
 }
-
-Board::Board() : Board(STARTPOS_FEN) {}
 
 BoardState &Board::state() {
-    return state_;
+    return state_history_.back();
 }
 
-std::ostream &operator<<(std::ostream &out, const Board &board) {
+const BoardState &Board::state() const {
+    return state_history_.back();
+}
+
+Move Board::create_move(std::string_view uci_move) const {
+    MoveList moves;
+    generate_moves(state(), moves);
+
+    for (const auto move : moves) {
+        if (move.to_string() == uci_move) {
+            return move;
+        }
+    }
+
+    throw std::runtime_error("cannot create illegal move");
+}
+
+void Board::make_move(Move move) {
+    state_history_.push_back(state());
+
+    state().fifty_moves_clock += 1;
+    if (state().en_passant_sq != Square::NO_SQUARE) {
+        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+    }
+    state().en_passant_sq = Square::NO_SQUARE;
+
+    if (move.is_castling()) {
+        state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
+        state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
+        state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
+        state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().side_to_move = ~state().side_to_move;
+        state().compute_masks();
+        return;
+    }
+
+    const auto from_type = state().get_piece_type(move.from());
+    auto to_type = state().get_piece_type(move.from());
+
+    if (move.is_capture()) {
+        state().fifty_moves_clock = 0;
+
+        Square target_square = move.to();
+        if (move.is_ep()) {
+            target_square = Square{move.from().rank(), move.to().file()};
+        }
+
+        if (move.to() == state().castle_rights.kingside_rook(~state().side_to_move)) {
+            state().castle_rights.set_kingside_rook_file(~state().side_to_move, File::NO_FILE);
+        } else if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
+            state().castle_rights.set_queenside_rook_file(~state().side_to_move, File::NO_FILE);
+        }
+
+        state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
+    }
+
+    if (move.is_promo()) {
+        to_type = move.promo_type();
+    }
+
+    state().remove_piece(from_type, move.from(), state().side_to_move);
+    state().place_piece(to_type, move.to(), state().side_to_move);
+
+    if (from_type == PieceType::PAWN) {
+        state().fifty_moves_clock = 0;
+        if ((move.from() ^ move.to()) == 16) {
+            state().en_passant_sq = (move.from() + move.to()) / 2;
+            state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+        }
+    } else if (from_type == PieceType::KING) {
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+    }
+
+    if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
+        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+    } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
+        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+    }
+
+    state().side_to_move = ~state().side_to_move;
+    state().compute_masks();
+}
+
+void Board::undo_move() {
+    state_history_.pop_back();
+}
+
+std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';
         for (int file = 0; file < 8; file++) {
-            const auto square = Square(rank, file);
-            out << get_piece_ch(board.state_, square);
+            const auto square = Square(Rank(rank), File(file));
+            out << get_piece_ch(board, square);
             if (file < 7)
                 out << ' ';
         }
@@ -83,4 +187,7 @@ std::ostream &operator<<(std::ostream &out, const Board &board) {
         out << static_cast<char>('a' + file) << ' ';
 
     return out;
+}
+std::ostream &operator<<(std::ostream &out, const Board &board) {
+    return out << board.state();
 }

@@ -3,9 +3,11 @@
 
 #include "../util/types.hpp"
 
-#include "zobrist.hpp"
 #include "bitboard.hpp"
 #include "castle_rights.hpp"
+#include "move.hpp"
+#include "zobrist.hpp"
+#include <ostream>
 
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
@@ -33,11 +35,16 @@ struct BoardState {
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};
     std::array<PieceType, 64> piece_type_on_sq{};
-    Color side_to_move{};
+    Color side_to_move{Color::WHITE};
     Square en_passant_sq{};
     CastleRights castle_rights{};
     u8 fifty_moves_clock = 0;
     HashKey hash_key{};
+    Bitboard ortho_pins{};
+    Bitboard diag_pins{};
+    Bitboard checkers{};
+
+    void compute_masks();
 };
 
 #endif // BOARD_STATE_HPP

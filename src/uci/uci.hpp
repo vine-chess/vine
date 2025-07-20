@@ -1,4 +1,5 @@
-#pragma once
+#ifndef UCI_HPP
+#define UCI_HPP
 
 #include "../chess/board.hpp"
 #include "../search/search.hpp"
@@ -27,3 +28,5 @@ extern Handler handler;
 extern Options options;
 
 } // namespace uci
+
+#endif // UCI_HPP

@@ -5,6 +5,8 @@
 
 #include <array>
 #include <cassert>
+#include <memory>
+#include <type_traits>
 
 namespace util {
 
@@ -28,13 +30,27 @@ class StaticVector {
 
     iterator push_back(const T &value) {
         assert(size_ < max_size);
-        const T *res = std::construct_at(data() + size_, value);
+        T *res = std::construct_at(data() + size_, value);
         size_++;
         return res;
     }
 
     iterator push_back(T &&value) {
         return emplace_back(std::move(value));
+    }
+
+    template <typename... Args>
+    iterator emplace_back(Args &&...args) {
+        assert(size_ < max_size);
+        T *res = std::construct_at(data() + size_, std::forward<Args>(args)...);
+        size_++;
+        return res;
+    }
+
+    void push_back_conditional(const T &value, bool condition) {
+        static_assert(std::is_trivially_destructible_v<T>, "T has to be a completely trivial type for this");
+        data()[size_] = value;
+        size_ += condition;
     }
 
     T pop_back() {
