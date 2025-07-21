@@ -163,8 +163,7 @@ void Board::make_move(Move move) {
     state().compute_masks();
 }
 
-void Board::undo_move() {
-}
+void Board::undo_move() {}
 
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {

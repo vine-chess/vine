@@ -2,8 +2,8 @@
 #define TIME_MANAGER_HPP
 
 #include "../util/types.hpp"
-#include <optional>
 #include <chrono>
+#include <optional>
 
 namespace search {
 

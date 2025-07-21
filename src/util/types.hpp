@@ -1,9 +1,12 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cctype>
 #include <cstdint>
+#include <exception>
 #include <ostream>
+#include <stdexcept>
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -129,11 +132,14 @@ class Square {
         return Square(Rank::from_char(sv[1]), File::from_char(sv[0]));
     }
 
-    [[nodiscard]] constexpr bool is_valid() {
+    [[nodiscard]] constexpr bool is_valid() const {
         return raw_ < 64;
     }
 
     [[nodiscard]] constexpr u64 to_bb() const {
+        if (!is_valid()) {
+            assert(false);
+        }
         return 1ull << *this;
     }
 

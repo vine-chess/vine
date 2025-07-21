@@ -2,9 +2,9 @@
 #define SEARCH_HPP
 
 #include "../chess/board.hpp"
+#include "node.hpp"
 #include "thread.hpp"
 #include "time_manager.hpp"
-#include "node.hpp"
 
 namespace search {
 

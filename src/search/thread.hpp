@@ -2,8 +2,8 @@
 #define THREAD_HPP
 
 #include "../chess/board.hpp"
-#include "time_manager.hpp"
 #include "node.hpp"
+#include "time_manager.hpp"
 #include <thread>
 
 namespace search {
@@ -29,7 +29,7 @@ class Thread {
 
     void go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings);
 
-private:
+  private:
     [[nodiscard]] u32 select_node(std::vector<Node> &tree);
 
     void expand_node(u32 node_idx, std::vector<Node> &tree);
