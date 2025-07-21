@@ -1,6 +1,7 @@
 #include "thread.hpp"
 #include "../chess/move_gen.hpp"
 #include <cmath>
+#include <complex>
 #include <iostream>
 
 namespace search {
@@ -17,31 +18,9 @@ Thread::~Thread() {
     } */
 }
 
-void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
-    time_manager_.start_tracking(time_settings);
-
-    tree.emplace_back();
-
-    u64 iterations = 0;
-    while (++iterations) {
-        board_ = board;
-
-        auto node = select_node(tree);
-        expand_node(node, tree);
-        auto score = simulate_node(node, tree);
-        backpropagate(score, node, tree);
-
-        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move)) {
-            break;
-        }
-    }
-
-    board_ = board;
-
+void Thread::write_info(std::vector<Node> &tree, Board &board,  u64 iterations, bool write_bestmove ) {
     const Node &root = tree[0];
-    if (root.num_children == 0) {
-        return;
-    }
+    const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / (root.sum_of_scores / root.num_visits) - 1.0)));
 
     u32 best_child_idx = root.first_child_idx;
     u32 most_visits = 0;
@@ -54,11 +33,43 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
         }
     }
 
-    const auto sigmoid_score = root.sum_of_scores / root.num_visits;
-    const auto score = static_cast<int>(std::round(-400.0 * std::log(1.0 / sigmoid_score - 1.0)));
-    std::cout << "info nodes " << iterations << " time " << time_manager_.time_elapsed() << " nps "
-              << iterations * 1000 / time_manager_.time_elapsed() << " score cp " << score << std::endl
-              << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
+    std::cout << "info nodes " << iterations << " depth " << sum_depth_ / iterations << " time "
+              << time_manager_.time_elapsed() << " nps " << iterations * 1000 / time_manager_.time_elapsed()
+              << " score cp " << cp << std::endl;
+    if (write_bestmove)
+        std::cout << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
+}
+
+void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
+    time_manager_.start_tracking(time_settings);
+
+    tree.emplace_back();
+
+    u64 iterations = 0;
+    u64 previous_depth = 0;
+    while (++iterations) {
+        board_ = board;
+
+        auto node = select_node(tree);
+        expand_node(node, tree);
+        auto score = simulate_node(node, tree);
+        backpropagate(score, node, tree);
+
+        write_info(tree, board, iterations);
+        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move)) {
+            break;
+        }
+    }
+
+    board_ = board;
+
+    const Node &root = tree[0];
+    // if we're in a terminal node then there
+    if (root.terminal()) {
+        return;
+    }
+
+    write_info(tree, board, iterations, true);
 }
 
 u32 Thread::select_node(std::vector<Node> &tree) {
@@ -83,10 +94,11 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     };
 
     u32 node_idx = 0;
-    while (true) {
+    for (u32 ply = 0;; ++ply) {
         Node &node = tree[node_idx];
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.expanded()) {
+            sum_depth_ += ply;
             return node_idx;
         }
 

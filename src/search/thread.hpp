@@ -40,10 +40,13 @@ class Thread {
 
     void thread_loop();
 
+    void write_info(std::vector<Node> &tree, Board &board, u64 nodes, bool write_bestmove = false);
+
     std::thread raw_thread_;
     TimeManager time_manager_;
     Board board_;
     u64 num_iterations_;
+    u64 sum_depth_;
 };
 
 } // namespace search
