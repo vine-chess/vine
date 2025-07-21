@@ -14,7 +14,7 @@ void Searcher::set_thread_count(u16 thread_count) {
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
     // TODO: use Hash option for this
-    tree_.reserve(1024 * 1024);
+    // tree_.reserve(1024 * 1024);
 
     for (auto &thread : threads_) {
         thread.go(tree_, board, time_settings);
