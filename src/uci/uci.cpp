@@ -253,7 +253,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                 board_ = Board(fen);
                 out << fen << '\n';
                 searcher_.go(board_, search::TimeSettings{.max_depth = 4});
-                nodes += searcher_.get_iterations();
+                nodes += searcher_.iterations();
             }
             const auto elapsed = std::max<u64>(1, std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                       std::chrono::high_resolution_clock::now() - start)

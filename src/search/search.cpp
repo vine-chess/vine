@@ -21,4 +21,11 @@ void Searcher::go(Board &board, const TimeSettings &time_settings) {
     }
 }
 
+u64 Searcher::iterations() const {
+    u64 result = 0;
+    for (const auto &thread : threads_) {
+        result += thread.iterations();
+    }
+    return result;
+}
 } // namespace search

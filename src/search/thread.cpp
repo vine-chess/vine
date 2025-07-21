@@ -19,6 +19,10 @@ Thread::~Thread() {
     } */
 }
 
+u64 Thread::iterations() const {
+    return num_iterations_;
+}
+
 void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
@@ -224,9 +228,8 @@ void Thread::write_info(std::vector<Node> &tree, Board &board, u64 iterations, b
     }
 
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
-    std::cout << "info depth " << sum_depth_ / iterations << " nodes " << iterations << " time "
-              << elapsed << " nps " << iterations * 1000 / elapsed
-              << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
+    std::cout << "info depth " << sum_depth_ / iterations << " nodes " << iterations << " time " << elapsed << " nps "
+              << iterations * 1000 / elapsed << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
