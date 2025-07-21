@@ -4,7 +4,7 @@
 
 namespace search {
 
-constexpr f64 EXPLORATION_CONSTANT = 1.5;
+constexpr f64 EXPLORATION_CONSTANT = 1.0;
 
 Thread::Thread() {
     // raw_thread_ = std::thread(&Thread::thread_loop, this);
@@ -17,16 +17,47 @@ Thread::~Thread() {
 }
 
 void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
-    board_ = board;
     time_manager_.start_tracking(time_settings);
 
-    while (!time_manager_.times_up(board.state().side_to_move)) {
+    tree.emplace_back();
+
+    u64 iterations = 0;
+    while (++iterations) {
+        board_ = board;
+
         auto node = select_node(tree);
         expand_node(node, tree);
+        auto score = simulate_node(node, tree);
+        backpropagate(score, node, tree);
+
+        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move)) {
+            break;
+        }
     }
+
+    const Node &root = tree[0];
+    if (root.num_children == 0) {
+        return;
+    }
+
+    u32 best_child_idx = root.first_child_idx;
+    u32 most_visits = 0;
+
+    for (u16 i = 0; i < root.num_children; ++i) {
+        const Node &child = tree[root.first_child_idx + i];
+        if (child.num_visits > most_visits) {
+            most_visits = child.num_visits;
+            best_child_idx = root.first_child_idx + i;
+        }
+    }
+
+    std::cout << "info nodes " << iterations << " time " << time_manager_.time_elapsed() << " nps "
+              << iterations * 1000 / time_manager_.time_elapsed() << " score "
+              << tree[best_child_idx].sum_of_scores / tree[best_child_idx].num_visits << std::endl
+              << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
 }
 
-Node &Thread::select_node(std::vector<Node> &tree) {
+u32 Thread::select_node(std::vector<Node> &tree) {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
     // - parent: the parent node from which the child was reached
@@ -50,15 +81,17 @@ Node &Thread::select_node(std::vector<Node> &tree) {
     while (true) {
         Node &node = tree[node_idx];
         // Return if we cannot go any further down the tree
-        if (node.terminal()) {
-            return node;
+        if (node.terminal() || !node.expanded()) {
+            return node_idx;
         }
 
         // Select this node to expand if it has an unvisited child
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = tree[node.first_child_idx + i];
-            if (!child_node.expanded()) {
-                return node;
+            if (!child_node.expanded() && !child_node.terminal()) {
+                // Make move into this child before returning it
+                board_.make_move(child_node.move);
+                return node.first_child_idx + i;
             }
         }
 
@@ -81,21 +114,76 @@ Node &Thread::select_node(std::vector<Node> &tree) {
 
         // Keep descending through the game tree until we find a suitable node to expand
         node_idx = best_child_idx;
-        // Update the board to reflect the current node
         board_.make_move(tree[node_idx].move);
     }
 }
 
-void Thread::expand_node(Node &node, std::vector<Node> &tree) {
+void Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
+    auto &node = tree[node_idx];
+    if (node.expanded() || node.terminal()) {
+        return;
+    }
+
     MoveList move_list;
     generate_moves(board_.state(), move_list);
+
+    // If we have no legal moves then the position is terminal
+    if (move_list.empty()) {
+        node.terminal_state = board_.state().checkers != 0 ? TerminalState::LOSS : TerminalState::DRAW;
+        return;
+    }
 
     node.first_child_idx = tree.size();
     node.num_children = move_list.size();
 
     // Append all child nodes to the tree with the move that leads to it
     for (auto move : move_list) {
-        tree.push_back(Node{.move = move});
+        tree.push_back(Node{
+            .parent_idx = static_cast<i32>(node_idx),
+            .move = move,
+        });
+    }
+}
+
+f64 Thread::simulate_node(u32 node_idx, std::vector<Node> &tree) {
+    const auto &node = tree[node_idx];
+    if (node.terminal()) {
+        switch (node.terminal_state) {
+        case TerminalState::WIN:
+            return 1.0;
+        case TerminalState::DRAW:
+            return 0.5;
+        case TerminalState::LOSS:
+            return 0.0;
+        default:
+            break;
+        }
+    }
+
+    const auto &state = board_.state();
+    const i32 stm_material =
+        100 * state.pawns(state.side_to_move).pop_count() + 280 * state.knights(state.side_to_move).pop_count() +
+        310 * state.bishops(state.side_to_move).pop_count() + 500 * state.rooks(state.side_to_move).pop_count() +
+        1000 * state.queens(state.side_to_move).pop_count();
+    const i32 nstm_material =
+        100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
+        310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
+        1000 * state.queens(~state.side_to_move).pop_count();
+    const f64 eval = stm_material - nstm_material;
+    return 1.0 / (1.0 + std::exp(-eval / 400.0)); // Sigmoid approximation
+}
+
+void Thread::backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree) {
+    while (node_idx != -1) {
+        // A node's score is the average of all of its children's score
+        auto &node = tree[node_idx];
+        node.sum_of_scores += score;
+        node.num_visits++;
+
+        // Travel up to the parent
+        node_idx = node.parent_idx;
+        // Negate the score to match the perspective of the node
+        score = 1.0 - score;
     }
 }
 

@@ -22,5 +22,5 @@ class Board {
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
   private:
-    util::StaticVector<BoardState, 2048> state_history_;
+    BoardState state_;
 };

@@ -30,9 +30,13 @@ class Thread {
     void go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings);
 
 private:
-    [[nodiscard]] Node &select_node(std::vector<Node> &tree);
+    [[nodiscard]] u32 select_node(std::vector<Node> &tree);
 
-    void expand_node(Node &node, std::vector<Node> &tree);
+    void expand_node(u32 node_idx, std::vector<Node> &tree);
+
+    [[nodiscard]] f64 simulate_node([[maybe_unused]] u32 node_idx, [[maybe_unused]] std::vector<Node> &tree);
+
+    void backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree);
 
     void thread_loop();
 

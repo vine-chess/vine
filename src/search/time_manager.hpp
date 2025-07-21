@@ -23,6 +23,8 @@ class TimeManager {
 
     [[nodiscard]] bool times_up(Color color) const;
 
+    [[nodiscard]] u64 time_elapsed() const;
+
   private:
     TimeSettings settings_;
     TimePoint start_time_;

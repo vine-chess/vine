@@ -7,7 +7,7 @@ bool Node::terminal() const {
 }
 
 bool Node::expanded() const {
-    return num_visits != 0;
+    return first_child_idx != -1;
 }
 
 } // namespace search
