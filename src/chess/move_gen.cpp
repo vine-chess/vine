@@ -219,12 +219,14 @@ void king_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         const auto queenside_rook = state.castle_rights.queenside_rook(state.side_to_move);
         const auto kingside_king = state.castle_rights.kingside_king_dest(state.side_to_move);
         const auto queenside_king = state.castle_rights.queenside_king_dest(state.side_to_move);
-        const auto kingside_occupancy_mask = (ROOK_RAY_BETWEEN[king_sq][kingside_rook] | kingside_king.to_bb() |
-                                              state.castle_rights.kingside_rook_dest(state.side_to_move).to_bb()) &
-                                             ~(king_sq.to_bb() | kingside_rook.to_bb());
-        const auto queenside_occupancy_mask = (ROOK_RAY_BETWEEN[king_sq][queenside_rook] | queenside_king.to_bb() |
-                                               state.castle_rights.queenside_rook_dest(state.side_to_move).to_bb()) &
-                                              ~(king_sq.to_bb() | queenside_rook.to_bb());
+        const auto kingside_occupancy_mask =
+            (ROOK_RAY_BETWEEN[king_sq][kingside_rook] | kingside_king.to_bb() |
+             state.castle_rights.kingside_rook_dest(state.side_to_move).to_bb()) &
+            ~(king_sq.to_bb() | (kingside_rook == Square::NO_SQUARE ? 0 : kingside_rook.to_bb()));
+        const auto queenside_occupancy_mask =
+            (ROOK_RAY_BETWEEN[king_sq][queenside_rook] | queenside_king.to_bb() |
+             state.castle_rights.queenside_rook_dest(state.side_to_move).to_bb()) &
+            ~(king_sq.to_bb() | (queenside_rook == Square::NO_SQUARE ? 0 : queenside_rook.to_bb()));
         const auto kingside_path_mask = ROOK_RAY_BETWEEN[king_sq][kingside_king] | kingside_king.to_bb();
         const auto queenside_path_mask = ROOK_RAY_BETWEEN[king_sq][queenside_king] | queenside_king.to_bb();
 
