@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -112,6 +113,9 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                 }
             }
         } else if (parts[0] == "bench") {
+
+            u64 nodes = 0;
+            search::TimePoint start = std::chrono::high_resolution_clock::now();
             for (auto fen : {
                      "1b6/1R1r4/8/1n6/7k/8/8/7K w - - 0 1",
                      "1kr5/2bp3q/Q7/1K6/6q1/6B1/8/8 w - - 0 1",
@@ -149,9 +153,9 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                      "3r4/ppq1ppkp/4bnp1/2pN4/2P1P3/1P4P1/PQ3PBP/R4K2 b - - 2 20",
                      "4kq2/8/n7/8/8/3Q3b/8/3K4 w - - 0 1",
                      "4q1bk/6b1/7p/p1p4p/PNPpP2P/KN4P1/3Q4/4R3 b - - 0 37",
-                     "4r1k1/1q1r3p/2bPNb2/1p1R3Q/pB3p2/n5P1/6B1/4R1K1 w - - 2 36",
+                     //  "4r1k1/1q1r3p/2bPNb2/1p1R3Q/pB3p2/n5P1/6B1/4R1K1 w - - 2 36",
                      "4r1k1/4r1p1/8/p2R1P1K/5P1P/1QP3q1/1P6/3R4 b - - 0 1",
-                     "4r2k/1p3rbp/2p1N1p1/p3n3/P2NB1nq/1P6/4R1P1/B1Q2RK1 b - - 4 32",
+                     //  "4r2k/1p3rbp/2p1N1p1/p3n3/P2NB1nq/1P6/4R1P1/B1Q2RK1 b - - 4 32",
                      "4rrk1/2p1b1p1/p1p3q1/4p3/2P2n1p/1P1NR2P/PB3PP1/3R1QK1 b - - 2 24",
                      "4rrk1/pp1n1pp1/q5p1/P1pP4/2n3P1/7P/1P3PB1/R1BQ1RK1 w - - 3 22",
                      "5R2/2k3PK/8/5N2/7P/5q2/8/q7 w - - 0 69",
@@ -237,8 +241,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                      "r7/1ppq1pkp/1b1p1p2/p4P2/1P2R3/P2Q1NP1/2P2P1P/6K1 w - - 0 13",
                      "r7/6k1/1p6/2pp1p2/7Q/8/p1P2K1P/8 w - - 0 32",
                      "rn1qr1k1/1b3n1p/p5p1/1p3p2/2p1P3/2P2N1P/PPBNQPP1/R4RK1 w - - 2 9",
-                     "rn2k3/4r1b1/pp1p1n2/1P1q1p1p/3P4/P3P1RP/1BQN1PR1/1K6 w - - 6 28",
-                     "rnb1kb1r/pppp1ppp/5n2/8/4N3/8/PPPP1PPP/RNB1R1K1 w kq - 2 5",
+                     //  "rn2k3/4r1b1/pp1p1n2/1P1q1p1p/3P4/P3P1RP/1BQN1PR1/1K6 w - - 6 28",
+                     //  "rnb1kb1r/pppp1ppp/5n2/8/4N3/8/PPPP1PPP/RNB1R1K1 w kq - 2 5",
                      "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
                      "rnbqk1nr/ppp2ppp/8/4P3/1BP5/8/PP2KpPP/RN1Q1BNR b kq - 1 7",
                      "rnbqk2r/ppp2ppp/3p4/8/1b2B3/3n4/PPPP1PPP/RNBQR1K1 w kq - 2 5",
@@ -247,9 +251,14 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                      "rnbqkb1r/pppppppp/5n2/8/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
                  }) {
                 board_ = Board(fen);
-
-                // TODO: bench
+                out << fen << '\n';
+                searcher_.go(board_, search::TimeSettings{.max_depth = 4});
+                nodes += searcher_.get_iterations();
             }
+            const auto elapsed = std::max<u64>(1, std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                      std::chrono::high_resolution_clock::now() - start)
+                                                      .count());
+            out << nodes << " nodes " << static_cast<int>(nodes * 1e9 / elapsed) << " nps" << std::endl;
             std::exit(0);
         }
     }

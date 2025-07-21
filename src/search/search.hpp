@@ -16,6 +16,14 @@ class Searcher {
     void set_thread_count(u16 thread_count);
     void go(Board &board, const TimeSettings &time_settings = {});
 
+    inline u64 get_iterations() const {
+        u64 result = 0;
+        for (const auto &thread : threads_) {
+            result += thread.get_iterations();
+        }
+        return result;
+    }
+
   private:
     std::vector<Thread> threads_;
     std::vector<Node> tree_;

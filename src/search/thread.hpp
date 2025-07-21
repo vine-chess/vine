@@ -29,6 +29,10 @@ class Thread {
 
     void go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings);
 
+    inline u64 get_iterations() const {
+        return num_iterations_;
+    }
+
   private:
     [[nodiscard]] u32 select_node(std::vector<Node> &tree);
 

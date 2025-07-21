@@ -1,5 +1,6 @@
 #include "thread.hpp"
 #include "../chess/move_gen.hpp"
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <iostream>
@@ -43,17 +44,18 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
             write_info(tree, board, iterations);
         }
 
-        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move)) {
+        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move, depth)) {
             break;
         }
     }
-    
+
     const Node &root = tree[0];
     if (root.terminal()) {
         return;
     }
 
     write_info(tree, board, iterations, true);
+    num_iterations_ = iterations;
 }
 
 u32 Thread::select_node(std::vector<Node> &tree) {
@@ -213,20 +215,20 @@ void Thread::write_info(std::vector<Node> &tree, Board &board, u64 iterations, b
     std::vector<Move> pv;
     extract_pv(pv, tree);
 
-    if (write_bestmove)
-        std::cout << "bestmove " << pv[0].to_string() << std::endl;
-    else {
-        std::ostringstream pv_stream;
-        for (int i = 0; i < pv.size(); ++i) {
-            pv_stream << pv[i].to_string();
-            if (i != pv.size() - 1) {
-                pv_stream << " ";
-            }
+    std::ostringstream pv_stream;
+    for (int i = 0; i < pv.size(); ++i) {
+        pv_stream << pv[i].to_string();
+        if (i != pv.size() - 1) {
+            pv_stream << " ";
         }
+    }
 
-        std::cout << "info depth " << sum_depth_ / iterations << " nodes " << iterations << " time "
-                  << time_manager_.time_elapsed() << " nps " << iterations * 1000 / time_manager_.time_elapsed()
-                  << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
+    const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
+    std::cout << "info depth " << sum_depth_ / iterations << " nodes " << iterations << " time "
+              << elapsed << " nps " << iterations * 1000 / elapsed
+              << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
+    if (write_bestmove) {
+        std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
 }
 
