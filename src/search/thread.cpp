@@ -35,6 +35,8 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
         }
     }
 
+    board_ = board;
+
     const Node &root = tree[0];
     if (root.num_children == 0) {
         return;
@@ -53,7 +55,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
 
     std::cout << "info nodes " << iterations << " time " << time_manager_.time_elapsed() << " nps "
               << iterations * 1000 / time_manager_.time_elapsed() << " score "
-              << tree[best_child_idx].sum_of_scores / tree[best_child_idx].num_visits << std::endl
+              << root.sum_of_scores / root.num_visits << std::endl
               << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
 }
 
@@ -85,16 +87,6 @@ u32 Thread::select_node(std::vector<Node> &tree) {
             return node_idx;
         }
 
-        // Select this node to expand if it has an unvisited child
-        for (u16 i = 0; i < node.num_children; ++i) {
-            Node &child_node = tree[node.first_child_idx + i];
-            if (!child_node.expanded() && !child_node.terminal()) {
-                // Make move into this child before returning it
-                board_.make_move(child_node.move);
-                return node.first_child_idx + i;
-            }
-        }
-
         u32 best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
@@ -104,7 +96,7 @@ u32 Thread::select_node(std::vector<Node> &tree) {
             // TODO: Replace with real neural net policy output when available
             const f64 policy_score = 1.0 / static_cast<f64>(node.num_children);
 
-            // Track the child with the highest score so far
+            // Track the child with the highest PUCT score
             const f64 child_score = compute_puct(node, child_node, policy_score, EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into tree
@@ -169,7 +161,7 @@ f64 Thread::simulate_node(u32 node_idx, std::vector<Node> &tree) {
         100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
         310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
         1000 * state.queens(~state.side_to_move).pop_count();
-    const f64 eval = stm_material - nstm_material;
+    const f64 eval = stm_material - nstm_material + 20;
     return 1.0 / (1.0 + std::exp(-eval / 400.0)); // Sigmoid approximation
 }
 
