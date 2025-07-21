@@ -55,7 +55,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     }
 
     const auto sigmoid_score = root.sum_of_scores / root.num_visits;
-    const auto score = static_cast<int>(std::round(-std::log(1.0 / sigmoid_score - 1.0)));
+    const auto score = static_cast<int>(std::round(-400.0 * std::log(1.0 / sigmoid_score - 1.0)));
     std::cout << "info nodes " << iterations << " time " << time_manager_.time_elapsed() << " nps "
               << iterations * 1000 / time_manager_.time_elapsed() << " score " << score << "cp" << std::endl
               << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
