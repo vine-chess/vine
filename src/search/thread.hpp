@@ -40,7 +40,7 @@ class Thread {
 
     void thread_loop();
 
-    void write_info(std::vector<Node> &tree, Board &board, u64 nodes, bool write_bestmove = false);
+    void write_info(std::vector<Node> &tree, Board &board, u64 nodes, bool write_bestmove = false) const;
 
     std::thread raw_thread_;
     TimeManager time_manager_;

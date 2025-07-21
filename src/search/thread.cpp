@@ -18,35 +18,17 @@ Thread::~Thread() {
     } */
 }
 
-void Thread::write_info(std::vector<Node> &tree, Board &board,  u64 iterations, bool write_bestmove ) {
-    const Node &root = tree[0];
-    const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / (root.sum_of_scores / root.num_visits) - 1.0)));
-
-    u32 best_child_idx = root.first_child_idx;
-    u32 most_visits = 0;
-
-    for (u16 i = 0; i < root.num_children; ++i) {
-        const Node &child = tree[root.first_child_idx + i];
-        if (child.num_visits > most_visits) {
-            most_visits = child.num_visits;
-            best_child_idx = root.first_child_idx + i;
-        }
-    }
-
-    std::cout << "info nodes " << iterations << " depth " << sum_depth_ / iterations << " time "
-              << time_manager_.time_elapsed() << " nps " << iterations * 1000 / time_manager_.time_elapsed()
-              << " score cp " << cp << std::endl;
-    if (write_bestmove)
-        std::cout << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
-}
-
 void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
+    // Push the root node to the game tree
+    tree.clear();
     tree.emplace_back();
 
+    sum_depth_ = 0;
     u64 iterations = 0;
     u64 previous_depth = 0;
+
     while (++iterations) {
         board_ = board;
 
@@ -55,16 +37,18 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
         auto score = simulate_node(node, tree);
         backpropagate(score, node, tree);
 
-        write_info(tree, board, iterations);
+        const u64 depth = sum_depth_ / iterations;
+        if (depth > previous_depth) {
+            previous_depth = depth;
+            write_info(tree, board, iterations);
+        }
+
         if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move)) {
             break;
         }
     }
-
-    board_ = board;
-
+    
     const Node &root = tree[0];
-    // if we're in a terminal node then there
     if (root.terminal()) {
         return;
     }
@@ -93,8 +77,8 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         return q_value + u_value;
     };
 
-    u32 node_idx = 0;
-    for (u32 ply = 0;; ++ply) {
+    u32 node_idx = 0, ply = 0;
+    while (true) {
         Node &node = tree[node_idx];
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.expanded()) {
@@ -120,7 +104,7 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         }
 
         // Keep descending through the game tree until we find a suitable node to expand
-        node_idx = best_child_idx;
+        node_idx = best_child_idx, ++ply;
         board_.make_move(tree[node_idx].move);
     }
 }
@@ -196,6 +180,54 @@ void Thread::backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree) {
 
 void Thread::thread_loop() {
     // TODO: this shit
+}
+
+void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, std::vector<Node> &tree) {
+    const auto &node = tree[node_idx];
+    if (node.terminal() || !node.expanded()) {
+        return;
+    }
+
+    u32 best_child_idx = node.first_child_idx;
+    u32 most_visits = 0;
+    for (u16 i = 0; i < node.num_children; ++i) {
+        const Node &child = tree[node.first_child_idx + i];
+        if (child.num_visits > most_visits) {
+            most_visits = child.num_visits;
+            best_child_idx = node.first_child_idx + i;
+        }
+    }
+
+    pv.push_back(tree[best_child_idx].move);
+    extract_pv_internal(pv, best_child_idx, tree);
+}
+
+void extract_pv(std::vector<Move> &pv, std::vector<Node> &tree) {
+    extract_pv_internal(pv, 0, tree);
+}
+
+void Thread::write_info(std::vector<Node> &tree, Board &board, u64 iterations, bool write_bestmove) const {
+    const Node &root = tree[0];
+    const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / (root.sum_of_scores / root.num_visits) - 1.0)));
+
+    std::vector<Move> pv;
+    extract_pv(pv, tree);
+
+    if (write_bestmove)
+        std::cout << "bestmove " << pv[0].to_string() << std::endl;
+    else {
+        std::ostringstream pv_stream;
+        for (int i = 0; i < pv.size(); ++i) {
+            pv_stream << pv[i].to_string();
+            if (i != pv.size() - 1) {
+                pv_stream << " ";
+            }
+        }
+
+        std::cout << "info depth " << sum_depth_ / iterations << " nodes " << iterations << " time "
+                  << time_manager_.time_elapsed() << " nps " << iterations * 1000 / time_manager_.time_elapsed()
+                  << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
+    }
 }
 
 } // namespace search
