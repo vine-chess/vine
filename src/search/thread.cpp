@@ -54,8 +54,8 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     }
 
     std::cout << "info nodes " << iterations << " time " << time_manager_.time_elapsed() << " nps "
-              << iterations * 1000 / time_manager_.time_elapsed() << " score "
-              << root.sum_of_scores / root.num_visits << std::endl
+              << iterations * 1000 / time_manager_.time_elapsed() << " score " << root.sum_of_scores / root.num_visits
+              << std::endl
               << "bestmove " << tree[best_child_idx].move.to_string() << std::endl;
 }
 
@@ -67,9 +67,10 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f64 policy_score, f64 exploration_constant) -> f64 {
-        // Average value of the child from previous visits (Q value)
+        // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, default to 0.0 (TODO: Implement FPU)
-        const f64 q_value = child.num_visits > 0 ? child.sum_of_scores / static_cast<f64>(child.num_visits) : 0.0;
+        const f64 q_value =
+            1.0 - (child.num_visits > 0 ? child.sum_of_scores / static_cast<f64>(child.num_visits) : 0.0);
         // Total visit count of the parent node (+1 to prevent division by zero)
         const f64 parent_visits = parent.num_visits + 1;
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
