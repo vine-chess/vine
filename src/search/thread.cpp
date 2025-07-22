@@ -94,7 +94,6 @@ u32 Thread::select_node(std::vector<Node> &tree) {
             return node_idx;
         }
 
-        compute_policy(tree, node_idx);
         u32 best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
@@ -123,8 +122,9 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
         // Temporary placeholder for NN
         // TODO: Replace with real neural net policy output when available
         const f64 policy_score = child.move.is_capture() ? 2 : 1;
-        child.policy = std::exp(policy_score);
-        sum_exponents += child.policy;
+        const f64 exp_policy = std::exp(policy_score);
+        child.policy = exp_policy;
+        sum_exponents += exp_policy;
     }
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = tree[node.first_child_idx + i];
@@ -157,6 +157,7 @@ void Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
             .move = move,
         });
     }
+    compute_policy(tree, node_idx);
 }
 
 f64 Thread::simulate_node(u32 node_idx, std::vector<Node> &tree) {
