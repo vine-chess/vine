@@ -135,6 +135,7 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
         child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
+    
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = tree[node.first_child_idx + i];
         child.policy_score /= sum_exponents;
@@ -171,6 +172,8 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
             .move = move,
         });
     }
+
+    // Compute and store policy values for all the child nodes
     compute_policy(tree, node_idx);
 
     return true;
