@@ -48,7 +48,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
             write_info(tree, board, iterations);
         }
 
-        if (iterations % 512 == 0 && time_manager_.times_up(board.state().side_to_move, depth)) {
+        if (time_manager_.times_up(iterations, board.state().side_to_move, depth)) {
             break;
         }
     }
