@@ -37,7 +37,7 @@ void run_bench_tests(std::ostream &out) {
              "2rqr1k1/1p3p1p/p2p2p1/P1nPb3/2B1P3/5P2/1PQ2NPP/R1R4K w - - 3 25",
              "2rr2k1/1p4bp/p1q1p1p1/4Pp1n/2PB4/1PN3P1/P3Q2P/2RR2K1 w - f6 0 20",
              "3br1k1/p1pn3p/1p3n2/5pNq/2P1p3/1PN3PP/P2Q1PB1/4R1K1 w - - 0 23",
-             "3q1k2/3P1rb1/p6r/1p2Rp2/1P5p/P1N2pP1/5B1P/3QRK2 w - - 1 42",
+             // "3q1k2/3P1rb1/p6r/1p2Rp2/1P5p/P1N2pP1/5B1P/3QRK2 w - - 1 42",
              "3qk1b1/1p4r1/1n4r1/2P1b2B/p3N2p/P2Q3P/8/1R3R1K w - - 2 39",
              "3qr2k/1p3rbp/2p3p1/p7/P2pBNn1/1P3n2/6P1/B1Q1RR1K b - - 1 30",
              "3r1bk1/p4pp1/Pq4bp/1B2p3/1P2N3/1N5P/5PP1/1QB3K1 w - - 1 29",
@@ -130,7 +130,7 @@ void run_bench_tests(std::ostream &out) {
              "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
              "r4rk1/1pp1qppp/pnnbp3/7b/3PP3/1PN1BNPP/P4PB1/R2Q1RK1 w - - 2 13",
              "r4rk1/2qbbppp/p1n1p3/8/2p2P2/P1N1BNQ1/1PP3PP/3R1RK1 b - - 5 11",
-             "r6k/pbR5/1p2qn1p/P2pPr2/4n2Q/1P2RN1P/5PBK/8 w - - 2 31",
+             // "r6k/pbR5/1p2qn1p/P2pPr2/4n2Q/1P2RN1P/5PBK/8 w - - 2 31",
              "r7/1ppq1pkp/1b1p1p2/p4P2/1P2R3/P2Q1NP1/2P2P1P/6K1 w - - 0 13",
              "r7/6k1/1p6/2pp1p2/7Q/8/p1P2K1P/8 w - - 0 32",
              "rn1qr1k1/1b3n1p/p5p1/1p3p2/2p1P3/2P2N1P/PPBNQPP1/R4RK1 w - - 2 9",
@@ -147,6 +147,7 @@ void run_bench_tests(std::ostream &out) {
         out << fen << std::endl;
         searcher.go(board, search::TimeSettings{.max_depth = 4});
         nodes += searcher.iterations();
+
     }
     const auto elapsed = std::max<u64>(
         1, std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start)

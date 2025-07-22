@@ -36,6 +36,7 @@ class Thread {
 
     [[nodiscard]] bool expand_node(u32 node_idx, std::vector<Node> &tree);
 
+    void compute_policy(std::vector<Node> &tree, u32 node_idx);
     [[nodiscard]] f64 simulate_node([[maybe_unused]] u32 node_idx, [[maybe_unused]] std::vector<Node> &tree);
 
     void backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree);
