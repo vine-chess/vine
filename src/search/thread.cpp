@@ -1,6 +1,8 @@
 #include "thread.hpp"
 #include "../chess/move_gen.hpp"
+#include "../util/types.hpp"
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <complex>
 #include <iostream>
@@ -92,17 +94,14 @@ u32 Thread::select_node(std::vector<Node> &tree) {
             return node_idx;
         }
 
+        compute_policy(tree, node_idx);
         u32 best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = tree[node.first_child_idx + i];
 
-            // Temporary placeholder for NN — currently using uniform policy
-            // TODO: Replace with real neural net policy output when available
-            const f64 policy_score = 1.0 / static_cast<f64>((node.move.is_capture() ? 1 : 2) * node.num_children);
-
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, policy_score, EXPLORATION_CONSTANT);
+            const f64 child_score = compute_puct(node, child_node, child_node.policy, EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into tree
                 best_child_score = child_score;
@@ -112,6 +111,24 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         // Keep descending through the game tree until we find a suitable node to expand
         node_idx = best_child_idx, ++ply;
         board_.make_move(tree[node_idx].move);
+    }
+}
+
+void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
+    const Node &node = tree[node_idx];
+    f32 sum_exponents = 0;
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = tree[node.first_child_idx + i];
+
+        // Temporary placeholder for NN
+        // TODO: Replace with real neural net policy output when available
+        const f64 policy_score = child.move.is_capture() ? 2 : 1;
+        child.policy = std::exp(policy_score);
+        sum_exponents += child.policy;
+    }
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = tree[node.first_child_idx + i];
+        child.policy /= sum_exponents;
     }
 }
 

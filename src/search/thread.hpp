@@ -2,9 +2,12 @@
 #define THREAD_HPP
 
 #include "../chess/board.hpp"
+#include "../util/types.hpp"
 #include "node.hpp"
 #include "time_manager.hpp"
+
 #include <thread>
+#include <vector>
 
 namespace search {
 
@@ -39,6 +42,8 @@ class Thread {
     [[nodiscard]] f64 simulate_node([[maybe_unused]] u32 node_idx, [[maybe_unused]] std::vector<Node> &tree);
 
     void backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree);
+
+    void compute_policy(std::vector<Node> &tree, u32 node_idx);
 
     void thread_loop();
 
