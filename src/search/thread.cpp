@@ -132,7 +132,7 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
             return (10.0 * victim - attacker) / 40.0;
         }();
         const f64 exp_policy = std::exp(policy_score);
-        child.policy_score = exp_policy;
+        child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
     for (u16 i = 0; i < node.num_children; ++i) {
