@@ -83,6 +83,19 @@ const BoardState &Board::state() const {
     return state_;
 }
 
+bool Board::has_threefold_repetition() const {
+    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, key_history_.size());
+
+    u16 times_seen = 1;
+    for (i32 i = 1; i <= maximum_distance; i++) {
+        if (state().hash_key == key_history_[key_history_.size() - i] && ++times_seen == 3) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 Move Board::create_move(std::string_view uci_move) const {
     MoveList moves;
     generate_moves(state(), moves);
@@ -97,6 +110,8 @@ Move Board::create_move(std::string_view uci_move) const {
 }
 
 void Board::make_move(Move move) {
+    key_history_.push_back(state().hash_key);
+
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];

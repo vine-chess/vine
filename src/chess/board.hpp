@@ -14,6 +14,8 @@ class Board {
     [[nodiscard]] BoardState &state();
     [[nodiscard]] const BoardState &state() const;
 
+    [[nodiscard]] bool has_threefold_repetition() const;
+
     [[nodiscard]] Move create_move(std::string_view uci_move) const;
 
     void make_move(Move move);
@@ -23,4 +25,5 @@ class Board {
 
   private:
     BoardState state_;
+    util::StaticVector<HashKey, 2048> key_history_;
 };

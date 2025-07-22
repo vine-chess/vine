@@ -124,10 +124,14 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
         return true;
     }
 
+    if (board_.has_threefold_repetition()) {
+        node.terminal_state = TerminalState::DRAW;
+        return true;
+    }
+
     MoveList move_list;
     generate_moves(board_.state(), move_list);
 
-    // If we have no legal moves then the position is terminal
     if (move_list.empty()) {
         node.terminal_state = board_.state().checkers != 0 ? TerminalState::LOSS : TerminalState::DRAW;
         return true;
