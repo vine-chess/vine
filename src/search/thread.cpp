@@ -100,12 +100,8 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = tree[node.first_child_idx + i];
 
-            // Temporary placeholder for NN — currently using uniform policy
-            // TODO: Replace with real neural net policy output when available
-            const f64 policy_score = 1.0 / static_cast<f64>(node.num_children);
-
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, policy_score, EXPLORATION_CONSTANT);
+            const f64 child_score = compute_puct(node, child_node, child_node.policy_score, EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into tree
                 best_child_score = child_score;
@@ -115,6 +111,34 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         // Keep descending through the game tree until we find a suitable node to expand
         node_idx = best_child_idx, ++ply;
         board_.make_move(tree[node_idx].move);
+    }
+}
+
+void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
+    const Node &node = tree[node_idx];
+    f64 sum_exponents = 0;
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = tree[node.first_child_idx + i];
+
+        // Temporary placeholder for NN
+        // TODO: Replace with real neural net policy output when available
+        const f64 policy_score = [&]() {
+            const Move move = child.move;
+            if (!move.is_capture()) {
+                return 0.0;
+            }
+            const PieceType victim = move.is_ep() ? PieceType::PAWN : board_.state().get_piece_type(move.to());
+            const PieceType attacker = board_.state().get_piece_type(move.from());
+            return (10.0 * victim - attacker) / 40.0;
+        }();
+        const f64 exp_policy = std::exp(policy_score);
+        child.policy_score = static_cast<f32>(exp_policy);
+        sum_exponents += exp_policy;
+    }
+    
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = tree[node.first_child_idx + i];
+        child.policy_score /= sum_exponents;
     }
 }
 
@@ -152,6 +176,9 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
             .move = move,
         });
     }
+
+    // Compute and store policy values for all the child nodes
+    compute_policy(tree, node_idx);
 
     return true;
 }
