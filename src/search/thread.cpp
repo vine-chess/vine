@@ -1,10 +1,9 @@
 #include "thread.hpp"
 #include "../chess/move_gen.hpp"
-#include "../uci/uci.hpp"
+#include "../util/assert.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <iostream>
 
 namespace search {
@@ -75,9 +74,11 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f64 policy_score, f64 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
-        // If the node hasn't been visited, default to 0.0 (TODO: Implement FPU)
+        // If the node hasn't been visited, use the parent nodes Q value, but inverted as a proxy
+        vine_assert(parent.num_visits > 0);
         const f64 q_value =
-            1.0 - (child.num_visits > 0 ? child.sum_of_scores / static_cast<f64>(child.num_visits) : 0.0);
+            1.0 - (child.num_visits > 0 ? child.sum_of_scores / static_cast<f64>(child.num_visits)
+                                        : 1.0 - parent.sum_of_scores / static_cast<f64>(parent.num_visits));
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
         const f64 u_value = exploration_constant * policy_score * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
