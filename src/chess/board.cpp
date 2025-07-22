@@ -15,7 +15,6 @@
 }
 
 Board::Board(std::string_view fen) {
-    state_history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
     std::string position;
@@ -77,11 +76,11 @@ Board::Board(std::string_view fen) {
 }
 
 BoardState &Board::state() {
-    return state_history_.back();
+    return state_;
 }
 
 const BoardState &Board::state() const {
-    return state_history_.back();
+    return state_;
 }
 
 Move Board::create_move(std::string_view uci_move) const {
@@ -98,8 +97,6 @@ Move Board::create_move(std::string_view uci_move) const {
 }
 
 void Board::make_move(Move move) {
-    state_history_.push_back(state());
-
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
@@ -166,9 +163,7 @@ void Board::make_move(Move move) {
     state().compute_masks();
 }
 
-void Board::undo_move() {
-    state_history_.pop_back();
-}
+void Board::undo_move() {}
 
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {

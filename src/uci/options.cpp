@@ -18,7 +18,8 @@ IntegerOption::IntegerOption(std::string_view name, i32 value, i32 min, i32 max,
     : value_(value), min_(min), max_(max) {
     name_ = name;
     callback_ = std::move(callback);
-    if (callback_) callback_(*this);
+    if (callback_)
+        callback_(*this);
 }
 
 void IntegerOption::set_value(std::string_view str_value) {
@@ -26,7 +27,8 @@ void IntegerOption::set_value(std::string_view str_value) {
     i32 new_value;
     if (ss >> new_value && new_value >= min_ && new_value <= max_) {
         value_ = new_value;
-        if (callback_) callback_(*this);
+        if (callback_)
+            callback_(*this);
     } else {
         std::cerr << "IntegerOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to "
                   << max_ << ")" << std::endl;
@@ -54,7 +56,8 @@ BoolOption::BoolOption(std::string_view name, bool value, std::function<void(con
     : value_(value) {
     name_ = name;
     callback_ = std::move(callback);
-    if (callback_) callback_(*this);
+    if (callback_)
+        callback_(*this);
 }
 
 void BoolOption::set_value(std::string_view str_value) {
@@ -70,7 +73,8 @@ void BoolOption::set_value(std::string_view str_value) {
         return;
     }
 
-    if (callback_) callback_(*this);
+    if (callback_)
+        callback_(*this);
 }
 
 std::string BoolOption::value() const {
@@ -94,12 +98,14 @@ StringOption::StringOption(std::string_view name, std::string value, std::functi
     : value_(std::move(value)) {
     name_ = name;
     callback_ = std::move(callback);
-    if (callback_) callback_(*this);
+    if (callback_)
+        callback_(*this);
 }
 
 void StringOption::set_value(std::string_view str_value) {
     value_ = std::string(str_value);
-    if (callback_) callback_(*this);
+    if (callback_)
+        callback_(*this);
 }
 
 std::string StringOption::value() const {

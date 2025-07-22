@@ -40,6 +40,10 @@ class Move {
     [[nodiscard]] constexpr explicit Move(Square from, Square to, MoveFlag flag = MoveFlag::NORMAL)
         : raw_{static_cast<u16>(flag << 12 | to << 6 | from)} {}
 
+    [[nodiscard]] static Move null() {
+        return Move(0, 0, MoveFlag::NORMAL);
+    }
+
     [[nodiscard]] constexpr Square king_castling_to() const {
         assert(is_castling());
         return from() > to() ? Square(from().rank(), File(2)) : Square(from().rank(), File(6));
