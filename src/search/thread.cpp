@@ -74,11 +74,9 @@ u32 Thread::select_node(std::vector<Node> &tree) {
         // If the node hasn't been visited, default to 0.0 (TODO: Implement FPU)
         const f64 q_value =
             1.0 - (child.num_visits > 0 ? child.sum_of_scores / static_cast<f64>(child.num_visits) : 0.0);
-        // Total visit count of the parent node (+1 to prevent division by zero)
-        const f64 parent_visits = parent.num_visits + 1;
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
-        const f64 u_value =
-            exploration_constant * policy_score * std::sqrt(parent_visits) / (1.0 + static_cast<f64>(child.num_visits));
+        const f64 u_value = exploration_constant * policy_score * std::sqrt(parent.num_visits) /
+                            (1.0 + static_cast<f64>(child.num_visits));
         // Final PUCT score is exploitation (Q) + exploration (U)
         return q_value + u_value;
     };
