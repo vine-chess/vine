@@ -99,7 +99,7 @@ u32 Thread::select_node(std::vector<Node> &tree) {
 
             // Temporary placeholder for NN — currently using uniform policy
             // TODO: Replace with real neural net policy output when available
-            const f64 policy_score = 1.0 / static_cast<f64>(node.num_children);
+            const f64 policy_score = 1.0 / static_cast<f64>((node.move.is_capture() ? 1 : 2) * node.num_children);
 
             // Track the child with the highest PUCT score
             const f64 child_score = compute_puct(node, child_node, policy_score, EXPLORATION_CONSTANT);
