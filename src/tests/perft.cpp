@@ -14,9 +14,9 @@ u64 perft(Board &board, i32 depth) {
 
     u64 nodes = 0;
     for (const auto move : moves) {
-        Board board_copy = board;
-        board_copy.make_move(move);
-        nodes += perft(board_copy, depth - 1);
+        board.make_move(move);
+        nodes += perft(board, depth - 1);
+        board.undo_move();
     }
 
     return nodes;
@@ -28,12 +28,11 @@ u64 perft_print(Board &board, i32 depth, std::ostream &out) {
 
     u64 nodes = 0;
     for (const auto move : moves) {
-        Board board_copy = board;
-        board_copy.make_move(move);
-        const auto child_nodes = perft(board_copy, depth - 1);
+        board.make_move(move);
+        const auto child_nodes = perft(board, depth - 1);
+        board.undo_move();
 
-        out << move << ": " << child_nodes << '\n';
-
+        out << move << ": " << child_nodes << std::endl;
         nodes += child_nodes;
     }
 

@@ -15,6 +15,7 @@
 }
 
 Board::Board(std::string_view fen) {
+    history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
     std::string position;
@@ -76,24 +77,38 @@ Board::Board(std::string_view fen) {
 }
 
 BoardState &Board::state() {
-    return state_;
+    return history_.back();
 }
 
 const BoardState &Board::state() const {
-    return state_;
+    return history_.back();
 }
 
 bool Board::has_threefold_repetition() const {
-    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, key_history_.size());
+    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
     u16 times_seen = 1;
-    for (i32 i = 1; i <= maximum_distance; i++) {
-        if (state().hash_key == key_history_[key_history_.size() - i] && ++times_seen == 3) {
+    for (i32 i = 2; i <= maximum_distance; i++) {
+        if (state().hash_key == history_[history_.size() - i].hash_key && ++times_seen == 3) {
             return true;
         }
     }
 
     return false;
+}
+
+bool Board::is_fifty_move_draw() const {
+    if (state().fifty_moves_clock < 100) {
+        return false;
+    }
+
+    if (state().checkers == 0) {
+        return true;
+    }
+
+    MoveList moves;
+    generate_moves(state(), moves);
+    return !moves.empty();
 }
 
 Move Board::create_move(std::string_view uci_move) const {
@@ -110,7 +125,7 @@ Move Board::create_move(std::string_view uci_move) const {
 }
 
 void Board::make_move(Move move) {
-    key_history_.push_back(state().hash_key);
+    history_.push_back(state());
 
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
@@ -178,7 +193,9 @@ void Board::make_move(Move move) {
     state().compute_masks();
 }
 
-void Board::undo_move() {}
+void Board::undo_move() {
+    history_.pop_back();
+}
 
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
@@ -198,6 +215,7 @@ std::ostream &operator<<(std::ostream &out, const BoardState &board) {
 
     return out;
 }
+
 std::ostream &operator<<(std::ostream &out, const Board &board) {
     return out << board.state();
 }

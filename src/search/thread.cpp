@@ -124,7 +124,7 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
         return true;
     }
 
-    if (board_.has_threefold_repetition()) {
+    if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
         node.terminal_state = TerminalState::DRAW;
         return true;
     }
