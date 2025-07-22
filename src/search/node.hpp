@@ -20,7 +20,7 @@ struct Node {
     // Index of the first child in the node table
     i32 first_child_idx = -1;
     // Number of times this node has been visited
-    u32 num_visits = 1;
+    u32 num_visits = 0;
     // Move that led into this node
     Move move = Move::null();
     // Number of legal moves this node has
