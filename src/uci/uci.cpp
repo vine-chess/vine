@@ -20,8 +20,8 @@ Handler handler;
 
 Handler::Handler() {
     options.add(
-        std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [](const Option &option) {
-            // resize hash table
+        std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [&](const Option &option) {
+            searcher_.set_hash_size(std::get<i32>(option.value_as_variant()));
         }));
     options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
     board_ = Board(STARTPOS_FEN);
@@ -42,7 +42,7 @@ void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_
         return;
     }
 
-    if (parts[3] != "value  ") {
+    if (parts[3] != "value") {
         out << "invalid fourth argument, expected 'value'" << std::endl;
         return;
     }

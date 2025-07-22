@@ -1,4 +1,5 @@
 #include "search.hpp"
+#include "../uci/uci.hpp"
 #include <iostream>
 
 namespace search {
@@ -10,6 +11,11 @@ Searcher::Searcher() {
 void Searcher::set_thread_count(u16 thread_count) {
     threads_.clear();
     threads_.resize(thread_count);
+}
+
+void Searcher::set_hash_size(u32 size_in_mb) {
+    tree_.reserve(1024 * 1024 * size_in_mb / sizeof(Node));
+    std::cout << tree_.capacity() << std::endl;
 }
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {

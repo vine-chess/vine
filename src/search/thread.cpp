@@ -1,5 +1,7 @@
 #include "thread.hpp"
 #include "../chess/move_gen.hpp"
+#include "../uci/uci.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <complex>
@@ -37,9 +39,11 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     while (++iterations) {
         board_ = board;
 
-        auto node = select_node(tree);
-        expand_node(node, tree);
-        auto score = simulate_node(node, tree);
+        const auto node = select_node(tree);
+        if (!expand_node(node, tree)) {
+            break;
+        }
+        const auto score = simulate_node(node, tree);
         backpropagate(score, node, tree);
 
         const u64 depth = sum_depth_ / iterations;
@@ -115,10 +119,10 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     }
 }
 
-void Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
+bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
     auto &node = tree[node_idx];
     if (node.expanded() || node.terminal()) {
-        return;
+        return true;
     }
 
     MoveList move_list;
@@ -127,11 +131,16 @@ void Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
     // If we have no legal moves then the position is terminal
     if (move_list.empty()) {
         node.terminal_state = board_.state().checkers != 0 ? TerminalState::LOSS : TerminalState::DRAW;
-        return;
+        return true;
     }
 
     node.first_child_idx = tree.size();
     node.num_children = move_list.size();
+
+    // Return early if we will run out of memory
+    if (tree.size() + node.num_children > tree.capacity()) {
+        return false;
+    }
 
     // Append all child nodes to the tree with the move that leads to it
     for (auto move : move_list) {
@@ -140,6 +149,8 @@ void Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
             .move = move,
         });
     }
+
+    return true;
 }
 
 f64 Thread::simulate_node(u32 node_idx, std::vector<Node> &tree) {
