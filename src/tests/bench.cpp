@@ -8,6 +8,7 @@ void run_bench_tests(std::ostream &out) {
     u64 nodes = 0;
     search::TimePoint start = std::chrono::high_resolution_clock::now();
     search::Searcher searcher;
+    searcher.set_hash_size(32);
     for (auto fen : {
              "1b6/1R1r4/8/1n6/7k/8/8/7K w - - 0 1",
              "1kr5/2bp3q/Q7/1K6/6q1/6B1/8/8 w - - 0 1",
