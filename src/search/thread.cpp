@@ -116,7 +116,7 @@ u32 Thread::select_node(std::vector<Node> &tree) {
 
 void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
     const Node &node = tree[node_idx];
-    f32 sum_exponents = 0;
+    f64 sum_exponents = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = tree[node.first_child_idx + i];
 
