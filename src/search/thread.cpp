@@ -125,11 +125,11 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
         const f64 policy_score = [&]() {
             const Move move = child.move;
             if (!move.is_capture()) {
-                return 0;
+                return 0.0;
             }
             const PieceType victim = move.is_ep() ? PieceType::PAWN : board_.state().get_piece_type(move.to());
             const PieceType attacker = board_.state().get_piece_type(move.from());
-            return 10 * victim - attacker;
+            return (10.0 * victim - attacker) / 40.0;
         }();
         const f64 exp_policy = std::exp(policy_score);
         child.policy_score = exp_policy;
