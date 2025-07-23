@@ -4,7 +4,8 @@
 #include "../util/multi_array.hpp"
 #include "../util/types.hpp"
 
-#include <array>
+constexpr i32 KINGSIDE = 0;
+constexpr i32 QUEENSIDE = 1;
 
 class CastleRights {
   public:

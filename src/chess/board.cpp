@@ -59,8 +59,10 @@ Board::Board(std::string_view fen) {
                 const auto rook_file = File::from_char(ch);
                 if (rook_file > state().king(color).lsb().file()) {
                     state().castle_rights.set_kingside_rook_file(color, rook_file);
+                    state().hash_key ^= zobrist::castle_rights[color][KINGSIDE];
                 } else {
                     state().castle_rights.set_queenside_rook_file(color, rook_file);
+                    state().hash_key ^= zobrist::castle_rights[color][QUEENSIDE];
                 }
             }
         }
@@ -69,7 +71,8 @@ Board::Board(std::string_view fen) {
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state().set_en_passant_sq(Square::from_string(en_passant));
+        state().en_passant_sq = Square::from_string(en_passant);
+        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
     }
 
     stream >> state().fifty_moves_clock;
@@ -88,7 +91,7 @@ bool Board::has_threefold_repetition() const {
     const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
     u16 times_seen = 1;
-    for (i32 i = 3; i <= maximum_distance; i++) {
+    for (i32 i = 3; i <= maximum_distance; i += 2) {
         if (state().hash_key == history_[history_.size() - i].hash_key && ++times_seen == 3) {
             return true;
         }
@@ -136,10 +139,15 @@ void Board::make_move(Move move) {
     if (move.is_castling()) {
         state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
+
         state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
         state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
+
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
+
         state().side_to_move = ~state().side_to_move;
         state().compute_masks();
         return;
@@ -158,8 +166,10 @@ void Board::make_move(Move move) {
 
         if (move.to() == state().castle_rights.kingside_rook(~state().side_to_move)) {
             state().castle_rights.set_kingside_rook_file(~state().side_to_move, File::NO_FILE);
+            state().hash_key ^= zobrist::castle_rights[~state().side_to_move][KINGSIDE];
         } else if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
             state().castle_rights.set_queenside_rook_file(~state().side_to_move, File::NO_FILE);
+            state().hash_key ^= zobrist::castle_rights[~state().side_to_move][QUEENSIDE];
         }
 
         state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
@@ -183,9 +193,11 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
+    if (state().castle_rights.can_kingside_castle(state().side_to_move) &&
+        move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-    } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
+    } else if (state().castle_rights.can_queenside_castle(state().side_to_move) &&
+               move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 

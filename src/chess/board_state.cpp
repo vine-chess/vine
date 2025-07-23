@@ -20,14 +20,6 @@ void BoardState::remove_piece(PieceType piece_type, Square sq, Color color) {
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
 }
 
-void BoardState::set_en_passant_sq(Square sq) {
-    if (en_passant_sq.is_valid()) {
-        hash_key ^= zobrist::en_passant[sq.file()];
-    }
-    en_passant_sq = sq;
-    hash_key ^= zobrist::en_passant[sq.file()];
-}
-
 Bitboard BoardState::occupancy() const {
     return side_bbs[Color::WHITE] | side_bbs[Color::BLACK];
 }

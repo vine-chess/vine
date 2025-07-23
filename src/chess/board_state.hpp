@@ -12,7 +12,6 @@
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
     void remove_piece(PieceType piece_type, Square sq, Color color);
-    void set_en_passant_sq(Square sq);
 
     [[nodiscard]] Bitboard occupancy() const;
     [[nodiscard]] Bitboard occupancy(Color color) const;
