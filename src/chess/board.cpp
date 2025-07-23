@@ -48,29 +48,29 @@ Board::Board(std::string_view fen) {
         for (const char ch : castle_data) {
             if (ch == 'K') {
                 state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
-                state().hash_key ^= zobrist::castle_rights[Color::WHITE][KINGSIDE];
             } else if (ch == 'Q') {
                 state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
-                state().hash_key ^= zobrist::castle_rights[Color::WHITE][QUEENSIDE];
             } else if (ch == 'k') {
                 state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
-                state().hash_key ^= zobrist::castle_rights[Color::BLACK][KINGSIDE];
             } else if (ch == 'q') {
                 state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
-                state().hash_key ^= zobrist::castle_rights[Color::BLACK][QUEENSIDE];
             } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
                 const auto rook_file = File::from_char(ch);
                 if (rook_file > state().king(color).lsb().file()) {
                     state().castle_rights.set_kingside_rook_file(color, rook_file);
-                    state().hash_key ^= zobrist::castle_rights[color][KINGSIDE];
                 } else {
                     state().castle_rights.set_queenside_rook_file(color, rook_file);
-                    state().hash_key ^= zobrist::castle_rights[color][QUEENSIDE];
                 }
             }
         }
     }
+    const u8 castle_rights = state().castle_rights.can_kingside_castle(Color::WHITE) |
+                             state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
+                             state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
+                             state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+    state().hash_key ^= castle_rights;
+
     std::string en_passant;
     stream >> en_passant;
 
@@ -134,6 +134,11 @@ Move Board::create_move(std::string_view uci_move) const {
 void Board::make_move(Move move) {
     history_.push_back(state());
 
+    const u8 castle_rights_before = state().castle_rights.can_kingside_castle(Color::WHITE) |
+                                    state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
+                                    state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
+                                    state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
@@ -143,15 +148,10 @@ void Board::make_move(Move move) {
     if (move.is_castling()) {
         state().remove_piece(PieceType::KING, move.from(), state().side_to_move);
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
-
         state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
         state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
-
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
-
         state().side_to_move = ~state().side_to_move;
         state().compute_masks();
         return;
@@ -170,10 +170,8 @@ void Board::make_move(Move move) {
 
         if (move.to() == state().castle_rights.kingside_rook(~state().side_to_move)) {
             state().castle_rights.set_kingside_rook_file(~state().side_to_move, File::NO_FILE);
-            state().hash_key ^= zobrist::castle_rights[~state().side_to_move][KINGSIDE];
         } else if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
             state().castle_rights.set_queenside_rook_file(~state().side_to_move, File::NO_FILE);
-            state().hash_key ^= zobrist::castle_rights[~state().side_to_move][QUEENSIDE];
         }
 
         state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
@@ -194,21 +192,22 @@ void Board::make_move(Move move) {
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
     }
 
     if (state().castle_rights.can_kingside_castle(state().side_to_move) &&
         move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
     } else if (state().castle_rights.can_queenside_castle(state().side_to_move) &&
                move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
-        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
     }
 
+    const u8 castle_rights_after = state().castle_rights.can_kingside_castle(Color::WHITE) |
+                                   state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
+                                   state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
+                                   state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+    state().hash_key ^= zobrist::castle_rights[castle_rights_before ^ castle_rights_after];
     state().hash_key ^= zobrist::side_to_move;
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
