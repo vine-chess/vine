@@ -88,7 +88,7 @@ bool Board::has_threefold_repetition() const {
     const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
     u16 times_seen = 1;
-    for (i32 i = 2; i <= maximum_distance; i++) {
+    for (i32 i = 3; i <= maximum_distance; i++) {
         if (state().hash_key == history_[history_.size() - i].hash_key && ++times_seen == 3) {
             return true;
         }
@@ -189,6 +189,7 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
+    state().hash_key ^= zobrist::side_to_move;
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
 }
