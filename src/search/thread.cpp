@@ -161,9 +161,10 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
     if (node.expanded() || node.terminal()) {
         return true;
     }
-    if (node.num_visits == 0) {
-        return true;
-    }
+
+    // We should only be expanding when the number of visits is one
+    // This is due to the optimization of not expanding nodes whos children we don't know we'll need
+    vine_assert(node.num_visits == 1);
 
     MoveList move_list;
     generate_moves(board_.state(), move_list);
