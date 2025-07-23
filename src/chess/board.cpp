@@ -68,7 +68,7 @@ Board::Board(std::string_view fen) {
     const u8 castle_rights = state().castle_rights.can_kingside_castle(Color::WHITE) |
                              state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
                              state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                             state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+                             state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
     state().hash_key ^= zobrist::castle_rights[castle_rights];
 
     std::string en_passant;
@@ -137,7 +137,7 @@ void Board::make_move(Move move) {
     const u8 castle_rights_before = state().castle_rights.can_kingside_castle(Color::WHITE) |
                                     state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
                                     state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                                    state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+                                    state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
 
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
@@ -206,7 +206,7 @@ void Board::make_move(Move move) {
     const u8 castle_rights_after = state().castle_rights.can_kingside_castle(Color::WHITE) |
                                    state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
                                    state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                                   state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
+                                   state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
     state().hash_key ^= zobrist::castle_rights[castle_rights_before ^ castle_rights_after];
     state().hash_key ^= zobrist::side_to_move;
     state().side_to_move = ~state().side_to_move;
