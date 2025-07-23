@@ -88,7 +88,7 @@ bool Board::has_threefold_repetition() const {
     const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
     u16 times_seen = 1;
-    for (i32 i = 4; i <= maximum_distance; i += 2) {
+    for (i32 i = 3; i <= maximum_distance; i++) {
         if (state().hash_key == history_[history_.size() - i].hash_key && ++times_seen == 3) {
             return true;
         }
