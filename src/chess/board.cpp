@@ -65,11 +65,7 @@ Board::Board(std::string_view fen) {
             }
         }
     }
-    const u8 castle_rights = state().castle_rights.can_kingside_castle(Color::WHITE) |
-                             state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
-                             state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                             state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
-    state().hash_key ^= zobrist::castle_rights[castle_rights];
+    state().hash_key ^= zobrist::castle_rights[state().castle_rights.to_mask()];
 
     std::string en_passant;
     stream >> en_passant;
@@ -134,10 +130,7 @@ Move Board::create_move(std::string_view uci_move) const {
 void Board::make_move(Move move) {
     history_.push_back(state());
 
-    const u8 castle_rights_before = state().castle_rights.can_kingside_castle(Color::WHITE) |
-                                    state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
-                                    state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                                    state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
+    const u8 old_castle_rights_mask = state().castle_rights.to_mask();
 
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
@@ -195,19 +188,15 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    if (state().castle_rights.can_kingside_castle(state().side_to_move) &&
+    if (
         move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-    } else if (state().castle_rights.can_queenside_castle(state().side_to_move) &&
+    } else if (
                move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    const u8 castle_rights_after = state().castle_rights.can_kingside_castle(Color::WHITE) |
-                                   state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
-                                   state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
-                                   state().castle_rights.can_queenside_castle(Color::BLACK) << 3;
-    state().hash_key ^= zobrist::castle_rights[castle_rights_before ^ castle_rights_after];
+    state().hash_key ^= zobrist::castle_rights[old_castle_rights_mask ^ state().castle_rights.to_mask()];
     state().hash_key ^= zobrist::side_to_move;
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
