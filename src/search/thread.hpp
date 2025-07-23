@@ -32,7 +32,7 @@ class Thread {
     [[nodiscard]] u64 iterations() const;
 
   private:
-    [[nodiscard]] u32 select_node(std::vector<Node> &tree);
+    [[nodiscard]] std::pair<u32, bool> select_node(std::vector<Node> &tree);
 
     [[nodiscard]] bool expand_node(u32 node_idx, std::vector<Node> &tree);
 
