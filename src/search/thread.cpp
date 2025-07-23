@@ -36,7 +36,11 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     u64 previous_depth = 0;
 
     while (++iterations) {
-        board_ = board;
+        if (iterations == 1) {
+            board_ = board;
+        } else {
+            board_.undo_n_moves(board_.size() - board.size());
+        }
 
         const auto node = select_node(tree);
         if (!expand_node(node, tree)) {
@@ -135,7 +139,7 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
         child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
-    
+
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = tree[node.first_child_idx + i];
         child.policy_score /= sum_exponents;

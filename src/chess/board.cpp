@@ -206,6 +206,12 @@ void Board::undo_move() {
     history_.pop_back();
 }
 
+void Board::undo_n_moves(usize n) {
+    while (n--) {
+        history_.pop_back();
+    }
+}
+
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';

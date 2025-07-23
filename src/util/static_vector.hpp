@@ -2,9 +2,9 @@
 #define STATIC_VECTOR_HPP
 
 #include "types.hpp"
+#include "assert.hpp"
 
 #include <array>
-#include <cassert>
 #include <memory>
 #include <type_traits>
 
@@ -29,7 +29,7 @@ class StaticVector {
     }
 
     iterator push_back(const T &value) {
-        assert(size_ < max_size);
+        vine_assert(size_ < max_size);
         T *res = std::construct_at(data() + size_, value);
         size_++;
         return res;
@@ -41,7 +41,7 @@ class StaticVector {
 
     template <typename... Args>
     iterator emplace_back(Args &&...args) {
-        assert(size_ < max_size);
+        vine_assert(size_ < max_size);
         T *res = std::construct_at(data() + size_, std::forward<Args>(args)...);
         size_++;
         return res;

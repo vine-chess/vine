@@ -22,7 +22,13 @@ class Board {
     void make_move(Move move);
     void undo_move();
 
+    void undo_n_moves(usize n);
+
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
+
+    [[nodiscard]] usize size() const {
+        return history_.size();
+    }
 
   private:
     util::StaticVector<BoardState, 2048> history_;
