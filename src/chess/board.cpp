@@ -69,7 +69,7 @@ Board::Board(std::string_view fen) {
                              state().castle_rights.can_queenside_castle(Color::WHITE) << 1 |
                              state().castle_rights.can_kingside_castle(Color::BLACK) << 2 |
                              state().castle_rights.can_kingside_castle(Color::BLACK) << 3;
-    state().hash_key ^= castle_rights;
+    state().hash_key ^= zobrist::castle_rights[castle_rights];
 
     std::string en_passant;
     stream >> en_passant;
