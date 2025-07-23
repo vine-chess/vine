@@ -4,7 +4,8 @@
 #include "../util/multi_array.hpp"
 #include "../util/types.hpp"
 
-#include <array>
+constexpr i32 KINGSIDE = 0;
+constexpr i32 QUEENSIDE = 1;
 
 class CastleRights {
   public:
@@ -22,6 +23,8 @@ class CastleRights {
 
     void set_kingside_rook_file(Color color, File file);
     void set_queenside_rook_file(Color color, File file);
+
+    [[nodiscard]] u8 to_mask() const;
 
   private:
     MultiArray<File, 2, 2> rook_files_;
