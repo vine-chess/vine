@@ -48,12 +48,16 @@ Board::Board(std::string_view fen) {
         for (const char ch : castle_data) {
             if (ch == 'K') {
                 state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
+                state().hash_key ^= zobrist::castle_rights[Color::WHITE][KINGSIDE];
             } else if (ch == 'Q') {
                 state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
+                state().hash_key ^= zobrist::castle_rights[Color::WHITE][QUEENSIDE];
             } else if (ch == 'k') {
                 state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
+                state().hash_key ^= zobrist::castle_rights[Color::BLACK][KINGSIDE];
             } else if (ch == 'q') {
                 state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
+                state().hash_key ^= zobrist::castle_rights[Color::BLACK][QUEENSIDE];
             } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
                 const auto rook_file = File::from_char(ch);
@@ -190,15 +194,19 @@ void Board::make_move(Move move) {
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
     }
 
     if (state().castle_rights.can_kingside_castle(state().side_to_move) &&
         move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][KINGSIDE];
     } else if (state().castle_rights.can_queenside_castle(state().side_to_move) &&
                move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().hash_key ^= zobrist::castle_rights[state().side_to_move][QUEENSIDE];
     }
 
     state().hash_key ^= zobrist::side_to_move;
