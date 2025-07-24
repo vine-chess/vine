@@ -1,4 +1,4 @@
-#include "search.hpp"
+#include "searcher.hpp"
 #include "../uci/uci.hpp"
 #include <iostream>
 
@@ -14,12 +14,12 @@ void Searcher::set_thread_count(u16 thread_count) {
 }
 
 void Searcher::set_hash_size(u32 size_in_mb) {
-    tree_.reserve(1024 * 1024 * size_in_mb / sizeof(Node));
+    game_tree_.set_node_capacity(1024 * 1024 * size_in_mb / sizeof(Node));
 }
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
     for (auto &thread : threads_) {
-        thread.go(tree_, board, time_settings);
+        thread.go(game_tree_, board, time_settings);
     }
 }
 

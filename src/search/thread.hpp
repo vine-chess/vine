@@ -2,7 +2,7 @@
 #define THREAD_HPP
 
 #include "../chess/board.hpp"
-#include "node.hpp"
+#include "game_tree.hpp"
 #include "time_manager.hpp"
 #include <thread>
 
@@ -27,29 +27,18 @@ class Thread {
         return *this;
     }
 
-    void go(std::vector<Node> &tree, const Board &board, const TimeSettings &time_settings);
+    void go(GameTree &tree, const Board &board, const TimeSettings &time_settings);
 
     [[nodiscard]] u64 iterations() const;
 
   private:
-    [[nodiscard]] std::pair<u32, bool> select_node(std::vector<Node> &tree);
-
-    [[nodiscard]] bool expand_node(u32 node_idx, std::vector<Node> &tree);
-
-    void compute_policy(std::vector<Node> &tree, u32 node_idx);
-    [[nodiscard]] f64 simulate_node([[maybe_unused]] u32 node_idx, [[maybe_unused]] std::vector<Node> &tree);
-
-    void backpropagate(f64 score, u32 node_idx, std::vector<Node> &tree);
-
     void thread_loop();
 
-    void write_info(std::vector<Node> &tree, const Board &board, u64 nodes, bool write_bestmove = false) const;
+    void write_info(GameTree &tree, u64 nodes, bool write_bestmove = false) const;
 
     std::thread raw_thread_;
     TimeManager time_manager_;
-    Board board_;
     u64 num_iterations_;
-    u64 sum_depth_;
 };
 
 } // namespace search

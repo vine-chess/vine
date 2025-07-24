@@ -2,7 +2,7 @@
 #define SEARCH_HPP
 
 #include "../chess/board.hpp"
-#include "node.hpp"
+#include "game_tree.hpp"
 #include "thread.hpp"
 #include "time_manager.hpp"
 
@@ -21,7 +21,7 @@ class Searcher {
 
   private:
     std::vector<Thread> threads_;
-    std::vector<Node> tree_;
+    GameTree game_tree_;
 };
 
 } // namespace search
