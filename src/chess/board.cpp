@@ -87,6 +87,14 @@ const BoardState &Board::state() const {
     return history_.back();
 }
 
+Board::History &Board::history() {
+    return history_;
+}
+
+const Board::History &Board::history() const {
+    return history_;
+}
+
 bool Board::has_threefold_repetition() const {
     const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
@@ -188,11 +196,9 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    if (
-        move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
+    if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-    } else if (
-               move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
+    } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
@@ -204,6 +210,12 @@ void Board::make_move(Move move) {
 
 void Board::undo_move() {
     history_.pop_back();
+}
+
+void Board::undo_n_moves(usize n) {
+    while (n--) {
+        history_.pop_back();
+    }
 }
 
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {

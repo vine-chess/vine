@@ -15,7 +15,7 @@ enum class TerminalState : u8 {
 struct Node {
     // Sum of all scores that have been propagated back to this node
     f64 sum_of_scores = 0.0;
-    // Policy given to us by our parent node 
+    // Policy given to us by our parent node
     f32 policy_score = 0.0;
     // Index of the parent node
     i32 parent_idx = -1;

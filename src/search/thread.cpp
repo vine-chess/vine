@@ -36,7 +36,11 @@ void Thread::go(std::vector<Node> &tree, const Board &root_board, const TimeSett
     u64 previous_depth = 0;
 
     while (++iterations) {
-        board_ = root_board;
+        if (iterations == 1) {
+            board_ = root_board;
+        } else {
+            board_.undo_n_moves(board_.history().size() - root_board.history().size());
+        }
 
         // We expand nodes in select_node, because we might not need
         // the children of this node if simulation says its really bad

@@ -147,7 +147,6 @@ void run_bench_tests(std::ostream &out) {
         out << fen << std::endl;
         searcher.go(board, search::TimeSettings{.max_depth = 4});
         nodes += searcher.iterations();
-
     }
     const auto elapsed = std::max<u64>(
         1, std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start)
