@@ -39,7 +39,7 @@ void Thread::go(std::vector<Node> &tree, const Board &root_board, const TimeSett
         if (iterations == 1) {
             board_ = root_board;
         } else {
-            board_.undo_n_moves(board_.size() - root_board.size());
+            board_.undo_n_moves(board_.history().size() - root_board.history().size());
         }
 
         // We expand nodes in select_node, because we might not need

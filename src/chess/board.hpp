@@ -3,11 +3,14 @@
 #include "../util/static_vector.hpp"
 #include "board_state.hpp"
 #include <string_view>
+#include <utility>
 
 constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 class Board {
   public:
+    using History = util::StaticVector<BoardState, 2048>;
+
     Board(std::string_view fen);
     Board() = default;
 
@@ -26,10 +29,9 @@ class Board {
 
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
-    [[nodiscard]] usize size() const {
-        return history_.size();
-    }
+    [[nodiscard]] History &history() ;
+    [[nodiscard]] const History &history() const ;
 
   private:
-    util::StaticVector<BoardState, 2048> history_;
+    History history_;
 };

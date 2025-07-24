@@ -87,6 +87,14 @@ const BoardState &Board::state() const {
     return history_.back();
 }
 
+Board::History &Board::history() {
+    return history_;
+}
+
+const Board::History &Board::history() const {
+    return history_;
+}
+
 bool Board::has_threefold_repetition() const {
     const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
 
