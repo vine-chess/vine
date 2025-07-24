@@ -27,12 +27,12 @@ class Thread {
         return *this;
     }
 
-    void go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings);
+    void go(std::vector<Node> &tree, const Board &board, const TimeSettings &time_settings);
 
     [[nodiscard]] u64 iterations() const;
 
   private:
-    [[nodiscard]] u32 select_node(std::vector<Node> &tree);
+    [[nodiscard]] std::pair<u32, bool> select_node(std::vector<Node> &tree);
 
     [[nodiscard]] bool expand_node(u32 node_idx, std::vector<Node> &tree);
 
@@ -43,7 +43,7 @@ class Thread {
 
     void thread_loop();
 
-    void write_info(std::vector<Node> &tree, Board &board, u64 nodes, bool write_bestmove = false) const;
+    void write_info(std::vector<Node> &tree, const Board &board, u64 nodes, bool write_bestmove = false) const;
 
     std::thread raw_thread_;
     TimeManager time_manager_;

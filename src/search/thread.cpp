@@ -24,7 +24,7 @@ u64 Thread::iterations() const {
     return num_iterations_;
 }
 
-void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
+void Thread::go(std::vector<Node> &tree, const Board &root_board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
     // Push the root node to the game tree
@@ -37,25 +37,29 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
 
     while (++iterations) {
         if (iterations == 1) {
-            board_ = board;
+            board_ = root_board;
         } else {
-            board_.undo_n_moves(board_.size() - board.size());
+            board_.undo_n_moves(board_.size() - root_board.size());
         }
 
-        const auto node = select_node(tree);
-        if (!expand_node(node, tree)) {
+        // We expand nodes in select_node, because we might not need
+        // the children of this node if simulation says its really bad
+        const auto [node, success] = select_node(tree);
+        // Stop searching if we can't add any more nodes to the tree
+        if (!success) {
             break;
         }
+
         const auto score = simulate_node(node, tree);
         backpropagate(score, node, tree);
 
         const u64 depth = sum_depth_ / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
-            write_info(tree, board, iterations);
+            write_info(tree, root_board, iterations);
         }
 
-        if (time_manager_.times_up(iterations, board.state().side_to_move, depth)) {
+        if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth)) {
             break;
         }
     }
@@ -65,11 +69,11 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
         return;
     }
 
-    write_info(tree, board, iterations, true);
+    write_info(tree, root_board, iterations, true);
     num_iterations_ = iterations;
 }
 
-u32 Thread::select_node(std::vector<Node> &tree) {
+std::pair<u32, bool> Thread::select_node(std::vector<Node> &tree) {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
     // - parent: the parent node from which the child was reached
@@ -93,10 +97,19 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     u32 node_idx = 0, ply = 0;
     while (true) {
         Node &node = tree[node_idx];
+
+        // This node was selected previously, but not expanded to save memory in case we dont need the children.
+        // But it turns out we do need them so we expand them out here
+        if (node.num_visits == 1) {
+            if (!expand_node(node_idx, tree)) {
+                return {0, false};
+            }
+        }
+
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.expanded()) {
             sum_depth_ += ply;
-            return node_idx;
+            return {node_idx, true};
         }
 
         u32 best_child_idx = 0;
@@ -151,6 +164,10 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
     if (node.expanded() || node.terminal()) {
         return true;
     }
+
+    // We should only be expanding when the number of visits is one
+    // This is due to the optimization of not expanding nodes whos children we don't know we'll need
+    vine_assert(node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
         node.terminal_state = TerminalState::DRAW;
@@ -257,7 +274,7 @@ void extract_pv(std::vector<Move> &pv, std::vector<Node> &tree) {
     extract_pv_internal(pv, 0, tree);
 }
 
-void Thread::write_info(std::vector<Node> &tree, Board &board, u64 iterations, bool write_bestmove) const {
+void Thread::write_info(std::vector<Node> &tree, const Board &board, u64 iterations, bool write_bestmove) const {
     const Node &root = tree[0];
     const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / (root.sum_of_scores / root.num_visits) - 1.0)));
 
