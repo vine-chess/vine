@@ -146,13 +146,13 @@ bool GameTree::expand_node(u32 node_idx) {
         return true;
     }
 
-    node.first_child_idx = nodes_.size();
-    node.num_children = move_list.size();
-
     // Return early if we will run out of memory
-    if (nodes_.size() + node.num_children > nodes_.capacity()) {
+    if (nodes_.size() + move_list.size() > nodes_.capacity()) {
         return false;
     }
+
+    node.first_child_idx = nodes_.size();
+    node.num_children = move_list.size();
 
     // Append all child nodes to the nodes_ with the move that leads to it
     for (const auto move : move_list) {
