@@ -46,7 +46,6 @@ const auto castle_rights = [] {
     }
 
     return castle_rights_table;
-    ;
 }();
 
 const auto en_passant = [] {
