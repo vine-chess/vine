@@ -15,6 +15,7 @@
 }
 
 Board::Board(std::string_view fen) {
+    history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
     std::string position;
@@ -64,11 +65,14 @@ Board::Board(std::string_view fen) {
             }
         }
     }
+    state().hash_key ^= zobrist::castle_rights[state().castle_rights.to_mask()];
+
     std::string en_passant;
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state().set_en_passant_sq(Square::from_string(en_passant));
+        state().en_passant_sq = Square::from_string(en_passant);
+        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
     }
 
     stream >> state().fifty_moves_clock;
@@ -76,11 +80,38 @@ Board::Board(std::string_view fen) {
 }
 
 BoardState &Board::state() {
-    return state_;
+    return history_.back();
 }
 
 const BoardState &Board::state() const {
-    return state_;
+    return history_.back();
+}
+
+bool Board::has_threefold_repetition() const {
+    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
+
+    u16 times_seen = 1;
+    for (i32 i = 3; i <= maximum_distance; i += 2) {
+        if (state().hash_key == history_[history_.size() - i].hash_key && ++times_seen == 3) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Board::is_fifty_move_draw() const {
+    if (state().fifty_moves_clock < 100) {
+        return false;
+    }
+
+    if (state().checkers == 0) {
+        return true;
+    }
+
+    MoveList moves;
+    generate_moves(state(), moves);
+    return !moves.empty();
 }
 
 Move Board::create_move(std::string_view uci_move) const {
@@ -97,6 +128,10 @@ Move Board::create_move(std::string_view uci_move) const {
 }
 
 void Board::make_move(Move move) {
+    history_.push_back(state());
+
+    const u8 old_castle_rights_mask = state().castle_rights.to_mask();
+
     state().fifty_moves_clock += 1;
     if (state().en_passant_sq != Square::NO_SQUARE) {
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
@@ -153,17 +188,23 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
+    if (
+        move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-    } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
+    } else if (
+               move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
+    state().hash_key ^= zobrist::castle_rights[old_castle_rights_mask ^ state().castle_rights.to_mask()];
+    state().hash_key ^= zobrist::side_to_move;
     state().side_to_move = ~state().side_to_move;
     state().compute_masks();
 }
 
-void Board::undo_move() {}
+void Board::undo_move() {
+    history_.pop_back();
+}
 
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
@@ -183,6 +224,7 @@ std::ostream &operator<<(std::ostream &out, const BoardState &board) {
 
     return out;
 }
+
 std::ostream &operator<<(std::ostream &out, const Board &board) {
     return out << board.state();
 }

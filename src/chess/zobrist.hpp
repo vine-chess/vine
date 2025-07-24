@@ -26,9 +26,26 @@ const auto pieces = [] {
 
 const auto castle_rights = [] {
     CastleRightsTable castle_rights_table;
-    for (u64 &entry : castle_rights_table)
-        entry = rng::next_u64();
-    return castle_rights_table;
+    castle_rights_table[1] = rng::next_u64();
+    castle_rights_table[2] = rng::next_u64();
+    castle_rights_table[4] = rng::next_u64();
+    castle_rights_table[8] = rng::next_u64();
+
+    for (i32 i = 0; i < 16; ++i) {
+        if (i == 1 || i == 2 || i == 4 || i == 8) {
+            continue;
+        }
+
+        HashKey key = 0;
+        for (i32 bit = 1; bit <= 8; bit <<= 1) {
+            if ((i & bit) != 0) {
+                key ^= castle_rights_table[bit];
+            }
+        }
+        castle_rights_table[i] = key;
+    }
+
+    return castle_rights_table;;
 }();
 
 const auto en_passant = [] {

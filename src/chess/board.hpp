@@ -14,6 +14,9 @@ class Board {
     [[nodiscard]] BoardState &state();
     [[nodiscard]] const BoardState &state() const;
 
+    [[nodiscard]] bool has_threefold_repetition() const;
+    [[nodiscard]] bool is_fifty_move_draw() const;
+
     [[nodiscard]] Move create_move(std::string_view uci_move) const;
 
     void make_move(Move move);
@@ -22,5 +25,5 @@ class Board {
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
   private:
-    BoardState state_;
+    util::StaticVector<BoardState, 2048> history_;
 };

@@ -1,8 +1,5 @@
 #include "castle_rights.hpp"
 
-constexpr i32 KINGSIDE = 0;
-constexpr i32 QUEENSIDE = 1;
-
 bool CastleRights::can_kingside_castle(Color color) const {
     return rook_files_[color][KINGSIDE] != File::NO_FILE;
 }
@@ -41,4 +38,9 @@ void CastleRights::set_kingside_rook_file(Color color, File file) {
 
 void CastleRights::set_queenside_rook_file(Color color, File file) {
     rook_files_[color][QUEENSIDE] = file;
+}
+
+u8 CastleRights::to_mask() const {
+    return can_kingside_castle(Color::WHITE) | can_queenside_castle(Color::WHITE) << 1 |
+           can_kingside_castle(Color::BLACK) << 2 | can_queenside_castle(Color::BLACK) << 3;
 }
