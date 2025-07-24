@@ -111,22 +111,22 @@ class StaticVector {
     }
 
     T &back() {
-        assert(size_ > 0);
+        vine_assert(size_ > 0);
         return data()[size_ - 1];
     }
 
     const T &back() const {
-        assert(size_ > 0);
+        vine_assert(size_ > 0);
         return data()[size_ - 1];
     }
 
     [[nodiscard]] T &operator[](usize index) {
-        assert(index < size_);
+        vine_assert(index < size_);
         return data()[index];
     }
 
     [[nodiscard]] const T &operator[](usize index) const {
-        assert(index < size_);
+        vine_assert(index < size_);
         return data()[index];
     }
 

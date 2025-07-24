@@ -1,6 +1,6 @@
 #include "bench.hpp"
 #include "../chess/board.hpp"
-#include "../search/search.hpp"
+#include "../search/searcher.hpp"
 
 namespace tests {
 
@@ -145,7 +145,7 @@ void run_bench_tests(std::ostream &out) {
          }) {
         Board board(fen);
         out << fen << std::endl;
-        searcher.go(board, search::TimeSettings{.max_depth = 4});
+        searcher.go(board, search::TimeSettings{.max_depth = 5});
         nodes += searcher.iterations();
     }
     const auto elapsed = std::max<u64>(

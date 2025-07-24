@@ -2,7 +2,7 @@
 #define UCI_HPP
 
 #include "../chess/board.hpp"
-#include "../search/search.hpp"
+#include "../search/searcher.hpp"
 #include "options.hpp"
 
 #include <iostream>

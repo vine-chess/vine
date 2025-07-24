@@ -30,6 +30,10 @@ struct Node {
     // What kind of state this (terminal) node is
     TerminalState terminal_state = TerminalState::NONE;
 
+    // Average of all scores this node has received
+    [[nodiscard]] f64 q() const;
+
+    [[nodiscard]] bool visited() const;
     [[nodiscard]] bool terminal() const;
     [[nodiscard]] bool expanded() const;
 };
