@@ -196,11 +196,9 @@ void Board::make_move(Move move) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 
-    if (
-        move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
+    if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
         state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-    } else if (
-               move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
+    } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
         state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
     }
 

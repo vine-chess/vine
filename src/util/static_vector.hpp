@@ -1,8 +1,8 @@
 #ifndef STATIC_VECTOR_HPP
 #define STATIC_VECTOR_HPP
 
-#include "types.hpp"
 #include "assert.hpp"
+#include "types.hpp"
 
 #include <array>
 #include <memory>

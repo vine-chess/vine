@@ -29,8 +29,8 @@ class Board {
 
     friend std::ostream &operator<<(std::ostream &os, const Board &board);
 
-    [[nodiscard]] History &history() ;
-    [[nodiscard]] const History &history() const ;
+    [[nodiscard]] History &history();
+    [[nodiscard]] const History &history() const;
 
   private:
     History history_;
