@@ -24,7 +24,7 @@ u64 Thread::iterations() const {
     return num_iterations_;
 }
 
-void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_settings) {
+void Thread::go(std::vector<Node> &tree, const Board &root_board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
     // Push the root node to the game tree
@@ -36,27 +36,26 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     u64 previous_depth = 0;
 
     while (++iterations) {
-        board_ = board;
+        board_ = root_board;
 
-        const auto [node, succes] = select_node(tree);
-        if (!succes) {
+        // We expand nodes in select_node, because we might not need
+        // the children of this node if simulation says its really bad
+        const auto [node, success] = select_node(tree);
+        // Stop searching if we can't add any more nodes to the tree
+        if (!success) {
             break;
         }
 
-        // We expand nodes in select_node, because we might not need the children of this node if simulation says its really bad
-        // if (!expand_node(node, tree)) {
-        //     break;
-        // }
         const auto score = simulate_node(node, tree);
         backpropagate(score, node, tree);
 
         const u64 depth = sum_depth_ / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
-            write_info(tree, board, iterations);
+            write_info(tree, root_board, iterations);
         }
 
-        if (time_manager_.times_up(iterations, board.state().side_to_move, depth)) {
+        if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth)) {
             break;
         }
     }
@@ -66,7 +65,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
         return;
     }
 
-    write_info(tree, board, iterations, true);
+    write_info(tree, root_board, iterations, true);
     num_iterations_ = iterations;
 }
 
@@ -271,7 +270,7 @@ void extract_pv(std::vector<Move> &pv, std::vector<Node> &tree) {
     extract_pv_internal(pv, 0, tree);
 }
 
-void Thread::write_info(std::vector<Node> &tree, Board &board, u64 iterations, bool write_bestmove) const {
+void Thread::write_info(std::vector<Node> &tree, const Board &board, u64 iterations, bool write_bestmove) const {
     const Node &root = tree[0];
     const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / (root.sum_of_scores / root.num_visits) - 1.0)));
 
