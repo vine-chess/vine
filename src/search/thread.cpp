@@ -38,10 +38,15 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     while (++iterations) {
         board_ = board;
 
-        const auto node = select_node(tree);
-        if (!expand_node(node, tree)) {
+        const auto [node, succes] = select_node(tree);
+        if (!succes) {
             break;
         }
+
+        // We expand nodes in select_node, because we might not need the children of this node if simulation says its really bad
+        // if (!expand_node(node, tree)) {
+        //     break;
+        // }
         const auto score = simulate_node(node, tree);
         backpropagate(score, node, tree);
 
@@ -65,7 +70,7 @@ void Thread::go(std::vector<Node> &tree, Board &board, const TimeSettings &time_
     num_iterations_ = iterations;
 }
 
-u32 Thread::select_node(std::vector<Node> &tree) {
+std::pair<u32, bool> Thread::select_node(std::vector<Node> &tree) {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
     // - parent: the parent node from which the child was reached
@@ -89,10 +94,19 @@ u32 Thread::select_node(std::vector<Node> &tree) {
     u32 node_idx = 0, ply = 0;
     while (true) {
         Node &node = tree[node_idx];
+
+        // This node was selected previously, but not expanded to save memory in case we dont need the children.
+        // But it turns out we do need them so we expand them out here
+        if (node.num_visits == 1) {
+            if (!expand_node(node_idx, tree)) {
+                return {0, false};
+            }
+        }
+
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.expanded()) {
             sum_depth_ += ply;
-            return node_idx;
+            return {node_idx, true};
         }
 
         u32 best_child_idx = 0;
@@ -135,7 +149,7 @@ void Thread::compute_policy(std::vector<Node> &tree, u32 node_idx) {
         child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
-    
+
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = tree[node.first_child_idx + i];
         child.policy_score /= sum_exponents;
@@ -147,6 +161,10 @@ bool Thread::expand_node(u32 node_idx, std::vector<Node> &tree) {
     if (node.expanded() || node.terminal()) {
         return true;
     }
+
+    // We should only be expanding when the number of visits is one
+    // This is due to the optimization of not expanding nodes whos children we don't know we'll need
+    vine_assert(node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
         node.terminal_state = TerminalState::DRAW;
