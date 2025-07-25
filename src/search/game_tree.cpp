@@ -49,7 +49,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
     const auto compute_puct = [&](Node &parent, Node &child, f64 policy_score, f64 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
-        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : 0.5;
+        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
         const f64 u_value = exploration_constant * policy_score * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
