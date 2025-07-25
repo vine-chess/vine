@@ -104,13 +104,14 @@ void GameTree::compute_policy(u32 node_idx) {
         // Temporary placeholder for NN
         // TODO: Replace with real neural net policy output when available
         const f64 policy_score = [&]() {
-            const Move move = child.move;
+            return 1.0 / node.num_children;
+            /*const Move move = child.move;
             if (!move.is_capture()) {
                 return 0.0;
             }
             const PieceType victim = move.is_ep() ? PieceType::PAWN : board_.state().get_piece_type(move.to());
             const PieceType attacker = board_.state().get_piece_type(move.from());
-            return (10.0 * victim - attacker) / 40.0;
+            return (10.0 * victim - attacker) / 40.0;*/
         }();
         const f64 exp_policy = std::exp(policy_score);
         child.policy_score = static_cast<f32>(exp_policy);
@@ -192,7 +193,7 @@ f64 GameTree::simulate_node(u32 node_idx) {
         100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
         310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
         1000 * state.queens(~state.side_to_move).pop_count();
-    const f64 eval = stm_material - nstm_material + 20;
+    const f64 eval = stm_material - nstm_material;
     return 1.0 / (1.0 + std::exp(-eval / 400.0));
 }
 
