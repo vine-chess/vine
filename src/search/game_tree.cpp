@@ -192,7 +192,7 @@ f64 GameTree::simulate_node(u32 node_idx) {
         100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
         310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
         1000 * state.queens(~state.side_to_move).pop_count();
-    const f64 eval = stm_material - nstm_material + 20;
+    const f64 eval = stm_material - nstm_material;
     return 1.0 / (1.0 + std::exp(-eval / 400.0));
 }
 
