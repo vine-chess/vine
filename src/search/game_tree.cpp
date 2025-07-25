@@ -5,6 +5,7 @@
 
 namespace search {
 
+constexpr f64 ROOT_EXPLORATION_CONSTANT = 1.3;
 constexpr f64 EXPLORATION_CONSTANT = 1.0;
 
 GameTree::GameTree() {
@@ -81,7 +82,8 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             Node &child_node = nodes_[node.first_child_idx + i];
 
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, child_node.policy_score, EXPLORATION_CONSTANT);
+            const f64 child_score = compute_puct(node, child_node, child_node.policy_score,
+                                                 node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes_
                 best_child_score = child_score;
