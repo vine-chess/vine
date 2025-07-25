@@ -1,6 +1,7 @@
 #include "options.hpp"
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 
 namespace uci {
 

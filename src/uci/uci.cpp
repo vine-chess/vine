@@ -117,6 +117,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             }
         } else if (parts[0] == "bench") {
             tests::run_bench_tests(out);
+        } else if (parts[0] == "quit") {
+            std::exit(0);
         }
     }
 }
