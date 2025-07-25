@@ -85,7 +85,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             const f64 child_score = compute_puct(node, child_node, child_node.policy_score,
                                                  node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
-                best_child_idx = node.first_child_idx + i; // Store absolute index into nodes_
+                best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
             }
         }
