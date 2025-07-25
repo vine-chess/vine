@@ -1,10 +1,9 @@
 #include "board_state.hpp"
-#include "move.hpp"
+#include "../uci/uci.hpp"
 #include "move_gen.hpp"
 
 #include <cassert>
-#include <filesystem>
-#include <ostream>
+#include <string>
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
     piece_type_on_sq[sq] = piece_type;
@@ -108,4 +107,79 @@ void BoardState::compute_masks() {
     checkers |= knights(~side_to_move) & KNIGHT_MOVES[our_king];
     checkers |= king(~side_to_move) & KING_MOVES[our_king];
     checkers |= pawns(~side_to_move) & PAWN_ATTACKS[our_king][side_to_move];
+}
+
+std::string BoardState::to_fen() const {
+    std::string res;
+    for (int i = 8; i-- > 0;) {
+        int empty = 0;
+        for (int j = 0; j < 8; ++j) {
+            const auto sq = Square(8 * i + j);
+            const auto pt = get_piece_type(sq);
+            if (pt == PieceType::NONE) {
+                ++empty;
+                continue;
+            }
+            if (empty) {
+                res += '0' + empty;
+                empty = 0;
+            }
+            const auto col = get_piece_color(sq);
+            res += pt.to_char(col);
+        }
+        if (empty) {
+            res += '0' + empty;
+            empty = 0;
+        }
+        if (i)
+            res += '/';
+    }
+    res += ' ';
+    res += side_to_move == Color::WHITE ? 'w' : 'b';
+    res += ' ';
+    if (castle_rights.to_mask() != 0) {
+
+        const auto frc = std::get<bool>(uci::options.get("UCI_Chess960")->value_as_variant());
+        if (frc) {
+            if (castle_rights.can_kingside_castle(Color::WHITE)) {
+                res += castle_rights.kingside_rook(Color::WHITE).file().to_char();
+            }
+            if (castle_rights.can_queenside_castle(Color::WHITE)) {
+                res += castle_rights.queenside_rook(Color::WHITE).file().to_char();
+            }
+            if (castle_rights.can_kingside_castle(Color::BLACK)) {
+                res += castle_rights.kingside_rook(Color::BLACK).file().to_char();
+            }
+            if (castle_rights.can_queenside_castle(Color::BLACK)) {
+                res += castle_rights.queenside_rook(Color::BLACK).file().to_char();
+            }
+        } else {
+            if (castle_rights.can_kingside_castle(Color::WHITE)) {
+                res += 'K';
+            }
+            if (castle_rights.can_queenside_castle(Color::WHITE)) {
+                res += 'Q';
+            }
+            if (castle_rights.can_kingside_castle(Color::BLACK)) {
+                res += 'k';
+            }
+            if (castle_rights.can_queenside_castle(Color::BLACK)) {
+                res += 'q';
+            }
+        }
+    } else {
+        res += '-';
+    }
+    res += ' ';
+    if (en_passant_sq != Square::NO_SQUARE) {
+        res += en_passant_sq.file().to_char();
+        res += en_passant_sq.rank().to_char();
+    } else {
+        res += '-';
+    }
+    res += ' ';
+    res += std::to_string(fifty_moves_clock);
+    res += ' ';
+    res += '1';
+    return res;
 }

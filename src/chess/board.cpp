@@ -1,6 +1,5 @@
 #include "board.hpp"
 
-#include "../uci/uci.hpp"
 #include "move_gen.hpp"
 #include "zobrist.hpp"
 

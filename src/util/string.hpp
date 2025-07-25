@@ -25,8 +25,9 @@ namespace util {
     return res;
 }
 
-[[nodiscard]] inline std::optional<int> parse_int(std::string_view s) {
-    int result;
+template <class T = int>
+[[nodiscard]] inline std::optional<T> parse_int(std::string_view s) {
+    T result;
     auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), result);
     if (ec == std::errc{}) {
         return result;

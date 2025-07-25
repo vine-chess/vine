@@ -44,6 +44,7 @@ struct BoardState {
     Bitboard checkers{};
 
     void compute_masks();
+    [[nodiscard]] std::string to_fen() const;
 };
 
 #endif // BOARD_STATE_HPP
