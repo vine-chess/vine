@@ -2,14 +2,69 @@
 #define NODE_HPP
 
 #include "../chess/move.hpp"
+#include <bits/types/wint_t.h>
 
 namespace search {
 
-enum class TerminalState : u8 {
-    NONE,
-    WIN,
-    DRAW,
-    LOSS
+class TerminalState {
+  public:
+    enum class Flag : u8 {
+        NONE,
+        WIN,
+        DRAW,
+        LOSS,
+    };
+    constexpr TerminalState() {}
+
+    constexpr explicit TerminalState(u16 value) : value_(value) {}
+
+    [[nodiscard]] constexpr static TerminalState none() {
+        return TerminalState(static_cast<u8>(Flag::NONE) << 8);
+    }
+
+    [[nodiscard]] constexpr static TerminalState draw() {
+        return TerminalState(static_cast<u8>(Flag::DRAW) << 8);
+    }
+
+    [[nodiscard]] constexpr static TerminalState win(u8 ply) {
+        return TerminalState(static_cast<u8>(Flag::WIN) << 8 | ply);
+    }
+
+    [[nodiscard]] constexpr static TerminalState loss(u8 ply) {
+        return TerminalState(static_cast<u8>(Flag::LOSS) << 8 | ply);
+    }
+
+    [[nodiscard]] constexpr TerminalState operator-() const {
+        switch (flag()) {
+        case Flag::LOSS:
+            return win(distance());
+            break;
+        case Flag::WIN:
+            return loss(distance());
+            break;
+        default:
+            return *this;
+        }
+    }
+
+    [[nodiscard]] constexpr bool operator==(const TerminalState &other) const = default;
+
+    [[nodiscard]] constexpr bool operator<(const TerminalState &other) const {
+        const auto this_score = flag() == Flag::LOSS ? -distance() : distance();
+        const auto other_score = other.flag() == Flag::LOSS ? -other.distance() : other.distance();
+        return other_score < this_score;
+    }
+
+    [[nodiscard]] Flag flag() const {
+        return static_cast<Flag>(value_ >> 8);
+    }
+
+    [[nodiscard]] u8 distance() const {
+        return static_cast<u8>(value_ & 255);
+    }
+
+  private:
+    u16 value_;
 };
 
 struct Node {
@@ -28,7 +83,7 @@ struct Node {
     // Number of legal moves this node has
     u16 num_children = 0;
     // What kind of state this (terminal) node is
-    TerminalState terminal_state = TerminalState::NONE;
+    TerminalState terminal_state = TerminalState::none();
 
     // Average of all scores this node has received
     [[nodiscard]] f64 q() const;

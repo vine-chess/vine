@@ -136,7 +136,7 @@ bool GameTree::expand_node(u32 node_idx) {
     vine_assert(node_idx == 0 || node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
-        node.terminal_state = TerminalState::DRAW;
+        node.terminal_state = TerminalState::draw();
         return true;
     }
 
@@ -144,7 +144,8 @@ bool GameTree::expand_node(u32 node_idx) {
     generate_moves(board_.state(), move_list);
 
     if (move_list.empty()) {
-        node.terminal_state = board_.state().checkers != 0 ? TerminalState::LOSS : TerminalState::DRAW;
+        node.terminal_state =
+            board_.state().checkers != 0 ? TerminalState::loss(nodes_in_path_) : TerminalState::draw();
         return true;
     }
 
@@ -173,12 +174,12 @@ bool GameTree::expand_node(u32 node_idx) {
 f64 GameTree::simulate_node(u32 node_idx) {
     const auto &node = nodes_[node_idx];
     if (node.terminal()) {
-        switch (node.terminal_state) {
-        case TerminalState::WIN:
+        switch (node.terminal_state.flag()) {
+        case TerminalState::Flag::WIN:
             return 1.0;
-        case TerminalState::DRAW:
+        case TerminalState::Flag::DRAW:
             return 0.5;
-        case TerminalState::LOSS:
+        case TerminalState::Flag::LOSS:
             return 0.0;
         default:
             break;
