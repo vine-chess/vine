@@ -76,12 +76,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             return {node_idx, true};
         }
 
-        const f64 q_decline = [&]() {
-            if (node_idx != 0) {
-                return (1.0 - nodes_[node.parent_idx].q()) - node.q();
-            }
-            return 0.0;
-        }();
+        const bool q_declining = node_idx != 0 && (1.0 - nodes_[node.parent_idx].q()) - node.q() > 0.05;
 
         u32 best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
@@ -91,7 +86,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             // Track the child with the highest PUCT score
             const f64 child_score =
                 compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_decline * 0.3);
+                             node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
