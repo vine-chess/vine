@@ -45,7 +45,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
     }
 
     const Node &root = tree.root();
-    if (root.terminal()) {
+    if (root.num_children == 0) {
         return;
     }
 
