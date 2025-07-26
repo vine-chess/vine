@@ -4,6 +4,7 @@
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
+#include "../data_gen/openings.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -79,43 +80,8 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     vine_assert(path == "None"); // TODO: book support, needs test
     const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
 
-    auto rng = std::mt19937_64(seed);
-
-    const auto pick_random_move_count = [&]() { return random_moves; };
-
-    Board board(STARTPOS_FEN);
-    for (usize num_generated = 0; num_generated < count;) {
-        board.undo_n_moves(board.history().size() - 1);
-
-        const auto random_move_count = pick_random_move_count();
-
-        auto generated_successfully = true;
-        for (usize i = 0; i <= random_move_count; ++i) {
-            MoveList moves;
-            generate_moves(board.state(), moves);
-            if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
-                generated_successfully = false;
-                break;
-            }
-            // generated enough moves and didn't reach a terminal node
-            if (i == random_move_count) {
-                break;
-            }
-
-            auto distr = std::uniform_int_distribution<i32>(-100, 100);
-            util::StaticVector<std::pair<Move, i32>, 218> scored_moves;
-            for (auto move : moves) {
-                scored_moves.push_back({move, distr(rng)});
-            }
-            const auto move = std::max_element(std::begin(scored_moves), std::end(scored_moves),
-                                               [](auto &lhs, auto &rhs) { return lhs.second < rhs.second; });
-            board.make_move(move->first);
-        }
-
-        if (generated_successfully) {
-            out << "info string genfens " << board.state().to_fen() << '\n';
-            ++num_generated;
-        }
+    for (const auto opening : datagen::generate_openings(count, seed, random_moves)) {
+        out << "info string genfens " << opening.to_fen() << std::endl;
     }
 }
 
