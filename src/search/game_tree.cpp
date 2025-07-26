@@ -1,6 +1,7 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
 #include "../util/assert.hpp"
+#include <algorithm>
 #include <iostream>
 
 namespace search {
@@ -144,8 +145,7 @@ bool GameTree::expand_node(u32 node_idx) {
     generate_moves(board_.state(), move_list);
 
     if (move_list.empty()) {
-        node.terminal_state =
-            board_.state().checkers != 0 ? TerminalState::loss(nodes_in_path_) : TerminalState::draw();
+        node.terminal_state = board_.state().checkers != 0 ? TerminalState::loss(0) : TerminalState::draw();
         return true;
     }
 
@@ -174,16 +174,7 @@ bool GameTree::expand_node(u32 node_idx) {
 f64 GameTree::simulate_node(u32 node_idx) {
     const auto &node = nodes_[node_idx];
     if (node.terminal()) {
-        switch (node.terminal_state.flag()) {
-        case TerminalState::Flag::WIN:
-            return 1.0;
-        case TerminalState::Flag::DRAW:
-            return 0.5;
-        case TerminalState::Flag::LOSS:
-            return 0.0;
-        default:
-            break;
-        }
+        return node.terminal_state.score();
     }
 
     const auto &state = board_.state();
@@ -205,6 +196,28 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
+
+        if (node.parent_idx != -1 && (node.terminal_state.is_win() || node.terminal_state.is_loss())) {
+            auto &parent = nodes_[node.parent_idx];
+            if (node.terminal_state.is_loss()) {
+                parent.terminal_state = TerminalState::win(node.terminal_state.distance_to_terminal() + 1);
+            } else if (node.terminal_state.is_win()) {
+                const auto sibling_start = parent.first_child_idx;
+                const auto num_siblings = parent.num_children;
+
+                bool parent_cant_evade = true;
+                u8 max_distance = node.terminal_state.distance_to_terminal();
+                for (usize i = 0; i < num_siblings; ++i) {
+                    const auto sibling_state = nodes_[sibling_start + i].terminal_state;
+                    parent_cant_evade &= sibling_state.is_loss();
+                    max_distance = std::max(max_distance, sibling_state.distance_to_terminal());
+                }
+
+                if (parent_cant_evade) {
+                    parent.terminal_state = TerminalState::loss(max_distance + 1);
+                }
+            }
+        }
 
         // Travel up to the parent
         node_idx = node.parent_idx;

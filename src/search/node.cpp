@@ -3,7 +3,7 @@
 namespace search {
 
 bool Node::terminal() const {
-    return terminal_state != TerminalState::none();
+    return terminal_state != TerminalState::none() and terminal_state.distance_to_terminal() == 0;
 }
 
 bool Node::visited() const {
@@ -15,6 +15,9 @@ bool Node::expanded() const {
 }
 
 f64 Node::q() const {
+    if (terminal()) {
+        return terminal_state.score();
+    }
     return sum_of_scores / static_cast<f64>(num_visits);
 }
 

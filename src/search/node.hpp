@@ -34,32 +34,40 @@ class TerminalState {
         return TerminalState(static_cast<u8>(Flag::LOSS) << 8 | ply);
     }
 
-    [[nodiscard]] constexpr TerminalState operator-() const {
+    [[nodiscard]] constexpr bool is_none() const {
+        return flag() == Flag::NONE;
+    }
+
+    [[nodiscard]] constexpr bool is_draw() const {
+        return flag() == Flag::DRAW;
+    }
+
+    [[nodiscard]] constexpr bool is_win() const {
+        return flag() == Flag::WIN;
+    }
+
+    [[nodiscard]] constexpr bool is_loss() const {
+        return flag() == Flag::LOSS;
+    }
+
+    [[nodiscard]] constexpr f32 score() const {
         switch (flag()) {
         case Flag::LOSS:
-            return win(distance());
-            break;
+            return 0.0f;
         case Flag::WIN:
-            return loss(distance());
-            break;
+            return 1.0f;
         default:
-            return *this;
+            return 0.5f;
         }
     }
 
     [[nodiscard]] constexpr bool operator==(const TerminalState &other) const = default;
 
-    [[nodiscard]] constexpr bool operator<(const TerminalState &other) const {
-        const auto this_score = flag() == Flag::LOSS ? -distance() : distance();
-        const auto other_score = other.flag() == Flag::LOSS ? -other.distance() : other.distance();
-        return other_score < this_score;
-    }
-
     [[nodiscard]] Flag flag() const {
         return static_cast<Flag>(value_ >> 8);
     }
 
-    [[nodiscard]] u8 distance() const {
+    [[nodiscard]] u8 distance_to_terminal() const {
         return static_cast<u8>(value_ & 255);
     }
 

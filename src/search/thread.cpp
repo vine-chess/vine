@@ -1,6 +1,4 @@
 #include "thread.hpp"
-#include "../chess/move_gen.hpp"
-#include "../util/assert.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -19,7 +17,6 @@ u64 Thread::iterations() const {
 void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
-    tree.new_search(root_board);
     tree.new_search(root_board);
 
     u64 iterations = 0;
@@ -67,7 +64,8 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
     u32 most_visits = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
         const Node &child = tree.node_at(node.first_child_idx + i);
-        if (child.num_visits > most_visits) {
+
+        if (child.num_visits > tree.node_at(best_child_idx).num_visits) {
             most_visits = child.num_visits;
             best_child_idx = node.first_child_idx + i;
         }
@@ -83,7 +81,15 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
 
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
     const Node &root = tree.root();
-    const auto cp = static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+    auto score = static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+    auto is_mate = false;
+    if (root.terminal_state.is_win()) {
+        score = (root.terminal_state.distance_to_terminal() + 1) / 2;
+        is_mate = true;
+    } else if (root.terminal_state.is_loss()) {
+        score = -(root.terminal_state.distance_to_terminal() + 1) / 2;
+        is_mate = true;
+    }
 
     std::vector<Move> pv;
     extract_pv(pv, tree);
@@ -98,7 +104,8 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
 
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
-              << " nps " << iterations * 1000 / elapsed << " score cp " << cp << " pv " << pv_stream.str() << std::endl;
+              << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ") << score << " pv " << pv_stream.str()
+              << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
