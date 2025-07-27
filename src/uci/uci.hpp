@@ -19,6 +19,7 @@ class Handler {
     void handle_perft(std::ostream &out, int depth);
     void handle_setoption(std::ostream &out, const std::vector<std::string_view> &parts);
     void handle_go(std::ostream &out, const std::vector<std::string_view> &parts);
+    void handle_genfens(std::ostream &out, const std::vector<std::string_view> &parts);
 
     Board board_;
     search::Searcher searcher_;

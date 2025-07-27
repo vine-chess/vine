@@ -11,14 +11,8 @@ namespace rng {
 constexpr int DEFAULT_SEED = 0x1337;
 inline thread_local std::mt19937_64 generator(DEFAULT_SEED);
 
-template <typename... Args>
-inline void seed(u64 base_seed, Args... additional_seeds) {
-    std::random_device rd;
-    std::vector<unsigned> seed_data{static_cast<unsigned>(rd()),      static_cast<unsigned>(rd()),
-                                    static_cast<unsigned>(rd()),      static_cast<unsigned>(rd()),
-                                    static_cast<unsigned>(base_seed), static_cast<unsigned>(additional_seeds)...};
-    std::seed_seq seq(seed_data.begin(), seed_data.end());
-    generator.seed(seq);
+inline void seed_generator(u64 seed) {
+    generator.seed(seed);
 }
 
 inline u64 next_u64() {

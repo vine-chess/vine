@@ -4,11 +4,14 @@
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
+#include "../data_gen/openings.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <ostream>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,6 +70,21 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
     searcher_.go(board_, time_settings);
 }
 
+void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_view> &parts) {
+    vine_assert(parts[0] == "genfens");
+    const auto count = *util::parse_int<usize>(parts[1]);
+    vine_assert(parts[2] == "seed");
+    const auto seed = *util::parse_int<usize>(parts[3]);
+    vine_assert(parts[4] == "book");
+    const auto path = parts[5];
+    vine_assert(path == "None"); // TODO: book support, needs test
+    const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
+
+    for (const auto opening : datagen::generate_openings(count, seed, random_moves)) {
+        out << "info string genfens " << opening.to_fen() << std::endl;
+    }
+}
+
 void Handler::process_input(std::istream &in, std::ostream &out) {
     std::string line;
     while (std::getline(in, line)) {
@@ -119,6 +137,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             tests::run_bench_tests(out);
         } else if (parts[0] == "quit") {
             std::exit(0);
+        } else if (parts[0] == "genfens") {
+            handle_genfens(out, parts);
         }
     }
 }
