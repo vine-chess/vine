@@ -81,7 +81,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
         // Scale CPUCT based on the Q difference from the parent
         if (node_idx != 0) {
             const f64 q_delta = node.q() - (1.0 - nodes_[node.parent_idx].q());
-            cpuct += std::clamp(1.5 * q_delta, -0.5, 0.5);
+            cpuct += std::clamp(2.0 * q_delta, -0.2, 0.2);
         }
 
         u32 best_child_idx = 0;
