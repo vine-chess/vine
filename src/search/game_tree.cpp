@@ -1,6 +1,7 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
 #include "../util/assert.hpp"
+#include <algorithm>
 #include <iostream>
 
 namespace search {
@@ -76,7 +77,12 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             return {node_idx, true};
         }
 
-        const bool q_declining = node_idx != 0 && (1.0 - nodes_[node.parent_idx].q()) - node.q() > 0.05;
+        f64 cpuct = node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+        // Scale CPUCT based on the Q difference from the parent
+        if (node_idx != 0) {
+            const f64 q_delta = node.q() - (1.0 - nodes_[node.parent_idx].q());
+            cpuct += std::clamp(1.5 * q_delta, -0.5, 0.5);
+        }
 
         u32 best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
@@ -84,9 +90,7 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
             Node &child_node = nodes_[node.first_child_idx + i];
 
             // Track the child with the highest PUCT score
-            const f64 child_score =
-                compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
+            const f64 child_score = compute_puct(node, child_node, child_node.policy_score, cpuct);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
