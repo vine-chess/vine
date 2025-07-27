@@ -1,6 +1,7 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
 #include "../util/assert.hpp"
+#include "node.hpp"
 #include <algorithm>
 #include <iostream>
 
@@ -197,25 +198,39 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
         node.sum_of_scores += score;
         node.num_visits++;
 
-        if (node.parent_idx != -1 && (node.terminal_state.is_win() || node.terminal_state.is_loss())) {
-            auto &parent = nodes_[node.parent_idx];
-            if (node.terminal_state.is_loss()) {
-                parent.terminal_state = TerminalState::win(node.terminal_state.distance_to_terminal() + 1);
-            } else if (node.terminal_state.is_win()) {
-                const auto sibling_start = parent.first_child_idx;
-                const auto num_siblings = parent.num_children;
+        const auto num_children = node.num_children;
+        if (num_children > 0) {
+            const auto first_child_idx = node.first_child_idx;
 
-                bool parent_cant_evade = true;
-                u8 max_distance = node.terminal_state.distance_to_terminal();
-                for (usize i = 0; i < num_siblings; ++i) {
-                    const auto sibling_state = nodes_[sibling_start + i].terminal_state;
-                    parent_cant_evade &= sibling_state.is_loss();
-                    max_distance = std::max(max_distance, sibling_state.distance_to_terminal());
+            bool is_proven_loss = true;
+            u8 farthest_losing_mate = 0;
+            bool is_proven_win = false;
+            u8 closest_winning_mate = 255;
+            bool is_proven_draw = true;
+            for (usize i = 0; i < num_children; ++i) {
+                const auto child_terminal_state = nodes_[first_child_idx + i].terminal_state;
+                if (child_terminal_state.is_win()) {
+                    farthest_losing_mate = std::max(farthest_losing_mate, child_terminal_state.distance_to_terminal());
+                } else if (child_terminal_state.is_loss()) {
+                    closest_winning_mate = std::min(closest_winning_mate, child_terminal_state.distance_to_terminal());
+                    is_proven_win = true;
+                    is_proven_loss = false;
+                    is_proven_draw = false;
+                } else if (child_terminal_state.is_draw()) {
+                    is_proven_win = false;
+                    is_proven_loss = false;
+                } else {
+                    is_proven_draw = false;
+                    is_proven_loss = false;
                 }
-
-                if (parent_cant_evade) {
-                    parent.terminal_state = TerminalState::loss(max_distance + 1);
-                }
+            }
+            is_proven_draw &= !is_proven_loss;
+            if (is_proven_win) {
+                node.terminal_state = TerminalState::win(closest_winning_mate + 1);
+            } else if (is_proven_loss) {
+                node.terminal_state = TerminalState::loss(farthest_losing_mate + 1);
+            } else if (is_proven_draw) {
+                node.terminal_state = TerminalState::draw();
             }
         }
 

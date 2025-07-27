@@ -61,6 +61,17 @@ class TerminalState {
         }
     }
 
+    [[nodiscard]] constexpr TerminalState operator-() const {
+        switch (flag()) {
+        case Flag::LOSS:
+            return TerminalState::win(distance_to_terminal() + 1);
+        case Flag::WIN:
+            return TerminalState::loss(distance_to_terminal() + 1);
+        default:
+            return *this;
+        }
+    }
+
     [[nodiscard]] constexpr bool operator==(const TerminalState &other) const = default;
 
     [[nodiscard]] Flag flag() const {
