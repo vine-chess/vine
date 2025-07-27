@@ -111,36 +111,41 @@ void BoardState::compute_masks() {
 
 std::string BoardState::to_fen() const {
     std::string res;
-    for (int i = 8; i-- > 0;) {
-        int empty = 0;
-        for (int j = 0; j < 8; ++j) {
+
+    for (i32 i = 8; i-- > 0;) {
+        i32 empty = 0;
+        for (i32 j = 0; j < 8; ++j) {
             const auto sq = Square(8 * i + j);
             const auto pt = get_piece_type(sq);
             if (pt == PieceType::NONE) {
                 ++empty;
                 continue;
             }
+
             if (empty) {
-                res += '0' + empty;
+                res += std::to_string('0' + empty);
                 empty = 0;
             }
+
             const auto col = get_piece_color(sq);
             res += pt.to_char(col);
         }
+
         if (empty) {
-            res += '0' + empty;
+            res += std::to_string('0' + empty);
             empty = 0;
         }
+
         if (i)
             res += '/';
     }
+
     res += ' ';
     res += side_to_move == Color::WHITE ? 'w' : 'b';
     res += ' ';
-    if (castle_rights.to_mask() != 0) {
 
-        const auto frc = std::get<bool>(uci::options.get("UCI_Chess960")->value_as_variant());
-        if (frc) {
+    if (castle_rights.to_mask() != 0) {
+        if (std::get<bool>(uci::options.get("UCI_Chess960")->value_as_variant())) {
             if (castle_rights.can_kingside_castle(Color::WHITE)) {
                 res += castle_rights.kingside_rook(Color::WHITE).file().to_char();
             }
@@ -170,6 +175,7 @@ std::string BoardState::to_fen() const {
     } else {
         res += '-';
     }
+
     res += ' ';
     if (en_passant_sq != Square::NO_SQUARE) {
         res += en_passant_sq.file().to_char();
@@ -177,6 +183,7 @@ std::string BoardState::to_fen() const {
     } else {
         res += '-';
     }
+
     res += ' ';
     res += std::to_string(fifty_moves_clock);
     res += ' ';
