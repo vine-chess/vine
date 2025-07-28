@@ -71,7 +71,7 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
             most_visits = child.num_visits;
             best_child_idx = node.first_child_idx + i;
         }
-        if (child.terminal_state.is_win() &&
+        if (child.terminal_state.is_loss() &&
             (!has_winning_child || child.terminal_state.distance_to_terminal() < closest_mate)) {
             has_winning_child = true;
             closest_mate = child.terminal_state.distance_to_terminal();
