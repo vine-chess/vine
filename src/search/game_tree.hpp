@@ -3,6 +3,7 @@
 
 #include "../chess/board.hpp"
 #include "node.hpp"
+#include "value_correction.hpp"
 
 namespace search {
 
@@ -43,6 +44,7 @@ class GameTree {
     [[nodiscard]] bool expand_node(u32 node_idx);
 
     std::vector<Node> nodes_;
+    ValueCorrection value_correction_;
     Board board_;
     u32 sum_depths_ = 0;
     u32 nodes_in_path_ = 0;

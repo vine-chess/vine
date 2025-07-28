@@ -39,6 +39,7 @@ struct BoardState {
     CastleRights castle_rights{};
     u8 fifty_moves_clock = 0;
     HashKey hash_key{};
+    HashKey pawn_key{};
     Bitboard ortho_pins{};
     Bitboard diag_pins{};
     Bitboard checkers{};

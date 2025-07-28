@@ -20,6 +20,7 @@ void GameTree::new_search(const Board &root_board) {
     nodes_.clear();
     nodes_.emplace_back(); // Root node always exists
     board_ = root_board;
+    value_correction_.clear();
     sum_depths_ = 0;
     vine_assert(expand_node(0));
 }
@@ -197,16 +198,23 @@ f64 GameTree::simulate_node(u32 node_idx) {
         100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
         310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
         1000 * state.queens(~state.side_to_move).pop_count();
-    const f64 eval = stm_material - nstm_material + 20;
-    return 1.0 / (1.0 + std::exp(-eval / 400.0));
+    const f64 value = stm_material - nstm_material + 20;
+    const f64 scaled_value = 1.0 / (1.0 + std::exp(-value / 400.0));
+    return value_correction_.correct(board_.state(), scaled_value);
 }
 
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
+    u32 nodes_propagated = 0;
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
+
+        if (node_idx != 0) {
+            const auto &past_state = board_.history()[board_.history().size() - ++nodes_propagated];
+            value_correction_.save(past_state, node.q(), node.num_visits);
+        }
 
         // Travel up to the parent
         node_idx = node.parent_idx;
