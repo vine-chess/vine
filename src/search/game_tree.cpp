@@ -220,7 +220,6 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
                     is_proven_loss = false;
                     is_proven_draw = false;
                 } else if (child_terminal_state.is_draw()) {
-                    is_proven_win = false;
                     is_proven_loss = false;
                 } else {
                     is_proven_draw = false;
