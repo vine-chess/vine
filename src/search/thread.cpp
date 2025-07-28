@@ -62,11 +62,19 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
 
     u32 best_child_idx = node.first_child_idx;
     u32 most_visits = 0;
+    bool has_winning_child = false;
+    u8 closest_mate = 255;
     for (u16 i = 0; i < node.num_children; ++i) {
         const Node &child = tree.node_at(node.first_child_idx + i);
 
-        if (child.num_visits > tree.node_at(best_child_idx).num_visits) {
+        if (child.num_visits > tree.node_at(best_child_idx).num_visits && !has_winning_child) {
             most_visits = child.num_visits;
+            best_child_idx = node.first_child_idx + i;
+        }
+        if (child.terminal_state.is_win() &&
+            (!has_winning_child || child.terminal_state.distance_to_terminal() < closest_mate)) {
+            has_winning_child = true;
+            closest_mate = child.terminal_state.distance_to_terminal();
             best_child_idx = node.first_child_idx + i;
         }
     }
@@ -81,15 +89,8 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
 
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
     const Node &root = tree.root();
-    auto score = static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
-    auto is_mate = false;
-    if (root.terminal_state.is_win()) {
-        score = (root.terminal_state.distance_to_terminal() + 1) / 2;
-        is_mate = true;
-    } else if (root.terminal_state.is_loss()) {
-        score = -(root.terminal_state.distance_to_terminal() + 1) / 2;
-        is_mate = true;
-    }
+    const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
+    const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2 : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
 
     std::vector<Move> pv;
     extract_pv(pv, tree);

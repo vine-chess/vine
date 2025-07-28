@@ -195,14 +195,16 @@ f64 GameTree::simulate_node(u32 node_idx) {
 }
 
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
+    bool has_proven_terminal_in_subtree = false;
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
+        has_proven_terminal_in_subtree |= !node.terminal_state.is_none();
 
         const auto num_children = node.num_children;
-        if (num_children > 0) {
+        if (has_proven_terminal_in_subtree && num_children > 0) {
             const auto first_child_idx = node.first_child_idx;
 
             bool is_proven_loss = true;
@@ -235,6 +237,8 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
                 node.terminal_state = TerminalState::loss(farthest_losing_mate + 1);
             } else if (is_proven_draw) {
                 node.terminal_state = TerminalState::draw(farthest_draw + 1);
+            } else {
+                has_proven_terminal_in_subtree = false;
             }
         }
 
