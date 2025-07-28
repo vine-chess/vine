@@ -26,6 +26,10 @@ class TerminalState {
         return TerminalState(static_cast<u8>(Flag::DRAW) << 8);
     }
 
+    [[nodiscard]] constexpr static TerminalState draw(u8 ply) {
+        return TerminalState(static_cast<u8>(Flag::DRAW) << 8 | ply);
+    }
+
     [[nodiscard]] constexpr static TerminalState win(u8 ply) {
         return TerminalState(static_cast<u8>(Flag::WIN) << 8 | ply);
     }

@@ -210,6 +210,7 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
             bool is_proven_win = false;
             u8 closest_winning_mate = 255;
             bool is_proven_draw = true;
+            u8 farthest_draw = 0;
             for (usize i = 0; i < num_children; ++i) {
                 const auto child_terminal_state = nodes_[first_child_idx + i].terminal_state;
                 if (child_terminal_state.is_win()) {
@@ -220,6 +221,7 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
                     is_proven_loss = false;
                     is_proven_draw = false;
                 } else if (child_terminal_state.is_draw()) {
+                    farthest_draw = std::min(farthest_draw, child_terminal_state.distance_to_terminal());
                     is_proven_loss = false;
                 } else {
                     is_proven_draw = false;
@@ -232,7 +234,7 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
             } else if (is_proven_loss) {
                 node.terminal_state = TerminalState::loss(farthest_losing_mate + 1);
             } else if (is_proven_draw) {
-                node.terminal_state = TerminalState::draw();
+                node.terminal_state = TerminalState::draw(farthest_draw + 1);
             }
         }
 
