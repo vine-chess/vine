@@ -1,10 +1,10 @@
 #include "uci.hpp"
 #include "../chess/move_gen.hpp"
+#include "../data_gen/openings.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
-#include "../data_gen/openings.hpp"
 
 #include <algorithm>
 #include <chrono>

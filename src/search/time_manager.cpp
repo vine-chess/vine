@@ -21,6 +21,10 @@ bool TimeManager::times_up(u64 iterations, Color color, i32 depth) const {
         return true;
     }
 
+    if (iterations >= settings_.max_iters) {
+        return true;
+    }
+
     return false;
 }
 

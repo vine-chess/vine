@@ -74,7 +74,6 @@ Board::Board(std::string_view fen) {
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
     }
 
-
     int hmc;
     stream >> hmc;
     state().fifty_moves_clock = static_cast<u8>(hmc);
