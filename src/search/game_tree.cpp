@@ -201,12 +201,9 @@ void GameTree::backpropagate_mate_to_parent(u32 node_idx) {
         return;
     }
     auto &parent = nodes_[node.parent_idx];
-    const auto first_sibling = parent.first_child_idx;
-    const auto num_siblings = parent.num_children;
 
     switch (node.terminal_state.flag()) {
     case TerminalState::Flag::LOSS: {
-
         if (parent.terminal_state.is_win()) {
             parent.terminal_state = TerminalState::win(std::min<u8>(parent.terminal_state.distance_to_terminal(),
                                                                     node.terminal_state.distance_to_terminal() + 1));
@@ -217,11 +214,14 @@ void GameTree::backpropagate_mate_to_parent(u32 node_idx) {
     }
     case TerminalState::Flag::WIN: {
         u8 longest_mate = node.terminal_state.distance_to_terminal();
+        const auto first_sibling = parent.first_child_idx;
+        const auto num_siblings = parent.num_children;
 
         for (usize i = 0; i < num_siblings; ++i) {
             const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
-            if (!sibling_terminal.is_win())
+            if (!sibling_terminal.is_win()) {
                 return;
+            }
             longest_mate = std::max(longest_mate, sibling_terminal.distance_to_terminal());
         }
 
@@ -229,12 +229,17 @@ void GameTree::backpropagate_mate_to_parent(u32 node_idx) {
     } break;
     case TerminalState::Flag::DRAW: {
         u8 longest_draw = node.terminal_state.distance_to_terminal();
+        const auto first_sibling = parent.first_child_idx;
+        const auto num_siblings = parent.num_children;
 
         for (usize i = 0; i < num_siblings; ++i) {
             const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
-            if (sibling_terminal.is_win() || sibling_terminal.is_none())
+            if (sibling_terminal.is_win() || sibling_terminal.is_none()) {
                 return;
-            longest_draw = std::max(longest_draw, sibling_terminal.distance_to_terminal());
+            }
+            if (sibling_terminal.is_draw()) {
+                longest_draw = std::max(longest_draw, sibling_terminal.distance_to_terminal());
+            }
         }
 
         parent.terminal_state = TerminalState::loss(longest_draw + 1);

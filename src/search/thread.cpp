@@ -90,7 +90,8 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
-    const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2 : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+    const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
+                               : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
 
     std::vector<Move> pv;
     extract_pv(pv, tree);
@@ -105,8 +106,8 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
 
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
-              << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ") << (root.terminal_state.is_loss() ? "-" : "") << score << " pv "
-              << pv_stream.str() << std::endl;
+              << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
+              << (root.terminal_state.is_loss() ? "-" : "") << score << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
