@@ -64,11 +64,10 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
     }
 
     u32 best_child_idx = node.first_child_idx;
-    u32 most_visits = 0;
+    
     for (u16 i = 0; i < node.num_children; ++i) {
         const Node &child = tree.node_at(node.first_child_idx + i);
-        if (child.num_visits > most_visits) {
-            most_visits = child.num_visits;
+        if (child.q() < tree.node_at(best_child_idx).q()) {
             best_child_idx = node.first_child_idx + i;
         }
     }
