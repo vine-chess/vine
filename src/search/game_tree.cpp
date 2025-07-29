@@ -4,6 +4,7 @@
 #include "node.hpp"
 #include <algorithm>
 #include <iostream>
+#include <span>
 
 namespace search {
 
@@ -194,53 +195,62 @@ f64 GameTree::simulate_node(u32 node_idx) {
     return 1.0 / (1.0 + std::exp(-eval / 400.0));
 }
 
+void GameTree::backpropagate_mate_to_parent(u32 node_idx) {
+    const auto &node = nodes_[node_idx];
+    if (node.parent_idx == -1) {
+        return;
+    }
+    auto &parent = nodes_[node.parent_idx];
+    const auto first_sibling = parent.first_child_idx;
+    const auto num_siblings = parent.num_children;
+
+    switch (node.terminal_state.flag()) {
+    case TerminalState::Flag::LOSS: {
+
+        if (parent.terminal_state.is_win()) {
+            parent.terminal_state = TerminalState::win(std::min<u8>(parent.terminal_state.distance_to_terminal(),
+                                                                    node.terminal_state.distance_to_terminal() + 1));
+        } else {
+            parent.terminal_state = TerminalState::win(node.terminal_state.distance_to_terminal() + 1);
+        }
+        break;
+    }
+    case TerminalState::Flag::WIN: {
+        u8 longest_mate = node.terminal_state.distance_to_terminal();
+
+        for (usize i = 0; i < num_siblings; ++i) {
+            const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
+            if (!sibling_terminal.is_win())
+                return;
+            longest_mate = std::max(longest_mate, sibling_terminal.distance_to_terminal());
+        }
+
+        parent.terminal_state = TerminalState::loss(longest_mate + 1);
+    } break;
+    case TerminalState::Flag::DRAW: {
+        u8 longest_draw = node.terminal_state.distance_to_terminal();
+
+        for (usize i = 0; i < num_siblings; ++i) {
+            const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
+            if (sibling_terminal.is_win() || sibling_terminal.is_none())
+                return;
+            longest_draw = std::max(longest_draw, sibling_terminal.distance_to_terminal());
+        }
+
+        parent.terminal_state = TerminalState::loss(longest_draw + 1);
+    } break;
+    case TerminalState::Flag::NONE: {
+    } break;
+    }
+}
+
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
-    bool has_proven_terminal_in_subtree = false;
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
-        has_proven_terminal_in_subtree |= !node.terminal_state.is_none();
-
-        const auto num_children = node.num_children;
-        if (has_proven_terminal_in_subtree && num_children > 0) {
-            const auto first_child_idx = node.first_child_idx;
-
-            bool is_proven_loss = true;
-            u8 farthest_losing_mate = 0;
-            bool is_proven_win = false;
-            u8 closest_winning_mate = 255;
-            bool is_proven_draw = true;
-            u8 farthest_draw = 0;
-            for (usize i = 0; i < num_children; ++i) {
-                const auto child_terminal_state = nodes_[first_child_idx + i].terminal_state;
-                if (child_terminal_state.is_win()) {
-                    farthest_losing_mate = std::max(farthest_losing_mate, child_terminal_state.distance_to_terminal());
-                } else if (child_terminal_state.is_loss()) {
-                    closest_winning_mate = std::min(closest_winning_mate, child_terminal_state.distance_to_terminal());
-                    is_proven_win = true;
-                    is_proven_loss = false;
-                    is_proven_draw = false;
-                } else if (child_terminal_state.is_draw()) {
-                    farthest_draw = std::min(farthest_draw, child_terminal_state.distance_to_terminal());
-                    is_proven_loss = false;
-                } else {
-                    is_proven_draw = false;
-                    is_proven_loss = false;
-                }
-            }
-            is_proven_draw &= !is_proven_loss;
-            if (is_proven_win) {
-                node.terminal_state = TerminalState::win(closest_winning_mate + 1);
-            } else if (is_proven_loss) {
-                node.terminal_state = TerminalState::loss(farthest_losing_mate + 1);
-            } else if (is_proven_draw) {
-                node.terminal_state = TerminalState::draw(farthest_draw + 1);
-            } else {
-                has_proven_terminal_in_subtree = false;
-            }
-        }
+        backpropagate_mate_to_parent(node_idx);
 
         // Travel up to the parent
         node_idx = node.parent_idx;

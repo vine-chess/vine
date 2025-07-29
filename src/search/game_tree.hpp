@@ -40,6 +40,7 @@ class GameTree {
     void backpropagate_score(f64 score, u32 node_idx);
 
   private:
+    void backpropagate_mate_to_parent(u32 node_idx);
     [[nodiscard]] bool expand_node(u32 node_idx);
 
     std::vector<Node> nodes_;
