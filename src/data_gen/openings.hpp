@@ -1,8 +1,8 @@
 #ifndef OPENINGS_HPP
 #define OPENINGS_HPP
 
-#include "../util/random.hpp"
 #include "../chess/board.hpp"
+#include "../util/random.hpp"
 
 namespace datagen {
 
