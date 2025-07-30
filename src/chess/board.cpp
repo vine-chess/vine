@@ -46,13 +46,43 @@ Board::Board(std::string_view fen) {
     if (castle_data != "-") {
         for (const char ch : castle_data) {
             if (ch == 'K') {
-                state().castle_rights.set_kingside_rook_file(Color::WHITE, File::H);
+                File file = File::NO_FILE;
+                for (usize i = 0; i < 8; ++i) {
+                    const auto sq = Square(Rank::FIRST, static_cast<File>(i));
+                    if (state().get_piece_type(sq) == PieceType::ROOK && state().get_piece_color(sq) == Color::WHITE) {
+                        file = static_cast<File>(i);
+                    }
+                }
+                state().castle_rights.set_kingside_rook_file(Color::WHITE, file);
             } else if (ch == 'Q') {
-                state().castle_rights.set_queenside_rook_file(Color::WHITE, File::A);
+                File file = File::NO_FILE;
+                for (usize i = 0; i < 8; ++i) {
+                    const auto sq = Square(Rank::FIRST, static_cast<File>(i));
+                    if (state().get_piece_type(sq) == PieceType::ROOK && state().get_piece_color(sq) == Color::WHITE) {
+                        file = static_cast<File>(i);
+                        break;
+                    }
+                }
+                state().castle_rights.set_queenside_rook_file(Color::WHITE, file);
             } else if (ch == 'k') {
-                state().castle_rights.set_kingside_rook_file(Color::BLACK, File::H);
+                File file = File::NO_FILE;
+                for (usize i = 0; i < 8; ++i) {
+                    const auto sq = Square(Rank::EIGHTH, static_cast<File>(i));
+                    if (state().get_piece_type(sq) == PieceType::ROOK && state().get_piece_color(sq) == Color::BLACK) {
+                        file = static_cast<File>(i);
+                    }
+                }
+                state().castle_rights.set_kingside_rook_file(Color::BLACK, file);
             } else if (ch == 'q') {
-                state().castle_rights.set_queenside_rook_file(Color::BLACK, File::A);
+                File file = File::NO_FILE;
+                for (usize i = 0; i < 8; ++i) {
+                    const auto sq = Square(Rank::EIGHTH, static_cast<File>(i));
+                    if (state().get_piece_type(sq) == PieceType::ROOK && state().get_piece_color(sq) == Color::BLACK) {
+                        file = static_cast<File>(i);
+                        break;
+                    }
+                }
+                state().castle_rights.set_queenside_rook_file(Color::BLACK, file);
             } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
                 const auto rook_file = File::from_char(ch);
@@ -73,7 +103,6 @@ Board::Board(std::string_view fen) {
         state().en_passant_sq = Square::from_string(en_passant);
         state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
     }
-
 
     int hmc;
     stream >> hmc;
