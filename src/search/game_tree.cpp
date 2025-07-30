@@ -236,7 +236,7 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
-            //backpropagate_terminal_state(node_idx, child_terminal_state);
+            backpropagate_terminal_state(node_idx, child_terminal_state);
         }
 
         // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
