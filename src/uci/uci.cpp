@@ -64,6 +64,8 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
             time_settings.increment_per_side[Color::WHITE] = std::atoi(parts[i + 1].data());
         } else if (parts[i] == "binc") {
             time_settings.increment_per_side[Color::BLACK] = std::atoi(parts[i + 1].data());
+        } else if (parts[i] == "nodes") {
+            time_settings.max_iters = std::atoi(parts[i + 1].data());
         }
     }
 
