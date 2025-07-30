@@ -162,7 +162,7 @@ bool GameTree::expand_node(u32 node_idx) {
     node.first_child_idx = nodes_.size();
     node.num_children = move_list.size();
 
-    // Append all child nodes to the nodes_ with the move that leads to it
+    // Append all child nodes to the nodes with the move that leads to it
     for (const auto move : move_list) {
         nodes_.push_back(Node{
             .parent_idx = static_cast<i32>(node_idx),
@@ -195,67 +195,55 @@ f64 GameTree::simulate_node(u32 node_idx) {
     return 1.0 / (1.0 + std::exp(-eval / 400.0));
 }
 
-void GameTree::backpropagate_mate_to_parent(u32 node_idx) {
-    const auto &node = nodes_[node_idx];
-    if (node.parent_idx == -1) {
-        return;
-    }
-    auto &parent = nodes_[node.parent_idx];
+void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
+    auto &node = nodes_[node_idx];
+    switch (child_terminal_state.flag()) {
+    case TerminalState::Flag::LOSS: // If a child node is lost, then it's a win for us
+        node.terminal_state = TerminalState::win(child_terminal_state.distance_to_terminal() + 1);
+        break;
+    case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
+        bool all_children_win_for_opponent = true;
+        u8 longest_loss = 0;
+        for (i32 i = 0; i < node.num_children; ++i) {
+            const auto &sibling = nodes_[node.first_child_idx + i];
+            const auto sibling_flag = sibling.terminal_state.flag();
 
-    switch (node.terminal_state.flag()) {
-    case TerminalState::Flag::LOSS: {
-        if (parent.terminal_state.is_win()) {
-            parent.terminal_state = TerminalState::win(std::min<u8>(parent.terminal_state.distance_to_terminal(),
-                                                                    node.terminal_state.distance_to_terminal() + 1));
-        } else {
-            parent.terminal_state = TerminalState::win(node.terminal_state.distance_to_terminal() + 1);
+            if (sibling_flag != TerminalState::Flag::WIN) {
+                all_children_win_for_opponent = false;
+                break;
+            } else {
+                longest_loss = std::max(longest_loss, sibling.terminal_state.distance_to_terminal());
+            }
+        }
+
+        if (all_children_win_for_opponent) {
+            node.terminal_state = TerminalState::loss(longest_loss + 1);
         }
         break;
     }
-    case TerminalState::Flag::WIN: {
-        u8 longest_mate = node.terminal_state.distance_to_terminal();
-        const auto first_sibling = parent.first_child_idx;
-        const auto num_siblings = parent.num_children;
-
-        for (usize i = 0; i < num_siblings; ++i) {
-            const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
-            if (!sibling_terminal.is_win()) {
-                return;
-            }
-            longest_mate = std::max(longest_mate, sibling_terminal.distance_to_terminal());
-        }
-
-        parent.terminal_state = TerminalState::loss(longest_mate + 1);
-    } break;
-    case TerminalState::Flag::DRAW: {
-        u8 longest_draw = node.terminal_state.distance_to_terminal();
-        const auto first_sibling = parent.first_child_idx;
-        const auto num_siblings = parent.num_children;
-
-        for (usize i = 0; i < num_siblings; ++i) {
-            const auto sibling_terminal = nodes_[first_sibling + i].terminal_state;
-            if (sibling_terminal.is_win() || sibling_terminal.is_none()) {
-                return;
-            }
-            if (sibling_terminal.is_draw()) {
-                longest_draw = std::max(longest_draw, sibling_terminal.distance_to_terminal());
-            }
-        }
-
-        parent.terminal_state = TerminalState::loss(longest_draw + 1);
-    } break;
-    case TerminalState::Flag::NONE: {
-    } break;
+    default:
+        break;
     }
 }
 
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
+    auto child_terminal_state = TerminalState::none();
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
-        backpropagate_mate_to_parent(node_idx);
+
+        // If a terminal state from the child score exists, then we try to backpropagate it to this node
+        if (!child_terminal_state.is_none()) {
+            //backpropagate_terminal_state(node_idx, child_terminal_state);
+        }
+
+        // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
+        // node to try to use it
+        if (!node.terminal_state.is_none()) {
+            child_terminal_state = node.terminal_state;
+        }
 
         // Travel up to the parent
         node_idx = node.parent_idx;

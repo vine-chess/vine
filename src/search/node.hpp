@@ -2,7 +2,6 @@
 #define NODE_HPP
 
 #include "../chess/move.hpp"
-#include <bits/types/wint_t.h>
 
 namespace search {
 
