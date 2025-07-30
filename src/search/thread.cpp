@@ -60,10 +60,22 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
         return;
     }
 
+    const auto get_child_score = [&](u32 child_idx) {
+        const f64 MATE_SCORE = 1000.0;
+        const Node &child = tree.node_at(child_idx);
+        switch (child.terminal_state.flag()) {
+        case TerminalState::Flag::WIN:
+            return MATE_SCORE - child.terminal_state.distance_to_terminal();
+        case TerminalState::Flag::LOSS:
+            return -MATE_SCORE + child.terminal_state.distance_to_terminal();
+        default:
+            return child.q();
+        }
+    };
+
     u32 best_child_idx = node.first_child_idx;
     for (u16 i = 0; i < node.num_children; ++i) {
-        const Node &child = tree.node_at(node.first_child_idx + i);
-        if (child.q() < tree.node_at(best_child_idx).q()) {
+        if (get_child_score(node.first_child_idx + i) < get_child_score(best_child_idx)) {
             best_child_idx = node.first_child_idx + i;
         }
     }
