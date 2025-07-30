@@ -202,23 +202,15 @@ void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_te
         node.terminal_state = TerminalState::win(child_terminal_state.distance_to_terminal() + 1);
         break;
     case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
-        bool all_children_win_for_opponent = true;
         u8 longest_loss = 0;
         for (i32 i = 0; i < node.num_children; ++i) {
-            const auto &sibling = nodes_[node.first_child_idx + i];
-            const auto sibling_flag = sibling.terminal_state.flag();
-
-            if (sibling_flag != TerminalState::Flag::WIN) {
-                all_children_win_for_opponent = false;
-                break;
-            } else {
-                longest_loss = std::max(longest_loss, sibling.terminal_state.distance_to_terminal());
+            const auto sibling_terminal_state = nodes_[node.first_child_idx + i].terminal_state;
+            if (sibling_terminal_state.flag() != TerminalState::Flag::WIN) {
+                return;
             }
+            longest_loss = std::max(longest_loss, sibling_terminal_state.distance_to_terminal());
         }
-
-        if (all_children_win_for_opponent) {
-            node.terminal_state = TerminalState::loss(longest_loss + 1);
-        }
+        node.terminal_state = TerminalState::loss(longest_loss + 1);
         break;
     }
     default:
