@@ -198,9 +198,14 @@ f64 GameTree::simulate_node(u32 node_idx) {
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
     auto &node = nodes_[node_idx];
     switch (child_terminal_state.flag()) {
-    case TerminalState::Flag::LOSS: // If a child node is lost, then it's a win for us
-        node.terminal_state = TerminalState::win(child_terminal_state.distance_to_terminal() + 1);
+    case TerminalState::Flag::LOSS: { // If a child node is lost, then it's a win for us
+        // Ensure that if we already had a shorter mate we preserve it 
+        const auto current_mate_distance =
+            node.terminal_state.is_win() ? node.terminal_state.distance_to_terminal() : 255;
+        node.terminal_state =
+            TerminalState::win(std::min<u8>(current_mate_distance, child_terminal_state.distance_to_terminal() + 1));
         break;
+    }
     case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
         u8 longest_loss = 0;
         for (i32 i = 0; i < node.num_children; ++i) {
