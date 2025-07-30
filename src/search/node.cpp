@@ -16,7 +16,7 @@ bool Node::expanded() const {
 }
 
 f64 Node::q() const {
-    return terminal_state.is_none() ? sum_of_scores / static_cast<f64>(num_visits) : terminal_state.score();
+    return sum_of_scores / static_cast<f64>(num_visits);
 }
 
 } // namespace search
