@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
@@ -53,6 +54,11 @@ Board::Board(std::string_view fen) {
                         file = static_cast<File>(i);
                     }
                 }
+
+                if (file == File::NO_FILE) {
+                    throw std::runtime_error("invalid castling rights");
+                }
+
                 state().castle_rights.set_kingside_rook_file(Color::WHITE, file);
             } else if (ch == 'Q') {
                 File file = File::NO_FILE;
@@ -63,6 +69,11 @@ Board::Board(std::string_view fen) {
                         break;
                     }
                 }
+
+                if (file == File::NO_FILE) {
+                    throw std::runtime_error("invalid castling rights");
+                }
+
                 state().castle_rights.set_queenside_rook_file(Color::WHITE, file);
             } else if (ch == 'k') {
                 File file = File::NO_FILE;
@@ -72,6 +83,11 @@ Board::Board(std::string_view fen) {
                         file = static_cast<File>(i);
                     }
                 }
+
+                if (file == File::NO_FILE) {
+                    throw std::runtime_error("invalid castling rights");
+                }
+
                 state().castle_rights.set_kingside_rook_file(Color::BLACK, file);
             } else if (ch == 'q') {
                 File file = File::NO_FILE;
@@ -82,6 +98,11 @@ Board::Board(std::string_view fen) {
                         break;
                     }
                 }
+
+                if (file == File::NO_FILE) {
+                    throw std::runtime_error("invalid castling rights");
+                }
+
                 state().castle_rights.set_queenside_rook_file(Color::BLACK, file);
             } else {
                 const auto color = std::isupper(ch) ? Color::WHITE : Color::BLACK;
@@ -94,6 +115,7 @@ Board::Board(std::string_view fen) {
             }
         }
     }
+
     state().hash_key ^= zobrist::castle_rights[state().castle_rights.to_mask()];
 
     std::string en_passant;
