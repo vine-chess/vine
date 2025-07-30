@@ -198,9 +198,33 @@ f64 GameTree::simulate_node(u32 node_idx) {
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
     auto &node = nodes_[node_idx];
     switch (child_terminal_state.flag()) {
-    case TerminalState::Flag::LOSS: // If a child node is lost, then it's a win for us
-        node.terminal_state = TerminalState::win(child_terminal_state.distance_to_terminal() + 1);
+    case TerminalState::Flag::LOSS: { // If a child node is lost, then it's a win for us
+        const auto current_mate_distance =
+            node.terminal_state.is_win() ? node.terminal_state.distance_to_terminal() : 255;
+        node.terminal_state =
+            TerminalState::win(std::min<u8>(current_mate_distance, child_terminal_state.distance_to_terminal() + 1));
         break;
+    }
+    case TerminalState::Flag::DRAW: { // If a child node is draw
+        std::cout << "propagating draw score\n";
+        if (node.terminal_state.flag() == TerminalState::Flag::WIN) {
+            break;
+        }
+        u8 longest_draw = 0;
+        for (i32 i = 0; i < node.num_children; ++i) {
+            const auto sibling_terminal_state = nodes_[node.first_child_idx + i].terminal_state;
+            // If theres a child that has no terminal state then this node isn't a proven draw, we might be able to
+            // do better We don't need to check if there's any children that are losing, that'd be handled by the
+            // check that the node isn't already winning
+            if (sibling_terminal_state.flag() == TerminalState::Flag::NONE) {
+                std::cout << "exited due to NONE sibling " << nodes_[node.first_child_idx + i].move << '\n';
+                return;
+            }
+            longest_draw = std::max(longest_draw, sibling_terminal_state.distance_to_terminal());
+        }
+        node.terminal_state = TerminalState::draw(longest_draw + 1);
+        break;
+    }
     case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
         u8 longest_loss = 0;
         for (i32 i = 0; i < node.num_children; ++i) {

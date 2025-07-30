@@ -68,6 +68,8 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
             return MATE_SCORE - child.terminal_state.distance_to_terminal();
         case TerminalState::Flag::LOSS:
             return -MATE_SCORE + child.terminal_state.distance_to_terminal();
+        case TerminalState::Flag::DRAW:
+            return 0.0;
         default:
             return child.q();
         }
@@ -91,8 +93,12 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
-    const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
-                               : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+    auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
+                         : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+
+    if (root.terminal_state.is_draw()) {
+        score = 0;
+    }
 
     std::vector<Move> pv;
     extract_pv(pv, tree);
