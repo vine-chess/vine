@@ -3,7 +3,8 @@
 namespace search {
 
 bool Node::terminal() const {
-    return terminal_state != TerminalState::NONE;
+    return (terminal_state.is_loss() || terminal_state.is_draw() || terminal_state.is_win()) &&
+           terminal_state.distance_to_terminal() == 0;
 }
 
 bool Node::visited() const {

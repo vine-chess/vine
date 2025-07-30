@@ -1,7 +1,10 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
 #include "../util/assert.hpp"
+#include "node.hpp"
+#include <algorithm>
 #include <iostream>
+#include <span>
 
 namespace search {
 
@@ -139,7 +142,7 @@ bool GameTree::expand_node(u32 node_idx) {
     vine_assert(node_idx == 0 || node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
-        node.terminal_state = TerminalState::DRAW;
+        node.terminal_state = TerminalState::draw();
         return true;
     }
 
@@ -147,7 +150,7 @@ bool GameTree::expand_node(u32 node_idx) {
     generate_moves(board_.state(), move_list);
 
     if (move_list.empty()) {
-        node.terminal_state = board_.state().checkers != 0 ? TerminalState::LOSS : TerminalState::DRAW;
+        node.terminal_state = board_.state().checkers != 0 ? TerminalState::loss(0) : TerminalState::draw();
         return true;
     }
 
@@ -159,7 +162,7 @@ bool GameTree::expand_node(u32 node_idx) {
     node.first_child_idx = nodes_.size();
     node.num_children = move_list.size();
 
-    // Append all child nodes to the nodes_ with the move that leads to it
+    // Append all child nodes to the nodes with the move that leads to it
     for (const auto move : move_list) {
         nodes_.push_back(Node{
             .parent_idx = static_cast<i32>(node_idx),
@@ -176,16 +179,7 @@ bool GameTree::expand_node(u32 node_idx) {
 f64 GameTree::simulate_node(u32 node_idx) {
     const auto &node = nodes_[node_idx];
     if (node.terminal()) {
-        switch (node.terminal_state) {
-        case TerminalState::WIN:
-            return 1.0;
-        case TerminalState::DRAW:
-            return 0.5;
-        case TerminalState::LOSS:
-            return 0.0;
-        default:
-            break;
-        }
+        return node.terminal_state.score();
     }
 
     const auto &state = board_.state();
@@ -201,12 +195,47 @@ f64 GameTree::simulate_node(u32 node_idx) {
     return 1.0 / (1.0 + std::exp(-eval / 400.0));
 }
 
+void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
+    auto &node = nodes_[node_idx];
+    switch (child_terminal_state.flag()) {
+    case TerminalState::Flag::LOSS: // If a child node is lost, then it's a win for us
+        node.terminal_state = TerminalState::win(child_terminal_state.distance_to_terminal() + 1);
+        break;
+    case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
+        u8 longest_loss = 0;
+        for (i32 i = 0; i < node.num_children; ++i) {
+            const auto sibling_terminal_state = nodes_[node.first_child_idx + i].terminal_state;
+            if (sibling_terminal_state.flag() != TerminalState::Flag::WIN) {
+                return;
+            }
+            longest_loss = std::max(longest_loss, sibling_terminal_state.distance_to_terminal());
+        }
+        node.terminal_state = TerminalState::loss(longest_loss + 1);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
+    auto child_terminal_state = TerminalState::none();
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
         node.sum_of_scores += score;
         node.num_visits++;
+
+        // If a terminal state from the child score exists, then we try to backpropagate it to this node
+        if (!child_terminal_state.is_none()) {
+            backpropagate_terminal_state(node_idx, child_terminal_state);
+        }
+
+        // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
+        // node to try to use it
+        if (!node.terminal_state.is_none()) {
+            child_terminal_state = node.terminal_state;
+        }
 
         // Travel up to the parent
         node_idx = node.parent_idx;

@@ -40,6 +40,7 @@ class GameTree {
     void backpropagate_score(f64 score, u32 node_idx);
 
   private:
+    void backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state);
     [[nodiscard]] bool expand_node(u32 node_idx);
 
     std::vector<Node> nodes_;
