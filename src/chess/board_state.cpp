@@ -123,7 +123,7 @@ std::string BoardState::to_fen() const {
             }
 
             if (empty) {
-                res += std::to_string('0' + empty);
+                res += '0' + empty;
                 empty = 0;
             }
 
@@ -132,7 +132,7 @@ std::string BoardState::to_fen() const {
         }
 
         if (empty) {
-            res += std::to_string('0' + empty);
+            res += '0' + empty;
             empty = 0;
         }
 
