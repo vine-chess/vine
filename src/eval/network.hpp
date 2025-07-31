@@ -24,8 +24,8 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) Network {
     };
     std::array<i16, L1_SIZE> ft_biases;
     union {
-        util::MultiArray<i16Vec, 2, L1_SIZE / VECTOR_SIZE> l1_weights_vec;
-        util::MultiArray<i16, 2, L1_SIZE> l1_weights;
+        util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> l1_weights_vec;
+        util::MultiArray<i16, L1_SIZE> l1_weights;
     };
     std::array<i16, 1> l1_biases;
 };

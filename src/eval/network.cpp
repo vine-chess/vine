@@ -19,9 +19,8 @@ const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceT
 }
 
 i32 evaluate(const BoardState &state) {
-    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> stm_accumulator, nstm_accumulator;
-    std::memcpy(stm_accumulator.data(), network->ft_biases.data(), sizeof(stm_accumulator));
-    std::memcpy(nstm_accumulator.data(), network->ft_biases.data(), sizeof(nstm_accumulator));
+    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
+    std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
 
     const auto stm = state.side_to_move;
     { // add all the features
@@ -31,14 +30,12 @@ i32 evaluate(const BoardState &state) {
             const auto piece = PieceType(pti);
             for (auto sq : state.piece_bbs[piece - 1] & stm_occ) {
                 for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                    stm_accumulator[i] += feature(sq, piece, stm, stm)[i];
-                    nstm_accumulator[i] += feature(sq, piece, stm, ~stm)[i];
+                    accumulator[i] += feature(sq, piece, stm, stm)[i];
                 }
             }
             for (auto sq : state.piece_bbs[piece - 1] & nstm_occ) {
                 for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                    stm_accumulator[i] += feature(sq, piece, ~stm, stm)[i];
-                    nstm_accumulator[i] += feature(sq, piece, ~stm, ~stm)[i];
+                    accumulator[i] += feature(sq, piece, ~stm, stm)[i];
                 }
             }
         }
@@ -51,14 +48,10 @@ i32 evaluate(const BoardState &state) {
 
     util::SimdVector<i32, VECTOR_SIZE / 2> result_vec{};
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-        const auto stm_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(stm_accumulator[i], zero), one);
-        const auto nstm_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(nstm_accumulator[i], zero), one);
-        result_vec += util::madd_epi16(stm_clamped, network->l1_weights_vec[0][i]);
-        result_vec += util::madd_epi16(nstm_clamped, network->l1_weights_vec[1][i]);
+        const auto clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(accumulator[i], zero), one);
+        result_vec += util::madd_epi16(clamped, network->l1_weights_vec[i]);
     }
-    const auto result = util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec) ;
+    const auto result = util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec);
 
     return (result + network->l1_biases[0]) * SCALE / (QA * QB);
 }
