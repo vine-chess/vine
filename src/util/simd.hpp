@@ -3,6 +3,7 @@
 
 #include "types.hpp"
 #include <cstring>
+#include <emmintrin.h>
 
 namespace util {
 
@@ -56,7 +57,16 @@ inline SimdVector<i16, N> min_epi16(SimdVector<i16, N> a, SimdVector<i16, N> b) 
 template <usize N = NATIVE_SIZE<i16>>
 inline SimdVector<i16, N> loadu_epi16(const i16 *ptr) {
     SimdVector<i16, N> res;
-    std::memcpy(&res, ptr);
+    std::memcpy(&res, ptr, sizeof(res));
+    return res;
+}
+
+template <usize N = NATIVE_SIZE<i16>>
+inline SimdVector<i16, N> set1_epi16(i16 val) {
+    std::array<i16, N> vals;
+    vals.fill(val);
+    SimdVector<i16, N> res;
+    std::memcpy(&res, vals.data(), sizeof(res));
     return res;
 }
 
@@ -89,6 +99,26 @@ inline T reduce_vector(SimdVector<T, N> v) {
     }
     return res;
 }
+
+#ifdef __x86_64__
+#include <immintrin.h>
+#if defined(__AVX512F__)
+inline SimdVector<i32, 16> madd_epi16(SimdVector<i16, 32> a, SimdVector<i16, 32> b) {
+    return _mm512_madd_epi16(a, b);
+}
+#endif
+#if defined(__AVX2__)
+inline SimdVector<i32, 8> madd_epi16(SimdVector<i16, 16> a, SimdVector<i16, 16> b) {
+    return _mm256_madd_epi16(a, b);
+}
+#endif
+#if defined(__SSE__)
+inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
+    return _mm_madd_epi16(a, b);
+}
+#endif
+
+#endif
 
 } // namespace util
 

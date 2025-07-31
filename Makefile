@@ -5,10 +5,12 @@ FILES = $(shell find src -name '*.cpp')
 OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3 -flto
+EVALFILE ?= net.nnue 
 
 FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
+FLAGS += -DEVALFILE=\"$(EVALFILE)\" 
 
 CC ?= gcc
 CXX ?= g++
