@@ -1,10 +1,8 @@
 #include "network.hpp"
 
 #include "../third_party/incbin.h"
-#include <algorithm>
 #include <array>
 #include <cstring>
-#include <iostream>
 
 INCBIN(EVAL, EVALFILE);
 
