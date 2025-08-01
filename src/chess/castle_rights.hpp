@@ -27,7 +27,7 @@ class CastleRights {
     [[nodiscard]] u8 to_mask() const;
 
   private:
-    MultiArray<File, 2, 2> rook_files_;
+    util::MultiArray<File, 2, 2> rook_files_;
 };
 
 #endif // CASTLE_RIGHTS_HPP

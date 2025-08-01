@@ -1,6 +1,7 @@
 #include "uci.hpp"
 #include "../chess/move_gen.hpp"
 #include "../data_gen/openings.hpp"
+#include "../eval/network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
@@ -104,6 +105,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_int(parts[1]));
         } else if (parts[0] == "print") {
+            out << network::evaluate(board_.state()) << '\n';
             out << board_ << std::endl;
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
