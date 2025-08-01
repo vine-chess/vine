@@ -41,11 +41,11 @@ f64 evaluate(const BoardState &state) {
     util::SimdVector<i32, VECTOR_SIZE / 2> result_vec{};
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         const auto clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(accumulator[i], zero), one);
-        result_vec += util::madd_epi16(clamped, network->l1_weights_vec[i]);
+        result_vec += util::madd_epi16(clamped, clamped * network->l1_weights_vec[i]);
     }
-    const auto result = util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec);
+    const auto result = static_cast<f64>(util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec)) / static_cast<f64>(QA);
 
-    return static_cast<f64>(result + network->l1_biases[0]) / static_cast<f64>(QA * QB);
+    return (result + static_cast<f64>(network->l1_biases[0])) / static_cast<f64>(QA * QB);
 }
 
 } // namespace network
