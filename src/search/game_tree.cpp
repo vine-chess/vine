@@ -184,25 +184,16 @@ f64 GameTree::simulate_node(u32 node_idx) {
     }
 
     const auto &state = board_.state();
-    // const i32 stm_material =
-    //     100 * state.pawns(state.side_to_move).pop_count() + 280 * state.knights(state.side_to_move).pop_count() +
-    //     310 * state.bishops(state.side_to_move).pop_count() + 500 * state.rooks(state.side_to_move).pop_count() +
-    //     1000 * state.queens(state.side_to_move).pop_count();
-    // const i32 nstm_material =
-    //     100 * state.pawns(~state.side_to_move).pop_count() + 280 * state.knights(~state.side_to_move).pop_count() +
-    //     310 * state.bishops(~state.side_to_move).pop_count() + 500 * state.rooks(~state.side_to_move).pop_count() +
-    //     1000 * state.queens(~state.side_to_move).pop_count();
-    // const f64 eval = stm_material - nstm_material + 20;
     const f64 eval = network::evaluate(state);
 
-    return 1.0 / (1.0 + std::exp(-eval / 400.0));
+    return 1.0 / (1.0 + std::exp(-eval));
 }
 
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
     auto &node = nodes_[node_idx];
     switch (child_terminal_state.flag()) {
     case TerminalState::Flag::LOSS: { // If a child node is lost, then it's a win for us
-        // Ensure that if we already had a shorter mate we preserve it 
+        // Ensure that if we already had a shorter mate we preserve it
         const auto current_mate_distance =
             node.terminal_state.is_win() ? node.terminal_state.distance_to_terminal() : 255;
         node.terminal_state =
