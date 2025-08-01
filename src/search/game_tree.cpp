@@ -184,9 +184,7 @@ f64 GameTree::simulate_node(u32 node_idx) {
     }
 
     const auto &state = board_.state();
-    const f64 eval = network::evaluate(state);
-
-    return 1.0 / (1.0 + std::exp(-eval));
+    return 1.0 / (1.0 + std::exp(-network::evaluate(state)));
 }
 
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
