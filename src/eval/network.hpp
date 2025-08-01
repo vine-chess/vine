@@ -10,7 +10,7 @@ namespace network {
 
 constexpr i16 QA = 255;
 constexpr i16 QB = 64;
-constexpr usize L1_SIZE = 32;
+constexpr usize L1_SIZE = 64;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
 using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
