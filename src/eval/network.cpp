@@ -11,8 +11,8 @@ namespace network {
 const Network *network = reinterpret_cast<const Network *>(gEVALData);
 
 const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
-                                                               Color perspective) {
-    usize flip = 0b111000 * perspective;
+                                                               Color perspective, Square king_sq) {
+    usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
 
@@ -21,16 +21,17 @@ f64 evaluate(const BoardState &state) {
     std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
 
     const auto stm = state.side_to_move;
+    const auto king_sq = state.king(stm).lsb();
     // add all the features
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, stm, stm)[i];
+                accumulator[i] += feature(sq, piece, stm, stm, king_sq)[i];
             }
         }
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, ~stm, stm)[i];
+                accumulator[i] += feature(sq, piece, ~stm, stm, king_sq)[i];
             }
         }
     }
