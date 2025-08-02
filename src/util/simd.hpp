@@ -120,6 +120,20 @@ inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b)
 
 #endif
 
+#if defined(__arm__) || defined(__aarch64__)
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+
+inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
+    int32x4_t mul_low = vmull_s16(vget_low_s16(a), vget_low_s16(b));
+    int32x4_t mul_high = vmull_s16(vget_high_s16(a), vget_high_s16(b));
+
+    return vaddq_s32(mul_low, mul_high);
+}
+
+#endif
+#endif
+
 } // namespace util
 
 #endif // SIMD_HPP
