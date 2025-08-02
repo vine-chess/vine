@@ -13,7 +13,7 @@ namespace datagen {
 
 using VisitsDistribution = std::vector<std::pair<u16, u32>>;
 
-struct MontyFormatCompressedBoard {
+struct __attribute__((packed)) MontyFormatCompressedBoard {
     std::array<u64, 4> bbs{};
     Color side_to_move{};
     Square en_passant_square{};

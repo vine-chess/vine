@@ -51,8 +51,11 @@ void thread_loop(usize thread_id, const Settings &settings, std::ofstream &out_f
                 }
             }
 
+
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
+
+            std::cout << "fen: " << board.state().to_fen() << " | move: " << best_child.move << " | visits: " << best_child.num_visits << std::endl;
 
             board.make_move(best_child.move);
             positions_written.fetch_add(1, std::memory_order_relaxed);
@@ -154,13 +157,13 @@ void run_games(Settings settings, std::ostream &out) {
     stop_flag = true;
     monitor.join();
 
-    out << "\n\ndatagen complete:\n";
+    out << "\ndatagen complete:\n";
     out << "  total games played      : " << games_played.load() << '\n';
     out << "  total positions written : " << positions_written.load() << '\n';
 
     out << "\ncombining output files...\n";
 
-    std::ofstream final_output(settings.output_file, std::ios::binary | std::ios::trunc);
+    std::ofstream final_output(settings.output_file, std::ios::binary);
     if (!final_output) {
         out << "error: failed to open final output file " << settings.output_file << '\n';
         return;

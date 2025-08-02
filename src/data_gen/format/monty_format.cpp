@@ -22,6 +22,7 @@ MontyFormatWriter::MontyFormatWriter(std::ostream &out) : out_(out) {}
 
 void MontyFormatWriter::push_board_state(const BoardState &state) {
     initial_state_ = state;
+    moves_.clear();
     const std::array<u64, 8> raw = {static_cast<u64>(state.occupancy(Color::WHITE)),
                                     static_cast<u64>(state.occupancy(Color::BLACK)),
                                     static_cast<u64>(state.knights()),
@@ -32,7 +33,7 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
                                     static_cast<u64>(state.kings())};
     compressed_board_.bbs = {raw[1], raw[5] ^ raw[6] ^ raw[7], raw[3] ^ raw[4] ^ raw[7], raw[2] ^ raw[4] ^ raw[6]};
     compressed_board_.side_to_move = state.side_to_move;
-    compressed_board_.en_passant_square = state.en_passant_sq;
+    compressed_board_.en_passant_square = state.en_passant_sq.is_valid() ? static_cast<u8>(state.en_passant_sq) : 0;
     compressed_board_.castle_rights = 0; // TODO: implement this
     compressed_board_.fifty_moves_clock = state.fifty_moves_clock;
     compressed_board_.full_move_count = 0; // maybe TODO?
@@ -57,29 +58,25 @@ void MontyFormatWriter::write_with_result(f64 result) {
 
     for (auto move_data : moves_) {
         // Put the root score and the best move at root for each position
-        put_u16(static_cast<u16>(move_data.root_q * std::numeric_limits<u16>::max()));
         put_u16(move_data.best_move);
+        put_u16(static_cast<u16>(move_data.root_q * std::numeric_limits<u16>::max()));
 
         // Sort by the move value
         std::sort(move_data.visits.begin(), move_data.visits.end(),
-              [](const auto &a, const auto &b) {
-                  return a.first < b.first;
-              });
+                  [](const auto &a, const auto &b) { return a.first < b.first; });
 
-        // Count number of visited moves and the maximum number of visits
-        u8 count = 0;
-        u32 max_visits = 0;
-        for (const auto &[_, visits] : move_data.visits) {
-            count += visits > 0;
-            max_visits = std::max(max_visits, visits);
-        }
-
-        // Put the number of moves with positive visits
+        u8 count = static_cast<u8>(move_data.visits.size());
         put_u8(count);
 
-        for (const auto &[_, visits] : move_data.visits) {
-            // Put number of visits the move had
-            put_u8(static_cast<u8>(visits * std::numeric_limits<u16>::max() / max_visits + 0.5));
+        if (count > 0) {
+            u32 max_visits = 0;
+            for (const auto &[_, visits] : move_data.visits) {
+                max_visits = std::max(max_visits, visits);
+            }
+
+            for (const auto &[_, visits] : move_data.visits) {
+                put_u8(static_cast<u8>(visits * 255.0 / max_visits));
+            }
         }
     }
 
