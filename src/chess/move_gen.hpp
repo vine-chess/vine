@@ -6,7 +6,8 @@
 #include "board_state.hpp"
 #include <array>
 
-using MoveList = util::StaticVector<Move, 218>;
+constexpr usize MAX_MOVES = 218;
+using MoveList = util::StaticVector<Move, MAX_MOVES>;
 
 constexpr static auto UP = Bitboard::UP;
 constexpr static auto DOWN = Bitboard::DOWN;

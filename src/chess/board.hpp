@@ -8,9 +8,10 @@ constexpr std::string_view STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RN
 
 class Board {
   public:
-    using History = util::StaticVector<BoardState, 2048>;
+    using History = std::vector<BoardState>;
 
     Board(std::string_view fen);
+    Board(const BoardState &board_state);
     Board() = default;
 
     [[nodiscard]] BoardState &state();

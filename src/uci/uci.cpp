@@ -1,16 +1,15 @@
 #include "uci.hpp"
 #include "../chess/move_gen.hpp"
-#include "../data_gen/openings.hpp"
+#include "../data_gen/game_runner.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
 #include "../util/types.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
-#include <ostream>
 #include <random>
 #include <string>
 #include <string_view>
@@ -82,9 +81,50 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     vine_assert(path == "None"); // TODO: book support, needs test
     const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
 
-    for (const auto opening : datagen::generate_openings(count, seed, random_moves)) {
-        out << "info string genfens " << opening.to_fen() << std::endl;
+    for (usize i = 0; i < count; ++i) {
+        out << "info string genfens " << datagen::generate_opening(seed, random_moves).to_fen() << std::endl;
     }
+}
+
+void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_view> &parts) {
+    datagen::Settings settings{};
+    settings.random_moves = 8;
+    settings.num_games = 1000;
+    settings.num_threads = 1;
+    settings.hash_size = 16;
+    settings.time_settings = search::TimeSettings{};
+    settings.output_file = "output.bin";
+
+    for (size_t i = 1; i + 1 < parts.size(); i += 2) {
+        const auto key = parts[i];
+        const auto value = parts[i + 1];
+
+        if (key == "random_moves") {
+            settings.random_moves = *util::parse_int<usize>(value.data());
+        } else if (key == "games") {
+            settings.num_games = *util::parse_int<usize>(value.data());
+        } else if (key == "threads") {
+            settings.num_threads = *util::parse_int<usize>(value.data());
+        } else if (key == "hash") {
+            settings.hash_size = *util::parse_int<usize>(value.data());
+        } else if (key == "nodes") {
+            settings.time_settings.max_iters = *util::parse_int<u64>(value.data());
+        } else if (key == "depth") {
+            settings.time_settings.max_depth = *util::parse_int<i32>(value.data());
+        } else if (key == "out") {
+            settings.output_file = std::string(value);
+        } else {
+            out << "info string warning: unknown datagen key: " << key << std::endl;
+        }
+    }
+
+    std::ofstream file_out(settings.output_file, std::ios::binary);
+    if (!file_out) {
+        out << "info string error: failed to open output file: " << settings.output_file << std::endl;
+        return;
+    }
+
+    datagen::run_games(settings, out);
 }
 
 void Handler::process_input(std::istream &in, std::ostream &out) {
@@ -141,6 +181,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::exit(0);
         } else if (parts[0] == "genfens") {
             handle_genfens(out, parts);
+        } else if (parts[0] == "datagen") {
+            handle_datagen(out, parts);
         }
     }
 }
