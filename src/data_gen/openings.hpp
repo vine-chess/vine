@@ -6,7 +6,7 @@
 
 namespace datagen {
 
-std::vector<BoardState> generate_openings(usize count, usize seed, usize random_moves);
+BoardState generate_opening(usize seed, usize random_moves);
 
 }
 

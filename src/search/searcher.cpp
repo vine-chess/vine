@@ -4,7 +4,7 @@
 
 namespace search {
 
-Searcher::Searcher() {
+Searcher::Searcher() : verbosity_(Verbosity::VERBOSE) {
     set_thread_count(1);
 }
 
@@ -17,10 +17,18 @@ void Searcher::set_hash_size(u32 size_in_mb) {
     game_tree_.set_node_capacity(1024 * 1024 * size_in_mb / sizeof(Node));
 }
 
+void Searcher::set_verbosity(Verbosity verbosity) {
+    verbosity_ = verbosity;
+}
+
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
     for (auto &thread : threads_) {
-        thread.go(game_tree_, board, time_settings);
+        thread.go(game_tree_, board, time_settings, verbosity_);
     }
+}
+
+const GameTree &Searcher::game_tree() const {
+    return game_tree_;
 }
 
 u64 Searcher::iterations() const {
