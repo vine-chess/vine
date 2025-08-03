@@ -1,0 +1,14 @@
+#ifndef INFO_HPP
+#define INFO_HPP
+
+namespace search {
+
+enum class Verbosity {
+  NONE = 0,
+  MINIMAL,
+  VERBOSE
+};
+
+}
+
+#endif // INFO_HPP

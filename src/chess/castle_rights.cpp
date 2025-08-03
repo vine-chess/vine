@@ -40,7 +40,12 @@ void CastleRights::set_queenside_rook_file(Color color, File file) {
     rook_files_[color][QUEENSIDE] = file;
 }
 
+u8 CastleRights::to_monty_mask() const {
+    return can_kingside_castle(Color::WHITE) << 2 | can_queenside_castle(Color::WHITE) << 3 |
+           can_kingside_castle(Color::BLACK) << 0 | can_queenside_castle(Color::BLACK) << 1;
+}
+
 u8 CastleRights::to_mask() const {
-    return can_kingside_castle(Color::WHITE) | can_queenside_castle(Color::WHITE) << 1 |
+    return can_kingside_castle(Color::WHITE) << 0 | can_queenside_castle(Color::WHITE) << 1 |
            can_kingside_castle(Color::BLACK) << 2 | can_queenside_castle(Color::BLACK) << 3;
 }
