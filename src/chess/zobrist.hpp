@@ -9,7 +9,7 @@ using HashKey = u64;
 
 namespace zobrist {
 
-using PieceTable = MultiArray<HashKey, 6, 2, 64>;
+using PieceTable = util::MultiArray<HashKey, 6, 2, 64>;
 using CastleRightsTable = std::array<HashKey, 16>;
 using EnPassantTable = std::array<HashKey, 8>;
 

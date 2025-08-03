@@ -4,6 +4,8 @@
 #include <array>
 #include <type_traits>
 
+namespace util {
+
 template <typename T, std::size_t Size, std::size_t... Sizes>
 class MultiArray;
 
@@ -159,5 +161,7 @@ class MultiArray {
         data_.swap(other.data_);
     }
 };
+
+} // namespace util
 
 #endif // MULTI_ARRAY_HPP

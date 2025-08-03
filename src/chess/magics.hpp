@@ -147,8 +147,8 @@ constexpr std::array<MagicEntry, 64> BISHOP_MAGICS = {
 };
 // clang-format on
 
-extern MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS;
-extern MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS;
+extern util::MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS;
+extern util::MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS;
 
 [[nodiscard]] Bitboard compute_bishop_attacks(Square sq, Bitboard occ);
 [[nodiscard]] Bitboard compute_rook_attacks(Square sq, Bitboard occ);

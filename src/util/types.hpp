@@ -178,8 +178,8 @@ inline std::ostream &operator<<(std::ostream &os, Square sq) {
 class Color {
   public:
     enum ColorEnum : u8 {
-        WHITE,
-        BLACK,
+        WHITE = 0,
+        BLACK = 1,
         NO_COLOR = 2
     };
 

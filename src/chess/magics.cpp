@@ -114,12 +114,12 @@ Bitboard compute_rook_attacks(Square sq, Bitboard occ) {
     return (attacks_rank & rank) | (attacks_file & file);
 }
 
-MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS = []() {
+util::MultiArray<Bitboard, 64, 512> BISHOP_ATTACKS = []() {
     return generate_attacks_table<decltype(BISHOP_ATTACKS), decltype(BISHOP_MAGICS)::value_type, 512>(
         BISHOP_MAGICS, compute_bishop_attacks, get_bishop_attack_idx);
 }();
 
-MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS = []() {
+util::MultiArray<Bitboard, 64, 4096> ROOK_ATTACKS = []() {
     return generate_attacks_table<decltype(ROOK_ATTACKS), decltype(ROOK_MAGICS)::value_type, 4096>(
         ROOK_MAGICS, compute_rook_attacks, get_rook_attack_idx);
 }();
