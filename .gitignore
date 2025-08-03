@@ -41,5 +41,9 @@
 *.app
 vine
 
-# debug information files
+# Debug information files
 *.dwo
+
+# Network files
+*.vn
+*.pn
