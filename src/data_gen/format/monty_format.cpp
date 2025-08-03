@@ -25,11 +25,11 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     moves_.clear();
     const std::array<u64, 8> raw = {static_cast<u64>(state.occupancy(Color::WHITE)),
                                     static_cast<u64>(state.occupancy(Color::BLACK)),
+                                    static_cast<u64>(state.pawns()),
                                     static_cast<u64>(state.knights()),
                                     static_cast<u64>(state.bishops()),
                                     static_cast<u64>(state.rooks()),
                                     static_cast<u64>(state.queens()),
-                                    static_cast<u64>(state.pawns()),
                                     static_cast<u64>(state.kings())};
     compressed_board_.bbs = {raw[1], raw[5] ^ raw[6] ^ raw[7], raw[3] ^ raw[4] ^ raw[7], raw[2] ^ raw[4] ^ raw[6]};
     compressed_board_.side_to_move = state.side_to_move;
@@ -39,8 +39,9 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     compressed_board_.full_move_count = 1; // TODO: full move clock 
 }
 
-void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist) {
-    moves_.push_back({to_monty_move(best_move), root_q, visit_dist});
+void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist,
+                                  const BoardState &state) {
+    moves_.push_back({to_monty_move(best_move, state), root_q, visit_dist});
 }
 
 void MontyFormatWriter::write_with_result(f64 result) {
@@ -88,17 +89,18 @@ void MontyFormatWriter::write_with_result(f64 result) {
     out_.flush();
 }
 
-u16 MontyFormatWriter::to_monty_move(Move move) const {
-    static constexpr u16 FLAG_QUIET = 0, FLAG_CAP = 4, FLAG_ENP = 5, FLAG_KS = 2, FLAG_QS = 3, FLAG_NPR = 8,
+u16 MontyFormatWriter::to_monty_move(Move move, const BoardState &state) const {
+    static constexpr u16 FLAG_QUIET = 0, FLAG_DBL_PUSH = 1, FLAG_CAP = 4, FLAG_ENP = 5, FLAG_KS = 2, FLAG_QS = 3, FLAG_NPR = 8,
                          FLAG_BPR = 9, FLAG_RPR = 10, FLAG_QPR = 11, FLAG_NPC = 12, FLAG_BPC = 13, FLAG_RPC = 14,
                          FLAG_QPC = 15;
 
     const u16 from = static_cast<u16>(move.from());
-    const u16 to = static_cast<u16>(move.to());
+    u16 to = static_cast<u16>(move.to());
 
     u16 flag = FLAG_QUIET;
     if (move.is_castling()) {
         flag = (to > from) ? FLAG_KS : FLAG_QS;
+        to = move.king_castling_to();
     } else if (move.is_ep()) {
         flag = FLAG_ENP;
     } else if (move.is_promo()) {
@@ -121,6 +123,8 @@ u16 MontyFormatWriter::to_monty_move(Move move) const {
         }
     } else if (move.is_capture()) {
         flag = FLAG_CAP;
+    } else if (state.get_piece_type(from) == PieceType::PAWN && (from ^ to) == 16) {
+        flag = FLAG_DBL_PUSH;
     }
 
     return static_cast<u16>((from << 10) | (to << 4) | flag);

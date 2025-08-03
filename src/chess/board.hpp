@@ -16,6 +16,7 @@ class Board {
 
     [[nodiscard]] BoardState &state();
     [[nodiscard]] const BoardState &state() const;
+    [[nodiscard]] const BoardState &prev_state() const;
 
     [[nodiscard]] bool has_threefold_repetition() const;
     [[nodiscard]] bool is_fifty_move_draw() const;

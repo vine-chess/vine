@@ -5,6 +5,10 @@
 namespace tests {
 
 u64 perft(Board &board, i32 depth) {
+    if (depth == 0) {
+        return 1;
+    }
+
     MoveList moves;
     generate_moves(board.state(), moves);
 

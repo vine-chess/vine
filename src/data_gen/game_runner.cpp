@@ -17,18 +17,19 @@ void signal_handler([[maybe_unused]] i32 signum) {
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
-void thread_loop(usize thread_id, const Settings &settings, std::ofstream &out_file) {
+void thread_loop(const Settings &settings, std::ofstream &out_file) {
     auto writer = std::make_unique<MontyFormatWriter>(out_file);
 
     search::Searcher searcher;
     searcher.set_hash_size(settings.hash_size);
     searcher.set_verbosity(search::Verbosity::NONE);
 
+    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
+
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
-        Board board(generate_opening(thread_id, settings.random_moves));
+        Board board(generate_opening(rng::next_u64(), settings.random_moves));
         writer->push_board_state(board.state());
-        positions_written++;
 
         f64 game_result;
         while (true) {
@@ -45,27 +46,24 @@ void thread_loop(usize thread_id, const Settings &settings, std::ofstream &out_f
             u32 best_child_idx = root_node.first_child_idx;
             for (usize j = 0; j < root_node.num_children; j++) {
                 const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                visits_dist.emplace_back(writer->to_monty_move(child.move), child.num_visits);
+                visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
                     best_child_idx = root_node.first_child_idx + j;
                 }
             }
 
-
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
 
-            std::cout << "fen: " << board.state().to_fen() << " | move: " << best_child.move << " | visits: " << best_child.num_visits << std::endl;
-
+            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
             board.make_move(best_child.move);
+
             positions_written.fetch_add(1, std::memory_order_relaxed);
 
             if (board.is_fifty_move_draw() || board.has_threefold_repetition()) {
                 game_result = 0.5;
                 break;
             }
-
-            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist);
         }
 
         writer->write_with_result(game_result);
@@ -134,14 +132,14 @@ void run_games(Settings settings, std::ostream &out) {
         const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
         thread_files.push_back(thread_file_path);
 
-        threads.emplace_back([thread_id, settings, thread_file_path, &out]() {
+        threads.emplace_back([settings, thread_file_path, &out]() {
             std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
             if (!thread_output) {
                 out << "failed to open thread output file " << thread_file_path << std::endl;
                 return;
             }
 
-            thread_loop(thread_id, settings, thread_output);
+            thread_loop(settings, thread_output);
 
             thread_output.close();
             if (!thread_output.good()) {

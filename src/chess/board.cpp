@@ -94,6 +94,10 @@ const BoardState &Board::state() const {
     return history_.back();
 }
 
+const BoardState &Board::prev_state() const {
+    return history_.at(history_.size() - 2);
+}
+
 Board::History &Board::history() {
     return history_;
 }
