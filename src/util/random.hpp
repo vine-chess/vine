@@ -28,12 +28,12 @@ static u64 next_u64() {
 }
 
 static u64 next_u64(u64 min, u64 max) {
-    std::uniform_int_distribution<u64> dist(min, max - 1);
+    std::uniform_int_distribution dist(min, max);
     return dist(generator);
 }
 
-static double next_double() {
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
+static f64 next_double() {
+    std::uniform_real_distribution dist(0.0, 1.0);
     return dist(generator);
 }
 
