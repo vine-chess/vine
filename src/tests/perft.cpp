@@ -5,10 +5,6 @@
 namespace tests {
 
 u64 perft(Board &board, i32 depth) {
-    if (depth == 0) {
-        return 1;
-    }
-
     MoveList moves;
     generate_moves(board.state(), moves);
 
@@ -33,7 +29,7 @@ u64 perft_print(Board &board, i32 depth, std::ostream &out) {
     u64 nodes = 0;
     for (const auto move : moves) {
         board.make_move(move);
-        const auto child_nodes = perft(board, depth - 1);
+        const auto child_nodes = depth == 1 ? 1 : perft(board, depth - 1);
         board.undo_move();
 
         out << move << ": " << child_nodes << std::endl;
