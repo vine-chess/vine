@@ -34,9 +34,9 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     compressed_board_.bbs = {raw[1], raw[5] ^ raw[6] ^ raw[7], raw[3] ^ raw[4] ^ raw[7], raw[2] ^ raw[4] ^ raw[6]};
     compressed_board_.side_to_move = state.side_to_move;
     compressed_board_.en_passant_square = state.en_passant_sq.is_valid() ? static_cast<u8>(state.en_passant_sq) : 0;
-    compressed_board_.castle_rights = 0; // TODO: implement this
+    compressed_board_.castle_rights = state.castle_rights.to_monty_mask();
     compressed_board_.fifty_moves_clock = state.fifty_moves_clock;
-    compressed_board_.full_move_count = 0; // maybe TODO?
+    compressed_board_.full_move_count = 1; // TODO: full move clock 
 }
 
 void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist) {
@@ -47,11 +47,15 @@ void MontyFormatWriter::write_with_result(f64 result) {
     // Initial starting position
     out_.write(reinterpret_cast<const char *>(&compressed_board_), sizeof(compressed_board_));
 
+    auto valid_file_or_zero = [](File f) {
+        return f == File::NO_FILE ? 0 : static_cast<u8>(f);
+    };
+
     // Initial rook files
-    put_u8(static_cast<u8>(initial_state_.castle_rights.queenside_rook(Color::WHITE).file()));
-    put_u8(static_cast<u8>(initial_state_.castle_rights.kingside_rook(Color::WHITE).file()));
-    put_u8(static_cast<u8>(initial_state_.castle_rights.queenside_rook(Color::BLACK).file()));
-    put_u8(static_cast<u8>(initial_state_.castle_rights.kingside_rook(Color::BLACK).file()));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook(Color::WHITE).file()));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook(Color::WHITE).file()));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook(Color::BLACK).file()));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook(Color::BLACK).file()));
 
     // Game outcome
     put_u8(static_cast<u8>(result * 2.0));

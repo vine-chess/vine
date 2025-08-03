@@ -25,6 +25,7 @@ class CastleRights {
     void set_queenside_rook_file(Color color, File file);
 
     [[nodiscard]] u8 to_mask() const;
+    [[nodiscard]] u8 to_monty_mask() const;
 
   private:
     MultiArray<File, 2, 2> rook_files_;
