@@ -2,6 +2,7 @@
 #define GAME_TREE_HPP
 
 #include "../chess/board.hpp"
+#include "hash.hpp"
 #include "node.hpp"
 
 namespace search {
@@ -12,6 +13,7 @@ class GameTree {
     ~GameTree() = default;
 
     void set_node_capacity(usize capacity);
+    void set_hash_capacity(usize capacity);
 
     void new_search(const Board &root_board);
 
@@ -43,7 +45,16 @@ class GameTree {
     void backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state);
     [[nodiscard]] bool expand_node(u32 node_idx);
 
+    const HashEntry &probe_hash(u64 hash_key) const {
+        return hash_table_[hash_key % hash_table_.size()];
+    }
+
+    void write_hash(u64 hash_key, f64 q) {
+        hash_table_[hash_key % hash_table_.size()] = {hash_key, q};
+    }
+
     std::vector<Node> nodes_;
+    std::vector<HashEntry> hash_table_;
     Board board_;
     u32 sum_depths_ = 0;
     u32 nodes_in_path_ = 0;

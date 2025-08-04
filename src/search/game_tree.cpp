@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <iostream>
 #include <span>
+#include <unistd.h>
 
 namespace search {
 
@@ -18,6 +19,10 @@ GameTree::GameTree() {
 
 void GameTree::set_node_capacity(usize node_capacity) {
     nodes_.reserve(node_capacity);
+}
+
+void GameTree::set_hash_capacity(usize node_capacity) {
+    hash_table_.resize(node_capacity);
 }
 
 void GameTree::new_search(const Board &root_board) {
@@ -183,6 +188,13 @@ f64 GameTree::simulate_node(u32 node_idx) {
         return node.terminal_state.score();
     }
 
+    const auto hash_key = board_.state().hash_key;
+    const auto hash_entry = probe_hash(hash_key);
+
+    if (hash_entry.hash == hash_key) {
+        return hash_entry.q;
+    }
+
     return 1.0 / (1.0 + std::exp(-network::evaluate(board_.state())));
 }
 
@@ -216,6 +228,9 @@ void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_te
 
 void GameTree::backpropagate_score(f64 score, u32 node_idx) {
     auto child_terminal_state = TerminalState::none();
+
+    score = std::clamp<f64>(score, 0, 1);
+    int iters = 0;
     while (node_idx != -1) {
         // A node's score is the average of all of its children's score
         auto &node = nodes_[node_idx];
@@ -235,11 +250,18 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
 
         // Travel up to the parent
         node_idx = node.parent_idx;
+
+        // // Store the Q value to the hash table
+        write_hash(board_.state().hash_key, score);
+
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
+
+        // Undo the move that got us here
+        if (node_idx != -1) {
+            board_.undo_move();
+        }
     }
-    // Undo all of the moves that were selected
-    board_.undo_n_moves(nodes_in_path_);
 }
 
 } // namespace search

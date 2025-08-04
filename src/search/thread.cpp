@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 namespace search {
 
@@ -95,8 +96,10 @@ void Thread::write_info(GameTree &tree, u64 iterations, Verbosity verbosity, boo
 
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
-    const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
-                               : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+    const auto score =
+        is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
+                : static_cast<i32>(std::clamp<f64>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)),
+                                                   std::numeric_limits<i32>::min(), std::numeric_limits<i32>::max()));
 
     std::vector<Move> pv;
     extract_pv(pv, tree);

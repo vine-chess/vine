@@ -2,6 +2,7 @@
 #define RANDOM_HPP
 
 #include "types.hpp"
+#include <iostream>
 #include <mutex>
 #include <random>
 #include <vector>

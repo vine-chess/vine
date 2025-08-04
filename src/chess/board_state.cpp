@@ -1,6 +1,6 @@
-#include "board_state.hpp"
 #include "../uci/uci.hpp"
 #include "move_gen.hpp"
+#include "board_state.hpp"
 
 #include <cassert>
 #include <string>

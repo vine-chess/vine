@@ -4,6 +4,7 @@
 #include "../util/static_vector.hpp"
 #include "bitboard.hpp"
 #include "board_state.hpp"
+#include "move.hpp"
 #include <array>
 
 constexpr usize MAX_MOVES = 218;
