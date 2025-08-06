@@ -11,6 +11,9 @@ u64 perft(Board &board, i32 depth) {
     if (depth == 1) {
         return moves.size();
     }
+    if (depth == 0) {
+        return 1;
+    }
 
     u64 nodes = 0;
     for (const auto move : moves) {

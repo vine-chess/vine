@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <iostream>
 #include <ranges>
 
 namespace datagen {
@@ -36,7 +37,7 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     compressed_board_.en_passant_square = state.en_passant_sq.is_valid() ? static_cast<u8>(state.en_passant_sq) : 0;
     compressed_board_.castle_rights = state.castle_rights.to_monty_mask();
     compressed_board_.fifty_moves_clock = state.fifty_moves_clock;
-    compressed_board_.full_move_count = 1; // TODO: full move clock 
+    compressed_board_.full_move_count = 1; // TODO: full move clock
 }
 
 void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist,
@@ -48,15 +49,17 @@ void MontyFormatWriter::write_with_result(f64 result) {
     // Initial starting position
     out_.write(reinterpret_cast<const char *>(&compressed_board_), sizeof(compressed_board_));
 
-    auto valid_file_or_zero = [](File f) {
-        return f == File::NO_FILE ? 0 : static_cast<u8>(f);
+    auto valid_file_or_zero = [](File f, File if_wrong) {
+        // return if_wrong;
+        // std::cout << (f == File::NO_FILE) << ' ' << (int)(f == File::NO_FILE ? if_wrong : static_cast<u8>(f)) << '\n';
+        return f == File::NO_FILE ? if_wrong : static_cast<u8>(f);
     };
 
     // Initial rook files
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook(Color::WHITE).file()));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook(Color::WHITE).file()));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook(Color::BLACK).file()));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook(Color::BLACK).file()));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::WHITE), File::A));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::WHITE), File::H));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::BLACK), File::A));
+    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::BLACK), File::H));
 
     // Game outcome
     put_u8(static_cast<u8>(result * 2.0));
@@ -90,9 +93,9 @@ void MontyFormatWriter::write_with_result(f64 result) {
 }
 
 u16 MontyFormatWriter::to_monty_move(Move move, const BoardState &state) const {
-    static constexpr u16 FLAG_QUIET = 0, FLAG_DBL_PUSH = 1, FLAG_CAP = 4, FLAG_ENP = 5, FLAG_KS = 2, FLAG_QS = 3, FLAG_NPR = 8,
-                         FLAG_BPR = 9, FLAG_RPR = 10, FLAG_QPR = 11, FLAG_NPC = 12, FLAG_BPC = 13, FLAG_RPC = 14,
-                         FLAG_QPC = 15;
+    static constexpr u16 FLAG_QUIET = 0, FLAG_DBL_PUSH = 1, FLAG_CAP = 4, FLAG_ENP = 5, FLAG_KS = 2, FLAG_QS = 3,
+                         FLAG_NPR = 8, FLAG_BPR = 9, FLAG_RPR = 10, FLAG_QPR = 11, FLAG_NPC = 12, FLAG_BPC = 13,
+                         FLAG_RPC = 14, FLAG_QPC = 15;
 
     const u16 from = static_cast<u16>(move.from());
     u16 to = static_cast<u16>(move.to());
