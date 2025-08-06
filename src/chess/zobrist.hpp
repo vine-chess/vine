@@ -34,7 +34,7 @@ constexpr auto pieces = [] {
     return piece_table;
 }();
 
-const auto castle_rights = [] {
+constexpr auto castle_rights = [] {
     auto next_u64 = [hash = 13400036725371814030ull]() mutable { return hash = murmur3(hash); };
     CastleRightsTable castle_rights_table;
     castle_rights_table[1] = next_u64();
@@ -59,7 +59,7 @@ const auto castle_rights = [] {
     return castle_rights_table;
 }();
 
-const auto en_passant = [] {
+constexpr auto en_passant = [] {
     auto next_u64 = [hash = 2997978520062052832ull]() mutable { return hash = murmur3(hash); };
     EnPassantTable en_passant_table;
     for (u64 &entry : en_passant_table)
