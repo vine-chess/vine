@@ -1,4 +1,5 @@
 #include "thread.hpp"
+#include "info.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -33,7 +34,9 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         const u64 depth = tree.sum_depths() / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
-            write_info(tree, iterations, verbosity);
+            if (verbosity != Verbosity::MINIMAL) {
+                write_info(tree, iterations);
+            }
         }
 
         if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth)) {
@@ -46,7 +49,9 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         return;
     }
 
-    write_info(tree, iterations, verbosity, true);
+    if (verbosity != Verbosity::NONE) {
+        write_info(tree, iterations, true);
+    }
     num_iterations_ = iterations;
 }
 
@@ -88,11 +93,7 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
     extract_pv_internal(pv, 0, tree);
 }
 
-void Thread::write_info(GameTree &tree, u64 iterations, Verbosity verbosity, bool write_bestmove) const {
-    if (verbosity == Verbosity::NONE) {
-        return;
-    }
-
+void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
     const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
