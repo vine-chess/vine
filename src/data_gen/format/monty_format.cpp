@@ -50,8 +50,6 @@ void MontyFormatWriter::write_with_result(f64 result) {
     out_.write(reinterpret_cast<const char *>(&compressed_board_), sizeof(compressed_board_));
 
     auto valid_file_or_zero = [](File f, File if_wrong) {
-        // return if_wrong;
-        // std::cout << (f == File::NO_FILE) << ' ' << (int)(f == File::NO_FILE ? if_wrong : static_cast<u8>(f)) << '\n';
         return f == File::NO_FILE ? if_wrong : static_cast<u8>(f);
     };
 
