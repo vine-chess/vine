@@ -16,6 +16,8 @@ class CastleRights {
     [[nodiscard]] bool can_queenside_castle(Color color) const;
     [[nodiscard]] Square kingside_rook(Color color) const;
     [[nodiscard]] Square queenside_rook(Color color) const;
+    [[nodiscard]] File kingside_rook_file(Color color) const;
+    [[nodiscard]] File queenside_rook_file(Color color) const;
     [[nodiscard]] Square kingside_rook_dest(Color color) const;
     [[nodiscard]] Square queenside_rook_dest(Color color) const;
     [[nodiscard]] Square kingside_king_dest(Color color) const;
@@ -28,7 +30,11 @@ class CastleRights {
     [[nodiscard]] u8 to_monty_mask() const;
 
   private:
-    util::MultiArray<File, 2, 2> rook_files_;
+    util::MultiArray<File, 2, 2> rook_files_ = []() {
+        util::MultiArray<File, 2, 2> res;
+        res.fill(File::NO_FILE);
+        return res;
+    }();
 };
 
 #endif // CASTLE_RIGHTS_HPP

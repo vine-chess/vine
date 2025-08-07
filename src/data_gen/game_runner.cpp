@@ -3,6 +3,7 @@
 #include "format/monty_format.hpp"
 #include <atomic>
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <optional>

@@ -1,6 +1,5 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
-#include <algorithm>
 
 namespace datagen {
 
