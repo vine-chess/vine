@@ -20,13 +20,13 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         Bitboard::rank_mask(state.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
     const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
-    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins << 1 | state.ortho_pins >> 1);
+    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins.shift<0, LEFT>() | state.ortho_pins.shift<0, RIGHT>());
     const auto right_diag_pins =
         state.diag_pins & (state.diag_pins.shift<UP, RIGHT>() | state.diag_pins.shift<DOWN, LEFT>());
     const auto left_diag_pins = state.diag_pins & ~right_diag_pins;
     const auto left_capture_pins = state.side_to_move == Color::WHITE ? right_diag_pins : left_diag_pins;
     const auto right_capture_pins = state.side_to_move == Color::WHITE ? left_diag_pins : right_diag_pins;
-    const auto vertical_pins = state.ortho_pins & state.ortho_pins.shift<UP, 0>();
+    const auto vertical_pins = state.ortho_pins & (state.ortho_pins.shift<UP, 0>() | state.ortho_pins.shift<DOWN, 0>());
     const auto one_forward = pawns.rotl(8 * forward);
     const auto pushable = (pawns & ~(state.diag_pins | horizontal_pins)).rotl(8 * forward) & ~occ;
     const auto two_forward = pushable.rotl(8 * forward) & ~occ & allowed_double_push_rank;
