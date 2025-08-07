@@ -34,7 +34,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         const u64 depth = tree.sum_depths() / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
-            if (verbosity != Verbosity::MINIMAL) {
+            if (verbosity == Verbosity::VERBOSE) {
                 write_info(tree, iterations);
             }
         }
