@@ -12,7 +12,7 @@
 
 namespace search {
 
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
 constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
 constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
