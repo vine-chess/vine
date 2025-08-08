@@ -17,20 +17,17 @@ const auto combined_networks = reinterpret_cast<const CombinedNetworks *>(gCOMBI
 
 } // namespace detail
 
-
 namespace value {
 
-extern const auto network = &detail::combined_networks->value_net;
+const auto network = &detail::combined_networks->value_net;
 
 } // namespace value
 
-
 namespace policy {
 
-extern const auto network = &detail::combined_networks->policy_net;
+const auto network = &detail::combined_networks->policy_net;
 
 } // namespace policy
-
 
 #else
 
