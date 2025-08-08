@@ -1,6 +1,7 @@
 #include "policy_network.hpp"
 
 #include "../third_party/incbin.h"
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -10,9 +11,10 @@ namespace network::policy {
 
 const auto network = reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
 
-const util::MultiArray<i8, L1_SIZE> &feature(Square sq, PieceType piece, Color piece_color, Color perspective) {
+const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
+                                                              Color perspective) {
     usize flip = 0b111000 * perspective;
-    return network->ft_weights[piece_color != perspective][piece - 1][sq ^ flip];
+    return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
 
 constexpr std::array<Bitboard, 64> ALL_DESTINATIONS = [] {
@@ -54,23 +56,23 @@ constexpr std::array<usize, 65> OFFSETS = [] {
     }
 }
 
-std::array<i16, L1_SIZE> accumulate_policy(const BoardState &state) {
-    std::array<i16, L1_SIZE> accumulator{};
-    for (usize i = 0; i < L1_SIZE; ++i) {
-        accumulator[i] += network->ft_biases[i];
+std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulate_policy(const BoardState &state) {
+    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator{};
+    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+        accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
 
     const auto stm = state.side_to_move;
     // add all the features
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
-            for (usize i = 0; i < L1_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, stm, stm)[i];
+            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+                accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(feature(sq, piece, stm, stm)[i]);
             }
         }
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
-            for (usize i = 0; i < L1_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, ~stm, stm)[i];
+            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+                accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(feature(sq, piece, ~stm, stm)[i]);
             }
         }
     }
@@ -78,15 +80,19 @@ std::array<i16, L1_SIZE> accumulate_policy(const BoardState &state) {
     return accumulator;
 }
 
-f64 evaluate_move(const std::array<i16, L1_SIZE> &accumulator, const BoardState &state, Move move) {
+f64 evaluate_move(const std::array<i16Vec, L1_SIZE / VECTOR_SIZE> &accumulator, const BoardState &state, Move move) {
     const usize idx = move_output_idx(state.side_to_move, move);
-    i32 output = network->l1_biases[idx];
-    for (usize i = 0; i < L1_SIZE; i++) {
-        const i32 clamped = std::clamp<i32>(accumulator[i], 0, Q);
-        output += clamped * network->l1_weights[idx][i];
+    util::SimdVector<i32, VECTOR_SIZE / 2> result_vec{};
+    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
+    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
+    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; i++) {
+        const auto clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(accumulator[i], zero), one);
+        result_vec +=
+            util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
     }
+    const auto result = util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec) + network->l1_biases[idx];
 
-    return static_cast<f64>(output) / static_cast<f64>(Q * Q);
+    return static_cast<f64>(result) / static_cast<f64>(Q * Q);
 }
 
-} // namespace network
+} // namespace network::policy
