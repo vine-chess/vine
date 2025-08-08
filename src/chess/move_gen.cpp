@@ -20,7 +20,8 @@ void pawn_moves(const BoardState &state, MoveList &move_list, Bitboard allowed_d
         Bitboard::rank_mask(state.side_to_move == Color::WHITE ? Rank::FOURTH : Rank::FIFTH);
     const Bitboard promo_ranks = Bitboard::rank_mask(Rank::FIRST) | Bitboard::rank_mask(Rank::EIGHTH);
 
-    const auto horizontal_pins = state.ortho_pins & (state.ortho_pins.shift<0, LEFT>() | state.ortho_pins.shift<0, RIGHT>());
+    const auto horizontal_pins =
+        state.ortho_pins & (state.ortho_pins.shift<0, LEFT>() | state.ortho_pins.shift<0, RIGHT>());
     const auto right_diag_pins =
         state.diag_pins & (state.diag_pins.shift<UP, RIGHT>() | state.diag_pins.shift<DOWN, LEFT>());
     const auto left_diag_pins = state.diag_pins & ~right_diag_pins;

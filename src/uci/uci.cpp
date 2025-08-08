@@ -1,7 +1,8 @@
 #include "uci.hpp"
 #include "../chess/move_gen.hpp"
 #include "../data_gen/game_runner.hpp"
-#include "../eval/network.hpp"
+#include "../eval/policy_network.hpp"
+#include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
@@ -11,6 +12,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <string>
@@ -151,7 +153,35 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_int(parts[1]));
         } else if (parts[0] == "print") {
-            out << network::evaluate(board_.state()) << '\n';
+            out << network::value::evaluate(board_.state()) << '\n';
+            MoveList moves;
+            generate_moves(board_.state(), moves);
+
+            const network::policy::PolicyContext ctx(board_.state());
+
+            std::vector<f64> logits;
+            logits.reserve(moves.size());
+            for (const auto move : moves) {
+                logits.push_back(ctx.logit(move));
+            }
+
+            if (!logits.empty()) {
+                const f64 max_logit = *std::max_element(logits.begin(), logits.end());
+                f64 sum_exp = 0.0;
+                for (auto &val : logits) {
+                    val = std::exp(val - max_logit); // stability
+                    sum_exp += val;
+                }
+                const f64 inv_sum = 1.0 / sum_exp;
+                for (auto &val : logits) {
+                    val *= inv_sum;
+                }
+            }
+
+            for (usize i = 0; i < moves.size(); ++i) {
+                out << moves[i] << ": " << std::fixed << std::setprecision(2) << (100.0 * logits[i]) << '%' << '\n';
+            }
+
             out << board_.state().to_fen() << std::endl;
             out << board_ << std::endl;
         } else if (parts[0] == "setoption") {
