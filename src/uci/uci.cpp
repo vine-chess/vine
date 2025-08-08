@@ -157,12 +157,12 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             MoveList moves;
             generate_moves(board_.state(), moves);
 
-            const auto policy_accumulator = network::policy::accumulate_policy(board_.state());
+            const network::policy::PolicyContext ctx(board_.state());
 
             std::vector<f64> logits;
             logits.reserve(moves.size());
             for (const auto move : moves) {
-                logits.push_back(network::policy::evaluate_move(policy_accumulator, board_.state(), move));
+                logits.push_back(ctx.logit(move));
             }
 
             if (!logits.empty()) {

@@ -16,7 +16,6 @@ else
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
 endif
 
-
 CC ?= gcc
 CXX ?= g++
 

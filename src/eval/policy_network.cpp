@@ -10,6 +10,8 @@ namespace network::policy {
 
 const extern PolicyNetwork *const network;
 
+namespace detail {
+
 const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
                                                               Color perspective) {
     usize flip = 0b111000 * perspective;
@@ -55,43 +57,48 @@ constexpr std::array<usize, 65> OFFSETS = [] {
     }
 }
 
-std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulate_policy(const BoardState &state) {
-    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator{};
+} // namespace detail
+
+PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move) {
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-        accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
+        feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
 
-    const auto stm = state.side_to_move;
-    // add all the features
+    // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
-        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
+        // Our pieces
+        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(feature(sq, piece, stm, stm)[i]);
+                feature_accumulator_[i] +=
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_)[i]);
             }
         }
-        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
+        // Opponent pieces
+        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(feature(sq, piece, ~stm, stm)[i]);
+                feature_accumulator_[i] +=
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_)[i]);
             }
         }
     }
-
-    return accumulator;
 }
 
-f64 evaluate_move(const std::array<i16Vec, L1_SIZE / VECTOR_SIZE> &accumulator, const BoardState &state, Move move) {
-    const usize idx = move_output_idx(state.side_to_move, move);
-    util::SimdVector<i32, VECTOR_SIZE / 2> result_vec{};
+f64 PolicyContext::logit(Move move) const {
+    const usize idx = detail::move_output_idx(stm_, move);
+
+    util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
     const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
     const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
-    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; i++) {
-        const auto clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(accumulator[i], zero), one);
-        result_vec +=
-            util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
-    }
-    const auto result = util::reduce_vector<i32, VECTOR_SIZE / 2>(result_vec) + network->l1_biases[idx];
 
-    return static_cast<f64>(result) / static_cast<f64>(Q * Q);
+    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+        const auto clamped =
+            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
+        sum += util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
+    }
+
+    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
+    const i32 bias = network->l1_biases[idx];
+    return static_cast<f64>(dot + bias) / static_cast<f64>(Q * Q);
 }
 
 } // namespace network::policy

@@ -107,15 +107,20 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
 void GameTree::compute_policy(u32 node_idx) {
     const Node &node = nodes_[node_idx];
 
-    const auto policy_accumulator = network::policy::accumulate_policy(board_.state());
+    // We keep track of a policy context so that we only accumulate once per node
+    const network::policy::PolicyContext ctx(board_.state());
     f64 sum_exponents = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
-        const f64 exp_policy = std::exp(network::policy::evaluate_move(policy_accumulator, board_.state(), child.move));
+        // Compute policy output for this move
+        const f64 policy_logit = ctx.logit(child.move);
+        // Store the raw logit to be soft-maxed later
+        const f64 exp_policy = std::exp(policy_logit);
         child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
 
+    // Normalize policy scores
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
         child.policy_score /= sum_exponents;
