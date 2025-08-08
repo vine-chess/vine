@@ -1,6 +1,7 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
-#include "../eval/network.hpp"
+#include "../eval/value_network.hpp"
+#include "../eval/policy_network.hpp"
 #include "../util/assert.hpp"
 #include "node.hpp"
 #include <algorithm>
@@ -106,22 +107,11 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
 void GameTree::compute_policy(u32 node_idx) {
     const Node &node = nodes_[node_idx];
 
+    const auto policy_accumulator = network::policy::accumulate_policy(board_.state());
     f64 sum_exponents = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
-
-        // Temporary placeholder for NN
-        // TODO: Replace with real neural net policy output when available
-        const f64 policy_score = [&]() {
-            const Move move = child.move;
-            if (!move.is_capture()) {
-                return 0.0;
-            }
-            const PieceType victim = move.is_ep() ? PieceType::PAWN : board_.state().get_piece_type(move.to());
-            const PieceType attacker = board_.state().get_piece_type(move.from());
-            return (10.0 * victim - attacker) / 40.0;
-        }();
-        const f64 exp_policy = std::exp(policy_score);
+        const f64 exp_policy = std::exp(network::policy::evaluate_move(policy_accumulator, board_.state(), child.move));
         child.policy_score = static_cast<f32>(exp_policy);
         sum_exponents += exp_policy;
     }
@@ -183,7 +173,7 @@ f64 GameTree::simulate_node(u32 node_idx) {
         return node.terminal_state.score();
     }
 
-    return 1.0 / (1.0 + std::exp(-network::evaluate(board_.state())));
+    return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
 }
 
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {

@@ -1,14 +1,14 @@
-#include "network.hpp"
+#include "value_network.hpp"
 
 #include "../third_party/incbin.h"
 #include <array>
 #include <cstring>
 
-INCBIN(EVAL, EVALFILE);
+INCBIN(VALUENETWORK, VALUEFILE);
 
-namespace network {
+namespace network::value {
 
-const Network *network = reinterpret_cast<const Network *>(gEVALData);
+const auto network = reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
 
 const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
                                                                Color perspective, Square king_sq) {

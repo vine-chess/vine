@@ -1,12 +1,12 @@
-#ifndef NETWORK_HPP
-#define NETWORK_HPP
+#ifndef VALUE_NETWORK_HPP
+#define VALUE_NETWORK_HPP
 
 #include "../chess/board_state.hpp"
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
 #include <array>
 
-namespace network {
+namespace network::value {
 
 constexpr i16 QA = 255;
 constexpr i16 QB = 64;
@@ -16,7 +16,7 @@ using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
 f64 evaluate(const BoardState &state);
 
-struct alignas(util::NATIVE_VECTOR_ALIGNMENT) Network {
+struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     union {
         util::MultiArray<i16Vec, 2, 6, 64, L1_SIZE / VECTOR_SIZE> ft_weights_vec;
         util::MultiArray<i16, 2, 6, 64, L1_SIZE> ft_weights;
@@ -28,6 +28,7 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) Network {
     };
     std::array<i16, 1> l1_biases;
 };
-} // namespace network
 
-#endif // NETWORK_HPP
+} // namespace network::value
+
+#endif // VALUE_NETWORK_HPP
