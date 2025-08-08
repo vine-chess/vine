@@ -9,7 +9,13 @@ OPTIMIZE ?= -O3 -flto
 FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
-FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
+
+ifdef EVALFILE
+	FLAGS += -DEVALFILE=\"$(EVALFILE)\"
+else
+	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
+endif
+
 
 CC ?= gcc
 CXX ?= g++

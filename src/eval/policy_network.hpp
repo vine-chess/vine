@@ -2,10 +2,8 @@
 #define POLICY_NETWORK_HPP
 
 #include "../chess/board_state.hpp"
-#include "../chess/move_gen.hpp"
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
-#include "../util/static_vector.hpp"
 #include <array>
 
 namespace network::policy {

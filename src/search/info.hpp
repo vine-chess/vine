@@ -4,11 +4,11 @@
 namespace search {
 
 enum class Verbosity {
-  NONE = 0,
-  MINIMAL,
-  VERBOSE
+    NONE = 0,
+    MINIMAL,
+    VERBOSE
 };
 
-}
+} // namespace search
 
 #endif // INFO_HPP

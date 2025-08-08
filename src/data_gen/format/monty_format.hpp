@@ -5,9 +5,9 @@
 #include "../../chess/move_gen.hpp"
 #include "../../util/static_vector.hpp"
 #include "../../util/types.hpp"
+#include <array>
 #include <ostream>
 #include <vector>
-#include <array>
 
 namespace datagen {
 
@@ -29,7 +29,7 @@ struct MontyFormatMoveData {
 };
 
 class MontyFormatWriter {
-public:
+  public:
     explicit MontyFormatWriter(std::ostream &out);
 
     void push_board_state(const BoardState &state);
@@ -38,7 +38,7 @@ public:
 
     [[nodiscard]] u16 to_monty_move(Move move, const BoardState &state) const;
 
-private:
+  private:
     void put_u8(u8 v);
     void put_u16(u16 v);
     void put_u64(u64 v);

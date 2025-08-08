@@ -1,14 +1,11 @@
 #include "value_network.hpp"
 
-#include "../third_party/incbin.h"
 #include <array>
 #include <cstring>
 
-INCBIN(VALUENETWORK, VALUEFILE);
-
 namespace network::value {
 
-const auto network = reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
+const extern ValueNetwork *const network;
 
 const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
                                                                Color perspective, Square king_sq) {
@@ -49,4 +46,4 @@ f64 evaluate(const BoardState &state) {
     return (result + static_cast<f64>(network->l1_biases[0])) / static_cast<f64>(QA * QB);
 }
 
-} // namespace network
+} // namespace network::value

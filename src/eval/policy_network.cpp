@@ -1,15 +1,14 @@
 #include "policy_network.hpp"
+#include "../chess/move_gen.hpp"
 
 #include "../third_party/incbin.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
 
-INCBIN(POLICYNETWORK, POLICYFILE);
-
 namespace network::policy {
 
-const auto network = reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
+const extern PolicyNetwork *const network;
 
 const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
                                                               Color perspective) {

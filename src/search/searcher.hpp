@@ -3,8 +3,8 @@
 
 #include "../chess/board.hpp"
 #include "game_tree.hpp"
-#include "thread.hpp"
 #include "info.hpp"
+#include "thread.hpp"
 #include "time_manager.hpp"
 
 namespace search {

@@ -1,8 +1,8 @@
 #include "uci.hpp"
 #include "../chess/move_gen.hpp"
 #include "../data_gen/game_runner.hpp"
-#include "../eval/value_network.hpp"
 #include "../eval/policy_network.hpp"
+#include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
@@ -12,12 +12,12 @@
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <iomanip>
 
 namespace uci {
 
@@ -179,9 +179,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             }
 
             for (usize i = 0; i < moves.size(); ++i) {
-                out << moves[i] << ": "
-                    << std::fixed << std::setprecision(2)
-                    << (100.0 * logits[i]) << '%' << '\n';
+                out << moves[i] << ": " << std::fixed << std::setprecision(2) << (100.0 * logits[i]) << '%' << '\n';
             }
 
             out << board_.state().to_fen() << std::endl;

@@ -1,7 +1,7 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
-#include "../eval/value_network.hpp"
 #include "../eval/policy_network.hpp"
+#include "../eval/value_network.hpp"
 #include "../util/assert.hpp"
 #include "node.hpp"
 #include <algorithm>
