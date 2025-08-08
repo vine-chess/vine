@@ -83,7 +83,7 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
     }
 }
 
-f64 PolicyContext::logit(Move move) const {
+f32 PolicyContext::logit(Move move) const {
     const usize idx = detail::move_output_idx(stm_, move);
 
     util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
@@ -98,7 +98,7 @@ f64 PolicyContext::logit(Move move) const {
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
     const i32 bias = network->l1_biases[idx];
-    return static_cast<f64>(dot + bias) / static_cast<f64>(Q * Q);
+    return static_cast<f32>(dot + bias) / static_cast<f32>(Q * Q);
 }
 
 } // namespace network::policy

@@ -116,14 +116,13 @@ void GameTree::compute_policy(u32 node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
         // Compute policy output for this move
-        const f32 policy_logit = ctx.logit(child.move);
-        child.policy_score = static_cast<f32>(policy_logit);
-
+        child.policy_score = ctx.logit(child.move);
         // Keep track of highest policy so we can shift all the policy 
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, policy_logit);
     }
 
+    // Softmax the policy logits
     f32 sum_exponents = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
@@ -132,7 +131,7 @@ void GameTree::compute_policy(u32 node_idx) {
         child.policy_score = exp_policy;
     }
 
-    // Normalize policy scores
+    // Normalize into policy scores
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
         child.policy_score /= sum_exponents;

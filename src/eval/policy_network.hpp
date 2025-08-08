@@ -38,7 +38,7 @@ class PolicyContext {
     PolicyContext(const BoardState& state);
 
     // Raw score (logit) for a specific move in the position
-    [[nodiscard]] f64 logit(Move move) const;
+    [[nodiscard]] f32 logit(Move move) const;
 
   private:
     Color stm_;
