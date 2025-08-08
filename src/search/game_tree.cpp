@@ -119,7 +119,7 @@ void GameTree::compute_policy(u32 node_idx) {
         child.policy_score = ctx.logit(child.move);
         // Keep track of highest policy so we can shift all the policy 
         // values down to avoid precision loss from large exponents
-        highest_policy = std::max(highest_policy, policy_logit);
+        highest_policy = std::max(highest_policy, child.policy_score);
     }
 
     // Softmax the policy logits
