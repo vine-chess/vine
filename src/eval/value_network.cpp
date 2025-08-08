@@ -7,11 +7,15 @@ namespace network::value {
 
 const extern ValueNetwork *const network;
 
+namespace detail {
+
 const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
                                                                Color perspective, Square king_sq) {
     usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
+
+} // namespace detail
 
 f64 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
