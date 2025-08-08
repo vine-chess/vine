@@ -9,8 +9,9 @@ const extern ValueNetwork *const network;
 
 namespace detail {
 
-const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
-                                                               Color perspective, Square king_sq) {
+[[nodiscard]] const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
+                                                                             Color piece_color, Color perspective,
+                                                                             Square king_sq) {
     usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
@@ -28,13 +29,13 @@ f64 evaluate(const BoardState &state) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, stm, stm, king_sq)[i];
+                accumulator[i] += detail::feature(sq, piece, stm, stm, king_sq)[i];
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feature(sq, piece, ~stm, stm, king_sq)[i];
+                accumulator[i] += detail::feature(sq, piece, ~stm, stm, king_sq)[i];
             }
         }
     }

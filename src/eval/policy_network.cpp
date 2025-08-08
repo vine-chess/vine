@@ -12,8 +12,8 @@ const extern PolicyNetwork *const network;
 
 namespace detail {
 
-const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece, Color piece_color,
-                                                              Color perspective) {
+[[nodiscard]] const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
+                                                                            Color piece_color, Color perspective) {
     usize flip = 0b111000 * perspective;
     return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
