@@ -5,7 +5,9 @@
 #include "../util/assert.hpp"
 #include "node.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <span>
 
 namespace search {
@@ -109,15 +111,25 @@ void GameTree::compute_policy(u32 node_idx) {
 
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(board_.state());
-    f64 sum_exponents = 0;
+
+    f32 highest_policy = -std::numeric_limits<f32>::max();
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
         // Compute policy output for this move
-        const f64 policy_logit = ctx.logit(child.move);
-        // Store the raw logit to be soft-maxed later
-        const f64 exp_policy = std::exp(policy_logit);
-        child.policy_score = static_cast<f32>(exp_policy);
+        const f32 policy_logit = ctx.logit(child.move);
+        child.policy_score = static_cast<f32>(policy_logit);
+
+        // Keep track of highest policy so we can shift all the policy 
+        // values down to avoid precision loss from large exponents
+        highest_policy = std::max(highest_policy, policy_logit);
+    }
+
+    f32 sum_exponents = 0;
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = nodes_[node.first_child_idx + i];
+        const f32 exp_policy = std::exp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
+        child.policy_score = exp_policy;
     }
 
     // Normalize policy scores
