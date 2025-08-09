@@ -12,8 +12,10 @@
 
 namespace search {
 
-constexpr f64 ROOT_EXPLORATION_CONSTANT = 1.3;
-constexpr f64 EXPLORATION_CONSTANT = 1.0;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
+constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
+constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
+constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 
 GameTree::GameTree() {
     set_node_capacity(1);
@@ -54,12 +56,12 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
     // - child: the candidate child node being scored
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](Node &parent, Node &child, f64 policy_score, f64 exploration_constant) -> f64 {
+    const auto compute_puct = [&](Node &parent, Node &child, f32 policy_score, f32 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
-        const f64 u_value = exploration_constant * policy_score * std::sqrt(parent.num_visits) /
+        const f64 u_value = exploration_constant * static_cast<f64>(policy_score) * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
         // Final PUCT score is exploitation (Q) + exploration (U)
         return q_value + u_value;
@@ -112,12 +114,15 @@ void GameTree::compute_policy(u32 node_idx) {
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(board_.state());
 
+    const bool root_node = node_idx == 0;
+    const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
+
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = nodes_[node.first_child_idx + i];
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move);
-        // Keep track of highest policy so we can shift all the policy 
+        child.policy_score = ctx.logit(child.move) / temperature;
+        // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
     }
