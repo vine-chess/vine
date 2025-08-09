@@ -3,9 +3,7 @@
 
 namespace datagen {
 
-BoardState generate_opening(usize seed, usize random_moves) {
-    rng::seed_generator(seed);
-
+BoardState generate_opening(usize random_moves) {
     Board board(STARTPOS_FEN);
     bool success;
     do {

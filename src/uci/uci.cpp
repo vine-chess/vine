@@ -89,9 +89,10 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     const auto path = parts[5];
     vine_assert(path == "None"); // TODO: book support, needs test
     const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
+    rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
-        out << "info string genfens " << datagen::generate_opening(seed, random_moves).to_fen() << std::endl;
+        out << "info string genfens " << datagen::generate_opening(random_moves).to_fen() << std::endl;
     }
 }
 

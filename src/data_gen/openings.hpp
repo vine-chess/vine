@@ -6,7 +6,7 @@
 
 namespace datagen {
 
-BoardState generate_opening(usize seed, usize random_moves);
+BoardState generate_opening(usize random_moves);
 
 }
 
