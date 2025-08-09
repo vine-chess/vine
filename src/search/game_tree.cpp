@@ -15,7 +15,7 @@ namespace search {
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
 constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
-constexpr f32 EXPLORATION_CONSTANT = 1.414;
+constexpr f32 EXPLORATION_CONSTANT = 1.1;
 
 GameTree::GameTree() {
     set_node_capacity(1);
