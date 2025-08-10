@@ -49,26 +49,31 @@ const Node &GameTree::node_at(u32 idx) const {
     return sum_depths_;
 }
 
-bool GameTree::perform_iteration(u32 parent_node_idx) {
-    if (parent_node_idx == 0) {
-        nodes_in_path_ = 0;
-    }
-    
+bool GameTree::perform_iteration() {
+    nodes_in_path_ = 0;
+    return perform_iteration_internal(0).has_value();
+}
+
+std::optional<GameTree::SimulationResult> GameTree::perform_iteration_internal(u32 parent_node_idx) {
     Node &parent_node = nodes_[parent_node_idx];
 
     // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
     // might have been bad enough that this node is likely to not get selected again
     if (parent_node.num_visits == 1) {
         if (!expand_node(parent_node_idx)) {
-            return false;
+            return std::nullopt;
         }
     }
 
     // Return if we cannot go any further down the tree
     if (parent_node.terminal() || !parent_node.visited()) {
         sum_depths_ += nodes_in_path_ + 1;
-        backpropagate_score(simulate_node(parent_node_idx), parent_node_idx);
-        return true;
+
+        const auto score = simulate_node(parent_node_idx);
+        parent_node.sum_of_scores += score;
+        parent_node.num_visits++;
+
+        return GameTree::SimulationResult{.score = 1.0f - score, .terminal_state = parent_node.terminal_state};
     }
 
     // Lambda to compute the PUCT score for a given child node in MCTS
@@ -113,10 +118,22 @@ bool GameTree::perform_iteration(u32 parent_node_idx) {
 
     // Recursively descend through the tree until we select a suitable node
     board_.make_move(nodes_[best_child_idx].move);
-    const auto result = perform_iteration(best_child_idx);
+    const auto result = perform_iteration_internal(best_child_idx);
     board_.undo_move();
 
-    return result;
+    if (!result.has_value()) {
+        return result;
+    }
+
+    parent_node.sum_of_scores += result->score;
+    parent_node.num_visits++;
+
+    // If a terminal state from the child score exists, then we try to backpropagate it to this node
+    if (!result->terminal_state.is_none()) {
+        backpropagate_terminal_state(parent_node_idx, result->terminal_state);
+    }
+
+    return GameTree::SimulationResult{.score = 1.0f - result->score, .terminal_state = parent_node.terminal_state};
 }
 
 void GameTree::compute_policy(u32 node_idx) {
@@ -199,13 +216,12 @@ bool GameTree::expand_node(u32 node_idx) {
     return true;
 }
 
-f64 GameTree::simulate_node(u32 node_idx) {
+f32 GameTree::simulate_node(u32 node_idx) {
     const auto &node = nodes_[node_idx];
     if (node.terminal()) {
         return node.terminal_state.score();
     }
-
-    return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
+    return 1.0f / (1.0f + std::exp(-network::value::evaluate(board_.state())));
 }
 
 void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {

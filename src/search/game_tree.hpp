@@ -3,6 +3,7 @@
 
 #include "../chess/board.hpp"
 #include "node.hpp"
+#include <optional>
 
 namespace search {
 
@@ -18,16 +19,22 @@ class GameTree {
     [[nodiscard]] const Node &root() const;
     [[nodiscard]] Node &root();
     [[nodiscard]] u32 sum_depths() const;
-    [[nodiscard]] bool perform_iteration(u32 parent_node_idx = 0);
+    [[nodiscard]] bool perform_iteration();
 
   private:
+    struct SimulationResult {
+        f32 score;
+        TerminalState terminal_state;
+    };
+
+    [[nodiscard]] std::optional<SimulationResult> perform_iteration_internal(u32 parent_node_idx);
     [[nodiscard]] bool expand_node(u32 node_idx);
     // This function computes the policy scores for all children of a node that is already expanded. The policy score is
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
     void compute_policy(u32 node_idx);
     // Stage 3: Simulation
     // Calls out to the value head to return a score for the node that is being simulated.
-    [[nodiscard]] f64 simulate_node(u32 node_idx);
+    [[nodiscard]] f32 simulate_node(u32 node_idx);
     // Stage 4 (Final): Backpropagation
     // Propagates the scores of a node that was just simulated to itself and its ancestor nodes, increasing the number
     // of visits to each node that had a score propagated to it.
