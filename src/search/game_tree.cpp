@@ -49,7 +49,28 @@ const Node &GameTree::node_at(u32 idx) const {
     return sum_depths_;
 }
 
-std::pair<u32, bool> GameTree::select_and_expand_node() {
+bool GameTree::perform_iteration(u32 parent_node_idx) {
+    if (parent_node_idx == 0) {
+        nodes_in_path_ = 0;
+    }
+    
+    Node &parent_node = nodes_[parent_node_idx];
+
+    // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
+    // might have been bad enough that this node is likely to not get selected again
+    if (parent_node.num_visits == 1) {
+        if (!expand_node(parent_node_idx)) {
+            return false;
+        }
+    }
+
+    // Return if we cannot go any further down the tree
+    if (parent_node.terminal() || !parent_node.visited()) {
+        sum_depths_ += nodes_in_path_ + 1;
+        backpropagate_score(simulate_node(parent_node_idx), parent_node_idx);
+        return true;
+    }
+
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
     // - parent: the parent node from which the child was reached
@@ -67,45 +88,35 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
         return q_value + u_value;
     };
 
-    u32 node_idx = nodes_in_path_ = 0;
-    while (true) {
-        Node &node = nodes_[node_idx];
+    // Stage 1/2: Selection & Expansion
+    // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
+    // Expansion is the second stage of an iteration. However, due to memory-usage optimization we perform expansion
+    // whenever a node is selected twice, which is handled in the selection stage.
+    const bool q_declining =
+        parent_node_idx != 0 && (1.0 - nodes_[parent_node.parent_idx].q()) - parent_node.q() > 0.05;
 
-        // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
-        // might have been bad enough that this node is likely to not get selected again
-        if (node.num_visits == 1) {
-            if (!expand_node(node_idx)) {
-                return {0, false};
-            }
+    u32 best_child_idx = 0;
+    f64 best_child_score = std::numeric_limits<f64>::min();
+    for (u16 i = 0; i < parent_node.num_children; ++i) {
+        Node &child_node = nodes_[parent_node.first_child_idx + i];
+        // Track the child with the highest PUCT score
+        const f64 child_score =
+            compute_puct(parent_node, child_node, child_node.policy_score,
+                         parent_node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
+        if (child_score > best_child_score) {
+            best_child_idx = parent_node.first_child_idx + i; // Store absolute index into nodes
+            best_child_score = child_score;
         }
-
-        // Return if we cannot go any further down the tree
-        if (node.terminal() || !node.visited()) {
-            sum_depths_ += nodes_in_path_ + 1;
-            return {node_idx, true};
-        }
-
-        const bool q_declining = node_idx != 0 && (1.0 - nodes_[node.parent_idx].q()) - node.q() > 0.05;
-
-        u32 best_child_idx = 0;
-        f64 best_child_score = std::numeric_limits<f64>::min();
-        for (u16 i = 0; i < node.num_children; ++i) {
-            Node &child_node = nodes_[node.first_child_idx + i];
-
-            // Track the child with the highest PUCT score
-            const f64 child_score =
-                compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
-            if (child_score > best_child_score) {
-                best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
-                best_child_score = child_score;
-            }
-        }
-
-        // Keep descending through the game nodes_ until we find a suitable node to expand
-        node_idx = best_child_idx, ++nodes_in_path_;
-        board_.make_move(nodes_[node_idx].move);
     }
+
+    ++nodes_in_path_;
+
+    // Recursively descend through the tree until we select a suitable node
+    board_.make_move(nodes_[best_child_idx].move);
+    const auto result = perform_iteration(best_child_idx);
+    board_.undo_move();
+
+    return result;
 }
 
 void GameTree::compute_policy(u32 node_idx) {
@@ -150,7 +161,7 @@ bool GameTree::expand_node(u32 node_idx) {
     }
 
     // We should only be expanding when the number of visits is one
-    // This is due to the optimization of not expanding nodes whos children we don't know we'll need
+    // This is due to the optimization of not expanding nodes whose children we don't know we'll need
     vine_assert(node_idx == 0 || node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
@@ -249,8 +260,6 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
     }
-    // Undo all of the moves that were selected
-    board_.undo_n_moves(nodes_in_path_);
 }
 
 } // namespace search
