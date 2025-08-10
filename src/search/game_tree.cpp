@@ -65,75 +65,75 @@ std::optional<GameTree::SimulationResult> GameTree::perform_iteration_internal(u
         }
     }
 
-    // Return if we cannot go any further down the tree
+    GameTree::SimulationResult result;
+
+    // Simulate if we have found a suitable node
     if (parent_node.terminal() || !parent_node.visited()) {
         sum_depths_ += nodes_in_path_ + 1;
+        result.score = simulate_node(parent_node_idx);
+        result.terminal_state = parent_node.terminal_state;
+    } else {
+        // Lambda to compute the PUCT score for a given child node in MCTS
+        // Arguments:
+        // - parent: the parent node from which the child was reached
+        // - child: the candidate child node being scored
+        // - policy_score: the probability for this child being the best move
+        // - exploration_constant: hyperparameter controlling exploration vs. exploitation
+        const auto compute_puct = [&](Node &parent, Node &child, f32 policy_score, f32 exploration_constant) -> f64 {
+            // Average value of the child from previous visits (Q value), flipped to match current node's perspective
+            // If the node hasn't been visited, use the parent node's Q value
+            const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
+            // Uncertainty/exploration term (U value), scaled by the prior and parent visits
+            const f64 u_value = exploration_constant * static_cast<f64>(policy_score) * std::sqrt(parent.num_visits) /
+                                (1.0 + static_cast<f64>(child.num_visits));
+            // Final PUCT score is exploitation (Q) + exploration (U)
+            return q_value + u_value;
+        };
 
-        const auto score = simulate_node(parent_node_idx);
-        parent_node.sum_of_scores += score;
-        parent_node.num_visits++;
+        // Stage 1/2: Selection & Expansion
+        // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
+        // Expansion is the second stage of an iteration. However, due to memory-usage optimization we perform expansion
+        // whenever a node is selected twice, which is handled in the selection stage.
+        const bool q_declining =
+            parent_node_idx != 0 && (1.0 - nodes_[parent_node.parent_idx].q()) - parent_node.q() > 0.05;
 
-        return GameTree::SimulationResult{.score = 1.0f - score, .terminal_state = parent_node.terminal_state};
-    }
-
-    // Lambda to compute the PUCT score for a given child node in MCTS
-    // Arguments:
-    // - parent: the parent node from which the child was reached
-    // - child: the candidate child node being scored
-    // - policy_score: the probability for this child being the best move
-    // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](Node &parent, Node &child, f32 policy_score, f32 exploration_constant) -> f64 {
-        // Average value of the child from previous visits (Q value), flipped to match current node's perspective
-        // If the node hasn't been visited, use the parent node's Q value
-        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
-        // Uncertainty/exploration term (U value), scaled by the prior and parent visits
-        const f64 u_value = exploration_constant * static_cast<f64>(policy_score) * std::sqrt(parent.num_visits) /
-                            (1.0 + static_cast<f64>(child.num_visits));
-        // Final PUCT score is exploitation (Q) + exploration (U)
-        return q_value + u_value;
-    };
-
-    // Stage 1/2: Selection & Expansion
-    // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
-    // Expansion is the second stage of an iteration. However, due to memory-usage optimization we perform expansion
-    // whenever a node is selected twice, which is handled in the selection stage.
-    const bool q_declining =
-        parent_node_idx != 0 && (1.0 - nodes_[parent_node.parent_idx].q()) - parent_node.q() > 0.05;
-
-    u32 best_child_idx = 0;
-    f64 best_child_score = std::numeric_limits<f64>::min();
-    for (u16 i = 0; i < parent_node.num_children; ++i) {
-        Node &child_node = nodes_[parent_node.first_child_idx + i];
-        // Track the child with the highest PUCT score
-        const f64 child_score =
-            compute_puct(parent_node, child_node, child_node.policy_score,
-                         parent_node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
-        if (child_score > best_child_score) {
-            best_child_idx = parent_node.first_child_idx + i; // Store absolute index into nodes
-            best_child_score = child_score;
+        u32 best_child_idx = 0;
+        f64 best_child_score = std::numeric_limits<f64>::min();
+        for (u16 i = 0; i < parent_node.num_children; ++i) {
+            Node &child_node = nodes_[parent_node.first_child_idx + i];
+            // Track the child with the highest PUCT score
+            const f64 child_score =
+                compute_puct(parent_node, child_node, child_node.policy_score,
+                             parent_node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
+            if (child_score > best_child_score) {
+                best_child_idx = parent_node.first_child_idx + i; // Store absolute index into nodes
+                best_child_score = child_score;
+            }
         }
+
+        nodes_in_path_++;
+
+        board_.make_move(nodes_[best_child_idx].move);
+        const auto child_result = perform_iteration_internal(best_child_idx);
+        board_.undo_move();
+
+        if (!child_result.has_value()) {
+            return child_result;
+        }
+
+        // If a terminal state exists from the child, then we try to backpropagate it to this node
+        if (!child_result->terminal_state.is_none()) {
+            backpropagate_terminal_state(parent_node_idx, child_result->terminal_state);
+        }
+
+        result.score = 1.0 - child_result->score;
+        result.terminal_state = parent_node.terminal_state;
     }
 
-    ++nodes_in_path_;
-
-    // Recursively descend through the tree until we select a suitable node
-    board_.make_move(nodes_[best_child_idx].move);
-    const auto result = perform_iteration_internal(best_child_idx);
-    board_.undo_move();
-
-    if (!result.has_value()) {
-        return result;
-    }
-
-    parent_node.sum_of_scores += result->score;
+    parent_node.sum_of_scores += result.score;
     parent_node.num_visits++;
 
-    // If a terminal state from the child score exists, then we try to backpropagate it to this node
-    if (!result->terminal_state.is_none()) {
-        backpropagate_terminal_state(parent_node_idx, result->terminal_state);
-    }
-
-    return GameTree::SimulationResult{.score = 1.0f - result->score, .terminal_state = parent_node.terminal_state};
+    return result;
 }
 
 void GameTree::compute_policy(u32 node_idx) {
@@ -217,7 +217,7 @@ bool GameTree::expand_node(u32 node_idx) {
 }
 
 f32 GameTree::simulate_node(u32 node_idx) {
-    const auto &node = nodes_[node_idx];
+    auto &node = nodes_[node_idx];
     if (node.terminal()) {
         return node.terminal_state.score();
     }

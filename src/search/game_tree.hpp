@@ -33,7 +33,7 @@ class GameTree {
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
     void compute_policy(u32 node_idx);
     // Stage 3: Simulation
-    // Calls out to the value head to return a score for the node that is being simulated.
+    // Calls out to the value head to set a score for the node that is being simulated.
     [[nodiscard]] f32 simulate_node(u32 node_idx);
     // Stage 4 (Final): Backpropagation
     // Propagates the scores of a node that was just simulated to itself and its ancestor nodes, increasing the number
