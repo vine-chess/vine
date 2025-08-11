@@ -89,18 +89,102 @@ class TerminalState {
     u16 value_;
 };
 
+#include <limits>
+#include <cassert>
+
+class NodeIndex {
+  public:
+    NodeIndex(u32 index, u8 half = 0) {
+        index_bits = index;
+        half_bits = half;
+    }
+
+    static NodeIndex none() {
+        return NodeIndex((1u << 31) - 1);
+    }
+
+    [[nodiscard]] bool is_none() const {
+        return index_bits == none();
+    }
+
+    [[nodiscard]] operator u32() const {
+        return index_bits;
+    }
+
+    NodeIndex &operator=(const NodeIndex &other) {
+        index_bits = other.index_bits;
+        half_bits = other.half_bits;
+        return *this;
+    }
+
+    NodeIndex &operator=(i32 index) {
+        index_bits = index;
+        return *this;
+    }
+
+    [[nodiscard]] u32 index() const {
+        return index_bits;
+    }
+
+    [[nodiscard]] u8 half() const {
+        return half_bits;
+    }
+
+    [[nodiscard]] NodeIndex &operator+=(i32 delta) {
+        index_bits = static_cast<u32>(static_cast<i32>(index_bits) + delta);
+        return *this;
+    }
+
+    [[nodiscard]] NodeIndex &operator-=(i32 delta) {
+        return (*this += -delta);
+    }
+
+    [[nodiscard]] friend NodeIndex operator+(NodeIndex n, i32 delta) {
+        return n += delta;
+    }
+
+    [[nodiscard]] friend NodeIndex operator+(i32 delta, NodeIndex n) {
+        return n += delta;
+    }
+
+    [[nodiscard]] friend NodeIndex operator-(NodeIndex n, i32 delta) {
+        return n -= delta;
+    }
+
+    [[nodiscard]] friend NodeIndex operator+(const NodeIndex &a, const NodeIndex &b) {
+        assert(a.half() == b.half());
+        u32 sum = a.index() + b.index();
+        return NodeIndex(sum, a.half());
+    }
+
+    [[nodiscard]] friend NodeIndex operator-(const NodeIndex &a, const NodeIndex &b) {
+        assert(a.half() == b.half());
+        assert(a.index() >= b.index());
+        return NodeIndex(a.index() - b.index(), a.half());
+    }
+
+  private:
+    union {
+        struct {
+            u32 index_bits : 31;
+            u32 half_bits : 1;
+        };
+        u32 bits_;
+    };
+};
+
 struct Node {
     // Sum of all scores that have been propagated back to this node
     f64 sum_of_scores = 0.0;
     // Policy given to us by our parent node
     f32 policy_score = 0.0;
     // Index of the parent node
-    i32 parent_idx = -1;
+    NodeIndex parent_idx = NodeIndex::none();
     // Index of the first child in the node table
-    i32 first_child_idx = -1;
+    NodeIndex first_child_idx = NodeIndex::none();
     // Number of times this node has been visited
     u32 num_visits = 0;
-    // Move that led into this node
+    // Move that led i32o this node
     Move move = Move::null();
     // Number of legal moves this node has
     u16 num_children = 0;

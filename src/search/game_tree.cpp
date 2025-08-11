@@ -17,39 +17,49 @@ constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
 constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 
-GameTree::GameTree() {
+GameTree::GameTree() : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}) {
     set_node_capacity(1);
 }
 
-void GameTree::set_node_capacity(usize node_capacity) {
-    nodes_.reserve(node_capacity);
+void GameTree::set_node_capacity(usize capacity) {
+    for (auto &half : halves_) {
+        half.set_node_capacity(capacity / 2);
+    }
 }
 
 void GameTree::new_search(const Board &root_board) {
-    nodes_.clear();
-    nodes_.emplace_back(); // Root node always exists
+    for (auto &half : halves_) {
+        half.clear();
+    }
+    active_half_ = TreeHalf::Index::LOWER;
     board_ = root_board;
     sum_depths_ = 0;
-    vine_assert(expand_node(0));
+    halves_[active_half_].push_node(Node{});
+    vine_assert(expand_node(NodeIndex(0, active_half_)));
 }
 
 const Node &GameTree::root() const {
-    return node_at(0);
+    return node_at(NodeIndex(0, active_half_));
 }
 
 Node &GameTree::root() {
-    return nodes_[0];
+    return node_at(NodeIndex(0, active_half_));
 }
 
-const Node &GameTree::node_at(u32 idx) const {
-    return nodes_[idx];
+const Node &GameTree::node_at(NodeIndex idx) const {
+    return halves_[idx.half()][idx];
+}
+
+Node &GameTree::node_at(NodeIndex idx) {
+    return halves_[idx.half()][idx];
 }
 
 [[nodiscard]] u32 GameTree::sum_depths() const {
     return sum_depths_;
 }
+static bool flipped_set = false;
 
-std::pair<u32, bool> GameTree::select_and_expand_node() {
+std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
     // - parent: the parent node from which the child was reached
@@ -67,14 +77,18 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
         return q_value + u_value;
     };
 
-    u32 node_idx = nodes_in_path_ = 0;
+    NodeIndex idx = NodeIndex(0, active_half_);
+    nodes_in_path_ = 0;
     while (true) {
-        Node &node = nodes_[node_idx];
+        Node &node = node_at(idx);
 
         // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
         // might have been bad enough that this node is likely to not get selected again
         if (node.num_visits == 1) {
-            if (!expand_node(node_idx)) {
+            if (!expand_node(idx)) {
+                flip_halves();
+                std::cout << "flipping!";
+                board_.undo_n_moves(nodes_in_path_);
                 return {0, false};
             }
         }
@@ -82,20 +96,27 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited()) {
             sum_depths_ += nodes_in_path_ + 1;
-            return {node_idx, true};
+            return {idx, true};
         }
 
-        const bool q_declining = node_idx != 0 && (1.0 - nodes_[node.parent_idx].q()) - node.q() > 0.05;
+        if (!fetch_children(idx)) {
+            std::cout << "keeps happening lol?\n";
+            flip_halves();
+            flipped_set = true;
+            board_.undo_n_moves(nodes_in_path_);
+            return {0, false};
+        }
 
-        u32 best_child_idx = 0;
+        //const bool q_declining = idx != 0 && (1.0 - node_at(node.parent_idx).q()) - node.q() > 0.05;
+
+        NodeIndex best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
-            Node &child_node = nodes_[node.first_child_idx + i];
-
+            Node &child_node = node_at(node.first_child_idx + i);
             // Track the child with the highest PUCT score
             const f64 child_score =
                 compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT - q_declining * 0.1);
+                             idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
@@ -103,23 +124,23 @@ std::pair<u32, bool> GameTree::select_and_expand_node() {
         }
 
         // Keep descending through the game nodes_ until we find a suitable node to expand
-        node_idx = best_child_idx, ++nodes_in_path_;
-        board_.make_move(nodes_[node_idx].move);
+        idx = best_child_idx, ++nodes_in_path_;
+        board_.make_move(node_at(idx).move);
     }
 }
 
-void GameTree::compute_policy(u32 node_idx) {
-    const Node &node = nodes_[node_idx];
+void GameTree::compute_policy(NodeIndex idx) {
+    const Node &node = node_at(idx);
 
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(board_.state());
 
-    const bool root_node = node_idx == 0;
+    const bool root_node = idx == 0;
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
 
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = nodes_[node.first_child_idx + i];
+        Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
         child.policy_score = ctx.logit(child.move) / temperature;
         // Keep track of highest policy so we can shift all the policy
@@ -130,7 +151,7 @@ void GameTree::compute_policy(u32 node_idx) {
     // Softmax the policy logits
     f32 sum_exponents = 0;
     for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = nodes_[node.first_child_idx + i];
+        Node &child = node_at(node.first_child_idx + i);
         const f32 exp_policy = std::exp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
         child.policy_score = exp_policy;
@@ -138,20 +159,20 @@ void GameTree::compute_policy(u32 node_idx) {
 
     // Normalize into policy scores
     for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = nodes_[node.first_child_idx + i];
+        Node &child = node_at(node.first_child_idx + i);
         child.policy_score /= sum_exponents;
     }
 }
 
-bool GameTree::expand_node(u32 node_idx) {
-    auto &node = nodes_[node_idx];
+bool GameTree::expand_node(NodeIndex idx) {
+    auto &node = node_at(idx);
     if (node.expanded() || node.terminal()) {
         return true;
     }
 
     // We should only be expanding when the number of visits is one
-    // This is due to the optimization of not expanding nodes whos children we don't know we'll need
-    vine_assert(node_idx == 0 || node.num_visits == 1);
+    // This is due to the optimization of not expanding nodes whose children we don't know we'll need
+    vine_assert(idx == 0 || node.num_visits == 1);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
         node.terminal_state = TerminalState::draw();
@@ -166,39 +187,37 @@ bool GameTree::expand_node(u32 node_idx) {
         return true;
     }
 
-    // Return early if we will run out of memory
-    if (nodes_.size() + move_list.size() > nodes_.capacity()) {
+    if (!halves_[active_half_].has_room_for(move_list.size())) {
         return false;
     }
 
-    node.first_child_idx = nodes_.size();
+    node.first_child_idx = halves_[active_half_].filled_size();
     node.num_children = move_list.size();
 
     // Append all child nodes to the nodes with the move that leads to it
     for (const auto move : move_list) {
-        nodes_.push_back(Node{
-            .parent_idx = static_cast<i32>(node_idx),
+        halves_[active_half_].push_node(Node{
+            .parent_idx = idx,
             .move = move,
         });
     }
 
     // Compute and store policy values for all the child nodes
-    compute_policy(node_idx);
+    compute_policy(idx);
 
     return true;
 }
 
-f64 GameTree::simulate_node(u32 node_idx) {
-    const auto &node = nodes_[node_idx];
+f64 GameTree::simulate_node(NodeIndex idx) {
+    const auto &node = node_at(idx);
     if (node.terminal()) {
         return node.terminal_state.score();
     }
-
     return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
 }
 
-void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_terminal_state) {
-    auto &node = nodes_[node_idx];
+void GameTree::backpropagate_terminal_state(NodeIndex idx, TerminalState child_terminal_state) {
+    auto &node = node_at(idx);
     switch (child_terminal_state.flag()) {
     case TerminalState::Flag::LOSS: { // If a child node is lost, then it's a win for us
         // Ensure that if we already had a shorter mate we preserve it
@@ -211,7 +230,7 @@ void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_te
     case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
         u8 longest_loss = 0;
         for (i32 i = 0; i < node.num_children; ++i) {
-            const auto sibling_terminal_state = nodes_[node.first_child_idx + i].terminal_state;
+            const auto sibling_terminal_state = node_at(node.first_child_idx + i).terminal_state;
             if (sibling_terminal_state.flag() != TerminalState::Flag::WIN) {
                 return;
             }
@@ -225,17 +244,17 @@ void GameTree::backpropagate_terminal_state(u32 node_idx, TerminalState child_te
     }
 }
 
-void GameTree::backpropagate_score(f64 score, u32 node_idx) {
+void GameTree::backpropagate_score(f64 score, NodeIndex idx) {
     auto child_terminal_state = TerminalState::none();
-    while (node_idx != -1) {
+    while (!idx.is_none()) {
         // A node's score is the average of all of its children's score
-        auto &node = nodes_[node_idx];
+        auto &node = node_at(idx);
         node.sum_of_scores += score;
         node.num_visits++;
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
-            backpropagate_terminal_state(node_idx, child_terminal_state);
+            backpropagate_terminal_state(idx, child_terminal_state);
         }
 
         // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
@@ -245,12 +264,44 @@ void GameTree::backpropagate_score(f64 score, u32 node_idx) {
         }
 
         // Travel up to the parent
-        node_idx = node.parent_idx;
+        idx = node.parent_idx;
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
     }
-    // Undo all of the moves that were selected
+    // Undo all the moves that were selected
     board_.undo_n_moves(nodes_in_path_);
+}
+
+bool GameTree::fetch_children(NodeIndex idx) {
+    // No need to do anything if this node's children are already in our tree half
+    auto &node = node_at(idx);
+    if (node.first_child_idx.half() == active_half_) {
+        return true;
+    }
+
+    // If we have no room for this node's children, we must exit this iteration and flip the tree
+    auto &active_half = halves_[active_half_];
+    if (!active_half.has_room_for(node.num_children)) {
+        return false;
+    }
+
+    // Copy the node's children from the other half
+    for (u16 i = 0; i < node.num_children; i++) {
+        Node child = node_at(node.first_child_idx + i); // copy from other half
+        child.parent_idx = idx;              // rebind to this half
+        active_half.push_node(child);
+    }
+    node.first_child_idx = NodeIndex(active_half.filled_size() - node.num_children, active_half_);
+
+    return true;
+}
+
+void GameTree::flip_halves() {
+    halves_[active_half_].clear_dangling();
+    const auto old_root = node_at(NodeIndex(0, active_half_));
+    active_half_ = TreeHalf::Index(!static_cast<u8>(active_half_));
+    halves_[active_half_].clear();
+    halves_[active_half_].push_node(old_root);
 }
 
 } // namespace search

@@ -27,7 +27,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         const auto [node, success] = tree.select_and_expand_node();
         // Stop searching if we can't add any more nodes to the tree
         if (!success) {
-            break;
+            continue;
         }
         tree.backpropagate_score(tree.simulate_node(node), node);
 
@@ -52,6 +52,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
     if (verbosity != Verbosity::NONE) {
         write_info(tree, iterations, true);
     }
+
     num_iterations_ = iterations;
 }
 
@@ -59,13 +60,12 @@ void Thread::thread_loop() {
     // TODO: this shit
 }
 
-void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
-    const auto &node = tree.node_at(node_idx);
-    if (node.terminal() || !node.expanded()) {
+void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree) {
+    if (node.terminal() || !node.expanded() || node.first_child_idx.half() != tree.root().first_child_idx.half()) {
         return;
     }
 
-    const auto get_child_score = [&](u32 child_idx) {
+    const auto get_child_score = [&](NodeIndex child_idx) {
         const f64 MATE_SCORE = 1000.0;
         const Node &child = tree.node_at(child_idx);
         switch (child.terminal_state.flag()) {
@@ -78,7 +78,7 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
         }
     };
 
-    u32 best_child_idx = node.first_child_idx;
+    NodeIndex best_child_idx = node.first_child_idx;
     for (u16 i = 0; i < node.num_children; ++i) {
         if (get_child_score(node.first_child_idx + i) < get_child_score(best_child_idx)) {
             best_child_idx = node.first_child_idx + i;
@@ -86,11 +86,11 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
     }
 
     pv.push_back(tree.node_at(best_child_idx).move);
-    extract_pv_internal(pv, best_child_idx, tree);
+    extract_pv_internal(pv, tree.node_at(best_child_idx), tree);
 }
 
 void extract_pv(std::vector<Move> &pv, GameTree &tree) {
-    extract_pv_internal(pv, 0, tree);
+    extract_pv_internal(pv, tree.root(), tree);
 }
 
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
