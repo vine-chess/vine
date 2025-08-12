@@ -168,7 +168,7 @@ struct Node {
     NodeIndex first_child_idx = NodeIndex::none();
     // Number of times this node has been visited
     u32 num_visits = 0;
-    // Move that led i32o this node
+    // Move that led into this node
     Move move = Move::null();
     // Number of legal moves this node has
     u16 num_children = 0;

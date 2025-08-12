@@ -83,33 +83,25 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
     while (true) {
         Node &node = node_at(idx);
 
-        // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
-        // might have been bad enough that this node is likely to not get selected again
-        if (node.num_children == 0) {
-            if (!expand_node(idx)) {
-                flip_halves();
-                //  std::cout << "flipping!";
-                board_.undo_n_moves(nodes_in_path_);
-                return {0, false};
-            }
-        }
-
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited()) {
             sum_depths_ += nodes_in_path_ + 1;
             return {idx, true};
         }
 
-        if (!fetch_children(idx)) {
-            //std::cout << "keeps happening lol?\n";
-            ok = true;
+        // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
+        // might have been bad enough that this node is likely to not get selected again
+        if (!node.expanded()) {
+            if (!expand_node(idx)) {
+                flip_halves();
+                board_.undo_n_moves(nodes_in_path_);
+                return {0, false};
+            }
+        } else if (!fetch_children(idx)) {
             flip_halves();
-            flipped_set = true;
             board_.undo_n_moves(nodes_in_path_);
             return {0, false};
         }
-
-        //const bool q_declining = idx != 0 && (1.0 - node_at(node.parent_idx).q()) - node.q() > 0.05;
 
         NodeIndex best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
@@ -118,13 +110,13 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
             // Track the child with the highest PUCT score
             const f64 child_score =
                 compute_puct(node, child_node, child_node.policy_score,
-                             idx == NodeIndex(0, active_half_) ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
+                             idx == NodeIndex(0, active_half_) ? ROOT_EXPLORATION_CONSTANT
+                                                               : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
             }
         }
-       // if (ok) std::cout << idx.index() << best_child_idx.index() << std::endl;
 
         // Keep descending through the game nodes_ until we find a suitable node to expand
         idx = best_child_idx, ++nodes_in_path_;
@@ -169,9 +161,6 @@ void GameTree::compute_policy(NodeIndex idx) {
 
 bool GameTree::expand_node(NodeIndex idx) {
     auto &node = node_at(idx);
-    if (node.expanded() || node.terminal()) {
-        return true;
-    }
 
     // We should only be expanding when the number of visits is one
     // This is due to the optimization of not expanding nodes whose children we don't know we'll need
@@ -291,7 +280,7 @@ bool GameTree::fetch_children(NodeIndex idx) {
     // Copy the node's children from the other half
     for (u16 i = 0; i < node.num_children; i++) {
         Node child = node_at(node.first_child_idx + i); // copy from other half
-        child.parent_idx = idx;              // rebind to this half
+        child.parent_idx = idx;                         // rebind to this half
         active_half.push_node(child);
     }
     node.first_child_idx = NodeIndex(active_half.filled_size() - node.num_children, active_half_);
@@ -311,6 +300,5 @@ void GameTree::flip_halves() {
     halves_[active_half_].clear();
     halves_[active_half_].push_node(old_root);
 }
-
 
 } // namespace search
