@@ -21,7 +21,7 @@ class TreeHalf {
         Index &operator=(const Index &) noexcept = default;
 
         [[nodiscard]] constexpr Index operator~() const noexcept {
-            return Index(static_cast<u8>(value_ ^ 0x1u));
+            return {static_cast<u8>(value_ ^ 0x1u)};
         }
 
         [[nodiscard]] constexpr bool operator==(const Index &other) const noexcept {
@@ -36,10 +36,10 @@ class TreeHalf {
         }
 
         [[nodiscard]] static constexpr Index lower() noexcept {
-            return Index(LOWER);
+            return {LOWER};
         }
         [[nodiscard]] static constexpr Index upper() noexcept {
-            return Index(UPPER);
+            return {UPPER};
         }
 
       private:

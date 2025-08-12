@@ -113,8 +113,8 @@ class NodeIndex {
     [[nodiscard]] constexpr u32 index() const noexcept {
         return packed_ & INDEX_MASK;
     }
-    [[nodiscard]] constexpr TreeHalf::Index half() const noexcept {
-        return TreeHalf::Index((packed_ & HALF_MASK) >> INDEX_BITS);
+    [[nodiscard]] constexpr u8 half() const noexcept {
+        return static_cast<u8>((packed_ & HALF_MASK) >> INDEX_BITS);
     }
 
     NodeIndex &operator=(const NodeIndex &) = default;
