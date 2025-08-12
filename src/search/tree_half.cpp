@@ -29,7 +29,7 @@ void TreeHalf::clear_dangling_references() {
     }
 }
 
-void TreeHalf::push_node(const Node &node) {
+void TreeHalf::push_node(const Node &&node) {
     nodes_.push_back(node);
 }
 
