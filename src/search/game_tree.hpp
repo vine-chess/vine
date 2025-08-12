@@ -16,6 +16,8 @@ class TreeHalf {
     TreeHalf(Index our_half) : our_half_(our_half) {}
 
     void set_node_capacity(usize capacity) {
+        nodes_.clear();
+        nodes_.shrink_to_fit();
         nodes_.reserve(capacity);
     }
 

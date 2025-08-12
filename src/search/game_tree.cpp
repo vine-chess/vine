@@ -83,23 +83,22 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
     while (true) {
         Node &node = node_at(idx);
 
-        // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
-        // might have been bad enough that this node is likely to not get selected again
-        if (node.num_visits > 0) {
-            if (!expand_node(idx)) {
-                flip_halves();
-              //  std::cout << "flipping!";
-                board_.undo_n_moves(nodes_in_path_);
-                return {0, false};
-            }
-        }
-
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited()) {
             sum_depths_ += nodes_in_path_ + 1;
             return {idx, true};
         }
 
+        // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
+        // might have been bad enough that this node is likely to not get selected again
+        if (node.num_children == 0) {
+            if (!expand_node(idx)) {
+                flip_halves();
+                //  std::cout << "flipping!";
+                board_.undo_n_moves(nodes_in_path_);
+                return {0, false};
+            }
+        }
 
         if (!fetch_children(idx)) {
             //std::cout << "keeps happening lol?\n";
@@ -119,7 +118,7 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
             // Track the child with the highest PUCT score
             const f64 child_score =
                 compute_puct(node, child_node, child_node.policy_score,
-                             idx == 0 ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
+                             idx == NodeIndex(0, active_half_) ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
@@ -139,7 +138,7 @@ void GameTree::compute_policy(NodeIndex idx) {
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(board_.state());
 
-    const bool root_node = idx == 0;
+    const bool root_node = idx == NodeIndex(0, active_half_);
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
 
     f32 highest_policy = -std::numeric_limits<f32>::max();
@@ -250,7 +249,6 @@ void GameTree::backpropagate_terminal_state(NodeIndex idx, TerminalState child_t
 
 void GameTree::backpropagate_score(f64 score, NodeIndex idx) {
     auto child_terminal_state = TerminalState::none();
-    u64 wtf = 0;
     while (!idx.is_none()) {
         // A node's score is the average of all of its children's score
         auto &node = node_at(idx);
@@ -272,7 +270,6 @@ void GameTree::backpropagate_score(f64 score, NodeIndex idx) {
         idx = node.parent_idx;
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
-        if (++wtf >= 50) std::cout << idx.index() << " " << (u32)idx.half() << "  " << (u32)active_half_ << std::endl;
     }
     // Undo all the moves that were selected
     board_.undo_n_moves(nodes_in_path_);
