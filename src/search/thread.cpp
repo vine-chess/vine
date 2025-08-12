@@ -61,7 +61,7 @@ void Thread::thread_loop() {
 }
 
 void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree) {
-    if (node.terminal() || !node.expanded()) {
+    if (node.terminal() || !node.expanded() || node.first_child_idx.half() != tree.root().first_child_idx.half()) {
         return;
     }
 
