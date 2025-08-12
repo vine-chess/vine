@@ -55,7 +55,7 @@ class TreeHalf {
 
     void clear();
     void clear_dangling_references();
-    void push_node(const Node &&node);
+    void push_node(Node &&node);
 
     [[nodiscard]] NodeIndex root_idx() const;
     [[nodiscard]] Node &root_node();
