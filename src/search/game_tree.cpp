@@ -35,6 +35,7 @@ void GameTree::new_search(const Board &root_board) {
     for (auto &half : halves_) {
         half.clear();
     }
+    active_half_ = TreeHalf::Index::LOWER;
     active_half().push_node(Node{});
     vine_assert(expand_node(active_half().root_idx()));
 }
