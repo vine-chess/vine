@@ -30,12 +30,11 @@ void TreeHalf::clear_dangling_references() {
 }
 
 void TreeHalf::push_node(const Node &node) {
-    vine_assert(has_room_for(1));
     nodes_.push_back(node);
 }
 
 NodeIndex TreeHalf::root_idx() const {
-    return NodeIndex(0, our_half_);
+    return {0, our_half_};
 }
 
 Node& TreeHalf::root_node() {

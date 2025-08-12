@@ -12,7 +12,7 @@ bool Node::visited() const {
 }
 
 bool Node::expanded() const {
-    return !first_child_idx.is_none();
+    return num_children != 0;
 }
 
 f64 Node::q() const {
