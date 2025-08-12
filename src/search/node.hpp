@@ -165,15 +165,8 @@ class NodeIndex {
     }
 
   private:
-    static constexpr u32 clamp_index(u32 i) noexcept {
-        return i & INDEX_MASK;
-    }
-    static constexpr u8 clamp_half(u8 h) noexcept {
-        return static_cast<u8>(h & 0x1u);
-    }
-
     static constexpr u32 pack(u32 index, u8 half) noexcept {
-        return clamp_index(index) | (static_cast<u32>(clamp_half(half)) << INDEX_BITS);
+        return index | (static_cast<u32>(half) << INDEX_BITS);
     }
 
     u32 packed_{pack(NONE_INDEX, 0)};
