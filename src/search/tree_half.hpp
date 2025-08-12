@@ -55,13 +55,14 @@ class TreeHalf {
 
     void clear();
     void clear_dangling_references();
-    void push_node(Node &&node);
+    void push_node(const Node &node);
 
     [[nodiscard]] NodeIndex root_idx() const;
     [[nodiscard]] Node &root_node();
     [[nodiscard]] const Node &root_node() const;
     [[nodiscard]] Node &operator[](NodeIndex idx);
     [[nodiscard]] const Node &operator[](NodeIndex idx) const;
+    [[nodiscard]] NodeIndex construct_idx(u32 idx) const noexcept;
 
   private:
     std::vector<Node> nodes_;

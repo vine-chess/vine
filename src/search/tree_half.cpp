@@ -29,8 +29,8 @@ void TreeHalf::clear_dangling_references() {
     }
 }
 
-void TreeHalf::push_node(Node &&node) {
-    nodes_.push_back(std::move(node));
+void TreeHalf::push_node(const Node &node) {
+    nodes_.push_back(node);
 }
 
 NodeIndex TreeHalf::root_idx() const {
@@ -51,6 +51,10 @@ Node &TreeHalf::operator[](NodeIndex idx) {
 
 const Node &TreeHalf::operator[](NodeIndex idx) const {
     return nodes_[idx.index()];
+}
+
+NodeIndex TreeHalf::construct_idx(u32 idx) const noexcept {
+    return {idx, our_half_};
 }
 
 void TreeHalf::clear() {

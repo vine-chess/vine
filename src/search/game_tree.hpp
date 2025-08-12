@@ -27,7 +27,7 @@ class GameTree {
     // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
     // Expansion is the second stage of an iteration. However, due to memory-usage optimization we perform expansion
     // whenever a node is selected twice, which is handled in the selection stage.
-    [[nodiscard]] std::pair<NodeIndex, bool> select_and_expand_node();
+    [[nodiscard]] NodeIndex select_and_expand_node();
     // This function computes the policy scores for all children of a node that is already expanded. The policy score is
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
     void compute_policy(NodeIndex node_idx);
@@ -47,6 +47,8 @@ class GameTree {
     [[nodiscard]] bool expand_node(NodeIndex node_idx);
 
     void flip_halves();
+
+    [[nodiscard]] bool fetch_children(NodeIndex node_idx);
 
     [[nodiscard]] TreeHalf &active_half();
     [[nodiscard]] const TreeHalf &active_half() const;
