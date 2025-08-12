@@ -97,7 +97,7 @@ class NodeIndex {
     static constexpr u32 HALF_MASK = 1u << INDEX_BITS;
     static constexpr u32 NONE_INDEX = INDEX_MASK;
 
-    constexpr NodeIndex(u32 index = NONE_INDEX, u8 half = 0) noexcept : packed_(pack(index, half)) {}
+    constexpr NodeIndex(u32 index = NONE_INDEX, TreeHalf::Index half = 0) noexcept : packed_(pack(index, half)) {}
 
     static constexpr NodeIndex none() noexcept {
         return NodeIndex(NONE_INDEX, 0);
@@ -113,7 +113,7 @@ class NodeIndex {
     [[nodiscard]] constexpr u32 index() const noexcept {
         return packed_ & INDEX_MASK;
     }
-    [[nodiscard]] constexpr u8 half() const noexcept {
+    [[nodiscard]] constexpr TreeHalf::Index half() const noexcept {
         return static_cast<u8>((packed_ & HALF_MASK) >> INDEX_BITS);
     }
 
@@ -165,7 +165,7 @@ class NodeIndex {
     }
 
   private:
-    static constexpr u32 pack(u32 index, u8 half) noexcept {
+    static constexpr u32 pack(u32 index, TreeHalf::Index half) noexcept {
         return index | (static_cast<u32>(half) << INDEX_BITS);
     }
 
