@@ -143,7 +143,7 @@ Move Board::create_move(std::string_view uci_move) const {
         }
     }
 
-    throw std::runtime_error("cannot create illegal move");
+    throw std::runtime_error("cannot create illegal move " + std::string(uci_move));
 }
 
 void Board::make_move(Move move) {
