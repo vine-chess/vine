@@ -58,6 +58,7 @@ Node &GameTree::node_at(NodeIndex idx) {
     return sum_depths_;
 }
 static bool flipped_set = false;
+static bool ok = false;
 
 std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
     // Lambda to compute the PUCT score for a given child node in MCTS
@@ -84,10 +85,10 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
 
         // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
         // might have been bad enough that this node is likely to not get selected again
-        if (node.num_visits == 1) {
+        if (node.num_visits > 0) {
             if (!expand_node(idx)) {
                 flip_halves();
-                std::cout << "flipping!";
+              //  std::cout << "flipping!";
                 board_.undo_n_moves(nodes_in_path_);
                 return {0, false};
             }
@@ -99,8 +100,10 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
             return {idx, true};
         }
 
+
         if (!fetch_children(idx)) {
-            std::cout << "keeps happening lol?\n";
+            //std::cout << "keeps happening lol?\n";
+            ok = true;
             flip_halves();
             flipped_set = true;
             board_.undo_n_moves(nodes_in_path_);
@@ -122,6 +125,7 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
                 best_child_score = child_score;
             }
         }
+       // if (ok) std::cout << idx.index() << best_child_idx.index() << std::endl;
 
         // Keep descending through the game nodes_ until we find a suitable node to expand
         idx = best_child_idx, ++nodes_in_path_;
@@ -172,7 +176,7 @@ bool GameTree::expand_node(NodeIndex idx) {
 
     // We should only be expanding when the number of visits is one
     // This is due to the optimization of not expanding nodes whose children we don't know we'll need
-    vine_assert(idx == 0 || node.num_visits == 1);
+    vine_assert(idx == 0 || node.num_visits > 0);
 
     if (board_.has_threefold_repetition() || board_.is_fifty_move_draw()) {
         node.terminal_state = TerminalState::draw();
@@ -191,7 +195,7 @@ bool GameTree::expand_node(NodeIndex idx) {
         return false;
     }
 
-    node.first_child_idx = halves_[active_half_].filled_size();
+    node.first_child_idx = NodeIndex(halves_[active_half_].filled_size(), active_half_);
     node.num_children = move_list.size();
 
     // Append all child nodes to the nodes with the move that leads to it
@@ -246,6 +250,7 @@ void GameTree::backpropagate_terminal_state(NodeIndex idx, TerminalState child_t
 
 void GameTree::backpropagate_score(f64 score, NodeIndex idx) {
     auto child_terminal_state = TerminalState::none();
+    u64 wtf = 0;
     while (!idx.is_none()) {
         // A node's score is the average of all of its children's score
         auto &node = node_at(idx);
@@ -267,6 +272,7 @@ void GameTree::backpropagate_score(f64 score, NodeIndex idx) {
         idx = node.parent_idx;
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
+        if (++wtf >= 50) std::cout << idx.index() << " " << (u32)idx.half() << "  " << (u32)active_half_ << std::endl;
     }
     // Undo all the moves that were selected
     board_.undo_n_moves(nodes_in_path_);
@@ -297,11 +303,17 @@ bool GameTree::fetch_children(NodeIndex idx) {
 }
 
 void GameTree::flip_halves() {
+    // Copy the *intact* root first
+    const Node old_root = node_at(NodeIndex(0, active_half_));
+
+    // Now it’s safe to clean dangling links in the old half
     halves_[active_half_].clear_dangling();
-    const auto old_root = node_at(NodeIndex(0, active_half_));
+
+    // Flip
     active_half_ = TreeHalf::Index(!static_cast<u8>(active_half_));
     halves_[active_half_].clear();
     halves_[active_half_].push_node(old_root);
 }
+
 
 } // namespace search

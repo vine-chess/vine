@@ -94,70 +94,53 @@ class TerminalState {
 
 class NodeIndex {
   public:
-    NodeIndex(u32 index, u8 half = 0) {
-        index_bits = index;
-        half_bits = half;
+    static constexpr u32 NONE_INDEX = (1u << 31) - 1;
+
+    constexpr NodeIndex(u32 index = NONE_INDEX, u8 half = 0) noexcept
+        : index_bits(index), half_bits(half) {}
+
+    static constexpr NodeIndex none() noexcept { return NodeIndex(NONE_INDEX, 0); }
+
+    [[nodiscard]] constexpr bool is_none() const noexcept { return index_bits == NONE_INDEX; }
+
+    // Avoid implicit integer conversion — it causes ambiguity.
+    // If you really want it, make it explicit:
+    explicit constexpr operator u32() const noexcept { return index_bits; }
+
+    // Proper equality/inequality, const and noexcept, return bool by value.
+    [[nodiscard]] constexpr bool operator==(const NodeIndex& other) const noexcept {
+        return index_bits == other.index_bits && half_bits == other.half_bits;
+    }
+    [[nodiscard]] constexpr bool operator!=(const NodeIndex& other) const noexcept {
+        return !(*this == other);
     }
 
-    static NodeIndex none() {
-        return NodeIndex((1u << 31) - 1);
-    }
+    // No operator==(u32). Compare to NodeIndex::none() or use is_none().
 
-    [[nodiscard]] bool is_none() const {
-        return index_bits == none();
-    }
+    // Assign/modify
+    NodeIndex& operator=(const NodeIndex&) = default;
 
-    [[nodiscard]] operator u32() const {
-        return index_bits;
-    }
+    // Remove this; it leaves half_bits stale and creates confusion.
+    // NodeIndex& operator=(i32) = delete;
 
-    NodeIndex &operator=(const NodeIndex &other) {
-        index_bits = other.index_bits;
-        half_bits = other.half_bits;
-        return *this;
-    }
+    [[nodiscard]] constexpr u32 index() const noexcept { return index_bits; }
+    [[nodiscard]] constexpr u8  half()  const noexcept { return half_bits; }
 
-    NodeIndex &operator=(i32 index) {
-        index_bits = index;
-        return *this;
-    }
-
-    [[nodiscard]] u32 index() const {
-        return index_bits;
-    }
-
-    [[nodiscard]] u8 half() const {
-        return half_bits;
-    }
-
-    [[nodiscard]] NodeIndex &operator+=(i32 delta) {
+    NodeIndex& operator+=(i32 delta) noexcept {
         index_bits = static_cast<u32>(static_cast<i32>(index_bits) + delta);
         return *this;
     }
+    NodeIndex& operator-=(i32 delta) noexcept { return (*this += -delta); }
 
-    [[nodiscard]] NodeIndex &operator-=(i32 delta) {
-        return (*this += -delta);
-    }
+    friend constexpr NodeIndex operator+(NodeIndex n, i32 d) noexcept { return n += d; }
+    friend constexpr NodeIndex operator+(i32 d, NodeIndex n) noexcept { return n += d; }
+    friend constexpr NodeIndex operator-(NodeIndex n, i32 d) noexcept { return n -= d; }
 
-    [[nodiscard]] friend NodeIndex operator+(NodeIndex n, i32 delta) {
-        return n += delta;
-    }
-
-    [[nodiscard]] friend NodeIndex operator+(i32 delta, NodeIndex n) {
-        return n += delta;
-    }
-
-    [[nodiscard]] friend NodeIndex operator-(NodeIndex n, i32 delta) {
-        return n -= delta;
-    }
-
-    [[nodiscard]] friend NodeIndex operator+(const NodeIndex &a, const NodeIndex &b) {
+    friend constexpr NodeIndex operator+(const NodeIndex& a, const NodeIndex& b) {
         assert(a.half() == b.half());
-        u32 sum = a.index() + b.index();
-        return NodeIndex(sum, a.half());
+        return NodeIndex(a.index() + b.index(), a.half());
     }
-
-    [[nodiscard]] friend NodeIndex operator-(const NodeIndex &a, const NodeIndex &b) {
+    friend constexpr NodeIndex operator-(const NodeIndex& a, const NodeIndex& b) {
         assert(a.half() == b.half());
         assert(a.index() >= b.index());
         return NodeIndex(a.index() - b.index(), a.half());
@@ -167,11 +150,12 @@ class NodeIndex {
     union {
         struct {
             u32 index_bits : 31;
-            u32 half_bits : 1;
+            u32 half_bits  : 1;
         };
         u32 bits_;
     };
 };
+
 
 struct Node {
     // Sum of all scores that have been propagated back to this node
