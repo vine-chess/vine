@@ -83,12 +83,6 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
     while (true) {
         Node &node = node_at(idx);
 
-        // Return if we cannot go any further down the tree
-        if (node.terminal() || !node.visited()) {
-            sum_depths_ += nodes_in_path_ + 1;
-            return {idx, true};
-        }
-
         // We limit expansion to the second visit for non-root nodes since the value of the node from the first visit
         // might have been bad enough that this node is likely to not get selected again
         if (node.num_children == 0) {
@@ -98,6 +92,12 @@ std::pair<NodeIndex, bool> GameTree::select_and_expand_node() {
                 board_.undo_n_moves(nodes_in_path_);
                 return {0, false};
             }
+        }
+
+        // Return if we cannot go any further down the tree
+        if (node.terminal() || !node.visited()) {
+            sum_depths_ += nodes_in_path_ + 1;
+            return {idx, true};
         }
 
         if (!fetch_children(idx)) {
