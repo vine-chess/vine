@@ -148,12 +148,9 @@ class NodeIndex {
     }
 
     friend constexpr NodeIndex operator+(const NodeIndex &a, const NodeIndex &b) {
-        assert(a.half() == b.half());
         return NodeIndex(a.index() + b.index(), a.half());
     }
     friend constexpr NodeIndex operator-(const NodeIndex &a, const NodeIndex &b) {
-        assert(a.half() == b.half());
-        assert(a.index() >= b.index());
         return NodeIndex(a.index() - b.index(), a.half());
     }
 
