@@ -7,6 +7,9 @@ namespace search {
 TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
+    clear();
+    nodes_.clear();
+    nodes_.shrink_to_fit();
     nodes_.resize(capacity);
 }
 

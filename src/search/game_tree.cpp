@@ -99,7 +99,7 @@ NodeIndex GameTree::select_and_expand_node() {
 
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited() || !node.expanded() && !node.visited_since_flip) {
-            sum_depths_ += nodes_in_path_ + 1, node.visited_since_flip = true;
+            sum_depths_ += nodes_in_path_ + 1;
             return node_idx;
         }
 
@@ -255,6 +255,7 @@ void GameTree::backpropagate_score(f64 score, NodeIndex node_idx) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
+        node.visited_since_flip = true;
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
