@@ -22,6 +22,8 @@ GameTree::GameTree() {
 }
 
 void GameTree::set_node_capacity(usize node_capacity) {
+    nodes_.clear();
+    nodes_.shrink_to_fit();
     nodes_.reserve(node_capacity);
 }
 
