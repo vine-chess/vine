@@ -66,6 +66,7 @@ class TreeHalf {
 
   private:
     std::vector<Node> nodes_;
+    usize filled_size_;
     Index our_half_;
 };
 

@@ -4,16 +4,14 @@
 
 namespace search {
 
-TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half) {}
+TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
-    nodes_.clear();
-    nodes_.shrink_to_fit();
-    nodes_.reserve(capacity);
+    nodes_.resize(capacity);
 }
 
 usize TreeHalf::filled_size() const {
-    return nodes_.size();
+    return filled_size_;
 }
 
 bool TreeHalf::has_room_for(usize n) const {
@@ -30,7 +28,7 @@ void TreeHalf::clear_dangling_references() {
 }
 
 void TreeHalf::push_node(const Node &node) {
-    nodes_.push_back(node);
+    nodes_[filled_size_++] = node;
 }
 
 NodeIndex TreeHalf::root_idx() const {
@@ -58,7 +56,7 @@ NodeIndex TreeHalf::construct_idx(u32 idx) const noexcept {
 }
 
 void TreeHalf::clear() {
-    nodes_.clear();
+    filled_size_ = 0;
 }
 
 } // namespace search
