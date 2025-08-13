@@ -32,7 +32,7 @@ void GameTree::set_node_capacity(usize node_capacity) {
 void GameTree::new_search(const Board &root_board) {
     board_ = root_board;
     sum_depths_ = 0;
-    flip_halves();
+    active_half().clear();
     active_half().push_node(Node{});
     vine_assert(expand_node(active_half().root_idx()));
 }
