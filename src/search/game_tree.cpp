@@ -292,6 +292,7 @@ void GameTree::backpropagate_score(f64 score, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         auto new_child = node_at(node.first_child_idx + i);
         new_child.parent_idx = node_idx;
+        new_child.visited_since_flip = false;
         active_half().push_node(new_child);
     }
     node.first_child_idx = active_half().construct_idx(active_half().filled_size() - node.num_children);
