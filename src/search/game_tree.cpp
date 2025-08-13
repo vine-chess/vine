@@ -98,7 +98,7 @@ NodeIndex GameTree::select_and_expand_node() {
         }
 
         // Return if we cannot go any further down the tree
-        if (node.terminal() || !node.visited()) {
+        if (node.terminal() || !node.visited() || !node.expanded() && !node.visited_since_flip) {
             sum_depths_ += nodes_in_path_ + 1, node.visited_since_flip = true;
             return node_idx;
         }
