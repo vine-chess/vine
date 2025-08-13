@@ -108,7 +108,7 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
               << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
-              << (root.terminal_state.is_loss() ? "-" : "") << score << " pv " << pv_stream.str() << std::endl;
+              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps " << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }

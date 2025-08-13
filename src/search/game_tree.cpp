@@ -57,6 +57,10 @@ const Node &GameTree::node_at(NodeIndex idx) const {
     return sum_depths_;
 }
 
+u64 GameTree::tree_usage() const {
+    return tree_usage_;
+}
+
 NodeIndex GameTree::select_and_expand_node() {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
@@ -206,6 +210,8 @@ bool GameTree::expand_node(NodeIndex node_idx) {
         });
     }
 
+    tree_usage_ += node.num_children * sizeof(Node);
+
     // Compute and store policy values for all the child nodes
     compute_policy(node_idx);
 
@@ -276,7 +282,7 @@ void GameTree::backpropagate_score(f64 score, NodeIndex node_idx) {
     board_.undo_n_moves(nodes_in_path_);
 }
 
-[[nodiscard]] bool GameTree::fetch_children(NodeIndex node_idx) {
+bool GameTree::fetch_children(NodeIndex node_idx) {
     auto &node = node_at(node_idx);
     // Don't do anything if the node's children already exist in our half
     if (node.first_child_idx.half() == active_half_) {

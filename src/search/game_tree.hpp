@@ -22,6 +22,7 @@ class GameTree {
     [[nodiscard]] Node &root();
 
     [[nodiscard]] u32 sum_depths() const;
+    [[nodiscard]] u64 tree_usage() const;
 
     // Stage 1/2: Selection & Expansion
     // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
@@ -54,6 +55,7 @@ class GameTree {
     [[nodiscard]] const TreeHalf &active_half() const;
 
     std::vector<TreeHalf> halves_;
+    u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;
     Board board_;
     u32 sum_depths_ = 0;
