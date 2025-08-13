@@ -20,6 +20,7 @@ bool TreeHalf::has_room_for(usize n) const {
 
 void TreeHalf::clear_dangling_references() {
     for (auto &node : nodes_) {
+        node.visited_since_flip = false;
         if (node.first_child_idx.half() != our_half_) {
             node.first_child_idx = NodeIndex::none();
             node.num_children = 0;

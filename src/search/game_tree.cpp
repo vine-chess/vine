@@ -90,7 +90,7 @@ NodeIndex GameTree::select_and_expand_node() {
 
         // We don't expand on the first visit for non-root nodes since the value of the node from the first visit
         // might have been bad enough that this node is likely to not get selected again
-        if (node.num_visits > 0) {
+        if (node.num_visits == 1 || (!node.expanded() && node.visited_since_flip)) {
             if (!expand_node(node_idx)) {
                 flip_and_restart();
                 continue;
@@ -99,7 +99,7 @@ NodeIndex GameTree::select_and_expand_node() {
 
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited()) {
-            sum_depths_ += nodes_in_path_ + 1;
+            sum_depths_ += nodes_in_path_ + 1, node.visited_since_flip = true;
             return node_idx;
         }
 

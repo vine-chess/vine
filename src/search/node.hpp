@@ -180,6 +180,8 @@ struct Node {
     NodeIndex first_child_idx = NodeIndex::none();
     // Number of times this node has been visited
     u32 num_visits = 0;
+    // If this node has been visited since it was flipped
+    u8 visited_since_flip = false;
     // Move that led into this node
     Move move = Move::null();
     // Number of legal moves this node has
