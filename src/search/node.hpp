@@ -120,7 +120,9 @@ class NodeIndex {
     NodeIndex &operator=(const NodeIndex &) = default;
 
     NodeIndex &operator+=(i32 delta) noexcept {
-        packed_ = pack(static_cast<u32>(static_cast<i32>(index()) + delta), half());
+        u32 i = (packed_ & INDEX_MASK);
+        i = static_cast<u32>(static_cast<i32>(i) + delta);
+        packed_ = (packed_ & HALF_MASK) | (i & INDEX_MASK);
         return *this;
     }
     NodeIndex &operator-=(i32 delta) noexcept {
@@ -134,24 +136,15 @@ class NodeIndex {
         return !(*this == other);
     }
 
-    friend constexpr NodeIndex operator+(NodeIndex n, i32 d) noexcept {
-        n += d;
+    friend constexpr NodeIndex operator+(NodeIndex n, uint32_t rhs) noexcept {
+        uint32_t i = (n.packed_ & INDEX_MASK) + rhs;
+        n.packed_ = (n.packed_ & HALF_MASK) | (i & INDEX_MASK);
         return n;
     }
-    friend constexpr NodeIndex operator+(i32 d, NodeIndex n) noexcept {
-        n += d;
+    friend constexpr NodeIndex operator-(NodeIndex n, uint32_t rhs) noexcept {
+        uint32_t i = (n.packed_ & INDEX_MASK) - rhs;
+        n.packed_ = (n.packed_ & HALF_MASK) | (i & INDEX_MASK);
         return n;
-    }
-    friend constexpr NodeIndex operator-(NodeIndex n, i32 d) noexcept {
-        n -= d;
-        return n;
-    }
-
-    friend constexpr NodeIndex operator+(const NodeIndex &a, const NodeIndex &b) {
-        return NodeIndex(a.index() + b.index(), a.half());
-    }
-    friend constexpr NodeIndex operator-(const NodeIndex &a, const NodeIndex &b) {
-        return NodeIndex(a.index() - b.index(), a.half());
     }
 
     [[nodiscard]] static constexpr NodeIndex with_index(const NodeIndex &n, u32 new_index) noexcept {
