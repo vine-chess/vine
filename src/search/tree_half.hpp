@@ -2,6 +2,7 @@
 #define TREE_HALF_H
 
 #include "../util/types.hpp"
+#include "../chess/board_state.hpp"
 #include <vector>
 
 namespace search {
@@ -68,6 +69,7 @@ class TreeHalf {
     std::vector<Node> nodes_;
     usize filled_size_;
     Index our_half_;
+    u32 root_idx_;
 };
 
 } // namespace search

@@ -1,10 +1,11 @@
 #include "tree_half.hpp"
 #include "node.hpp"
 #include "../util/assert.hpp"
+#include <iostream>
 
 namespace search {
 
-TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0) {}
+TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0), root_idx_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
     clear();
@@ -34,15 +35,15 @@ void TreeHalf::push_node(const Node &node) {
 }
 
 NodeIndex TreeHalf::root_idx() const {
-    return {0, our_half_};
+    return {root_idx_, our_half_};
 }
 
 Node& TreeHalf::root_node() {
-    return nodes_[0];
+    return nodes_[root_idx_];
 }
 
 const Node& TreeHalf::root_node() const {
-    return nodes_[0];
+    return nodes_[root_idx_];
 }
 
 Node &TreeHalf::operator[](NodeIndex idx) {
@@ -59,6 +60,7 @@ NodeIndex TreeHalf::construct_idx(u32 idx) const noexcept {
 
 void TreeHalf::clear() {
     filled_size_ = 0;
+    root_idx_ = 0;
 }
 
 } // namespace search

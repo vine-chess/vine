@@ -30,10 +30,14 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
+    if (!advance_root_node(board_, root_board, root_board.last_move())) {
+        active_half().clear();
+        active_half().push_node(Node{});
+    }
+
     board_ = root_board;
     sum_depths_ = 0;
-    active_half().clear();
-    active_half().push_node(Node{});
+
     vine_assert(expand_node(active_half().root_idx()));
 }
 
@@ -319,6 +323,33 @@ void GameTree::flip_halves() {
 
 [[nodiscard]] const TreeHalf &GameTree::active_half() const {
     return halves_[active_half_];
+}
+
+bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move root_move) {
+    if (active_half().filled_size() == 0 || !root().expanded()) {
+        return false;
+    }
+
+    if (root_move == Move::null()) {
+        return old_board.state().hash_key == new_board.state().hash_key;
+    }
+
+    for (u16 i = 0; i < root().num_children; ++i) {
+        const auto child_node = node_at(root().first_child_idx + i);
+        if (child_node.move == root_move) {
+            // Ensure this move leads to the same resulting position
+            old_board.make_move(root_move);
+            if (old_board.state().hash_key != board_.state().hash_key) {
+                return false;
+            }
+
+            root() = child_node;
+            root().parent_idx = NodeIndex::none();
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } // namespace search
