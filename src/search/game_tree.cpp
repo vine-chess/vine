@@ -35,9 +35,6 @@ void GameTree::new_search(const Board &root_board) {
         active_half().push_node(Node{});
     }
 
-    board_ = root_board;
-    sum_depths_ = 0;
-
     vine_assert(expand_node(active_half().root_idx()));
 }
 
@@ -140,11 +137,11 @@ NodeIndex GameTree::select_and_expand_node() {
     }
 }
 
-void GameTree::compute_policy(NodeIndex node_idx) {
+void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     const Node &node = node_at(node_idx);
 
     // We keep track of a policy context so that we only accumulate once per node
-    const network::policy::PolicyContext ctx(board_.state());
+    const network::policy::PolicyContext ctx(state);
 
     const bool root_node = node_idx == active_half().root_idx();
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
@@ -217,7 +214,7 @@ bool GameTree::expand_node(NodeIndex node_idx) {
     tree_usage_ += node.num_children * sizeof(Node);
 
     // Compute and store policy values for all the child nodes
-    compute_policy(node_idx);
+    compute_policy(board_.state(), node_idx);
 
     return true;
 }
@@ -354,7 +351,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
             }
 
             // Re-compute the policy scores for the new root node
-            compute_policy(active_half().root_idx());
+            compute_policy(new_board.state(), active_half().root_idx());
             return true;
         }
     }
