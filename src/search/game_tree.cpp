@@ -345,6 +345,8 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
 
             root() = child_node;
             root().parent_idx = NodeIndex::none();
+
+            compute_policy(active_half().root_idx());
             return true;
         }
     }
