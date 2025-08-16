@@ -339,7 +339,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
         if (child_node.move == root_move) {
             // Ensure this move leads to the same resulting position
             old_board.make_move(root_move);
-            if (old_board.state().hash_key != board_.state().hash_key) {
+            if (old_board.state().hash_key != new_board.state().hash_key) {
                 return false;
             }
 
