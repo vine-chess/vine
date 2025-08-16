@@ -30,6 +30,9 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
+    board_ = root_board;
+    sum_depths_ = 0;
+
     if (!advance_root_node(board_, root_board, root_board.last_move())) {
         active_half().clear();
         active_half().push_node(Node{});
