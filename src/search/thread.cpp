@@ -24,11 +24,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
     u64 previous_depth = 0;
 
     while (++iterations) {
-        const auto [node, success] = tree.select_and_expand_node();
-        // Stop searching if we can't add any more nodes to the tree
-        if (!success) {
-            break;
-        }
+        const auto node = tree.select_and_expand_node();
         tree.backpropagate_score(tree.simulate_node(node), node);
 
         const u64 depth = tree.sum_depths() / iterations;
@@ -59,13 +55,12 @@ void Thread::thread_loop() {
     // TODO: this shit
 }
 
-void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
-    const auto &node = tree.node_at(node_idx);
+void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree) {
     if (node.terminal() || !node.expanded()) {
         return;
     }
 
-    const auto get_child_score = [&](u32 child_idx) {
+    const auto get_child_score = [&](NodeIndex child_idx) {
         const f64 MATE_SCORE = 1000.0;
         const Node &child = tree.node_at(child_idx);
         switch (child.terminal_state.flag()) {
@@ -78,7 +73,7 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
         }
     };
 
-    u32 best_child_idx = node.first_child_idx;
+    NodeIndex best_child_idx = node.first_child_idx;
     for (u16 i = 0; i < node.num_children; ++i) {
         if (get_child_score(node.first_child_idx + i) < get_child_score(best_child_idx)) {
             best_child_idx = node.first_child_idx + i;
@@ -86,11 +81,11 @@ void extract_pv_internal(std::vector<Move> &pv, u32 node_idx, GameTree &tree) {
     }
 
     pv.push_back(tree.node_at(best_child_idx).move);
-    extract_pv_internal(pv, best_child_idx, tree);
+    extract_pv_internal(pv, tree.node_at(best_child_idx), tree);
 }
 
 void extract_pv(std::vector<Move> &pv, GameTree &tree) {
-    extract_pv_internal(pv, 0, tree);
+    extract_pv_internal(pv, tree.root(), tree);
 }
 
 void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
@@ -113,7 +108,7 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
               << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
-              << (root.terminal_state.is_loss() ? "-" : "") << score << " pv " << pv_stream.str() << std::endl;
+              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps " << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }

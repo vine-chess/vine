@@ -44,7 +44,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file) {
             }
 
             VisitsDistribution visits_dist;
-            u32 best_child_idx = root_node.first_child_idx;
+            search::NodeIndex best_child_idx = root_node.first_child_idx;
             for (usize j = 0; j < root_node.num_children; j++) {
                 const auto &child = game_tree.node_at(root_node.first_child_idx + j);
                 visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
