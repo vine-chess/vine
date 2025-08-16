@@ -5,7 +5,7 @@
 
 namespace search {
 
-TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0), root_idx_(0) {}
+TreeHalf::TreeHalf(Index our_half) : our_half_(our_half), filled_size_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
     clear();
@@ -35,15 +35,15 @@ void TreeHalf::push_node(const Node &node) {
 }
 
 NodeIndex TreeHalf::root_idx() const {
-    return {root_idx_, our_half_};
+    return {0, our_half_};
 }
 
 Node& TreeHalf::root_node() {
-    return nodes_[root_idx_];
+    return nodes_[0];
 }
 
 const Node& TreeHalf::root_node() const {
-    return nodes_[root_idx_];
+    return nodes_[0];
 }
 
 Node &TreeHalf::operator[](NodeIndex idx) {
@@ -60,7 +60,6 @@ NodeIndex TreeHalf::construct_idx(u32 idx) const noexcept {
 
 void TreeHalf::clear() {
     filled_size_ = 0;
-    root_idx_ = 0;
 }
 
 } // namespace search

@@ -330,6 +330,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
         return false;
     }
 
+    // If we didn't make a move, check that we also didn't change positions
     if (root_move == Move::null()) {
         return old_board.state().hash_key == new_board.state().hash_key;
     }
@@ -343,12 +344,16 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
                 return false;
             }
 
+            // Copy over the new root node to the correct place
             root() = child_node;
             root().parent_idx = NodeIndex::none();
+
+            // Ensure we have the children of the new root node in the active half
             if (!fetch_children(active_half().root_idx())) {
                 return false;
             }
 
+            // Re-compute the policy scores for the new root node
             compute_policy(active_half().root_idx());
             return true;
         }
