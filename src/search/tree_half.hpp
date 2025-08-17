@@ -2,7 +2,6 @@
 #define TREE_HALF_H
 
 #include "../util/types.hpp"
-#include "../chess/board_state.hpp"
 #include <vector>
 
 namespace search {

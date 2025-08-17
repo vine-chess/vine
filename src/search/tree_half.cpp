@@ -1,7 +1,5 @@
 #include "tree_half.hpp"
 #include "node.hpp"
-#include "../util/assert.hpp"
-#include <iostream>
 
 namespace search {
 
