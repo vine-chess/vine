@@ -332,7 +332,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
 
     // If we didn't make a move, check that we also didn't change positions
     if (root_move == Move::null()) {
-        return old_board.state().hash_key == new_board.state().hash_key;
+        return old_board.state().hash_key != new_board.state().hash_key;
     }
 
     for (u16 i = 0; i < root().num_children; ++i) {
