@@ -47,4 +47,15 @@ struct BoardState {
     [[nodiscard]] std::string to_fen() const;
 };
 
+inline bool operator==(const BoardState &lhs, const BoardState &rhs) noexcept {
+    return lhs.piece_bbs == rhs.piece_bbs && lhs.side_bbs == rhs.side_bbs &&
+           lhs.piece_type_on_sq == rhs.piece_type_on_sq && lhs.side_to_move == rhs.side_to_move &&
+           lhs.en_passant_sq == rhs.en_passant_sq && lhs.fifty_moves_clock == rhs.fifty_moves_clock &&
+           lhs.ortho_pins == rhs.ortho_pins && lhs.diag_pins == rhs.diag_pins && lhs.checkers == rhs.checkers;
+}
+
+inline bool operator!=(const BoardState &lhs, const BoardState &rhs) noexcept {
+    return !(lhs == rhs);
+}
+
 #endif // BOARD_STATE_HPP

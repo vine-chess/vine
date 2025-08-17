@@ -1,10 +1,9 @@
 #include "tree_half.hpp"
 #include "node.hpp"
-#include "../util/assert.hpp"
 
 namespace search {
 
-TreeHalf::TreeHalf(Index our_half) : nodes_(), our_half_(our_half), filled_size_(0) {}
+TreeHalf::TreeHalf(Index our_half) : our_half_(our_half), filled_size_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
     clear();

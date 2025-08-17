@@ -31,7 +31,7 @@ class GameTree {
     [[nodiscard]] NodeIndex select_and_expand_node();
     // This function computes the policy scores for all children of a node that is already expanded. The policy score is
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
-    void compute_policy(NodeIndex node_idx);
+    void compute_policy(const BoardState &state, NodeIndex node_idx);
 
     // Stage 3: Simulation
     // Calls out to the value head to return a score for the node that is being simulated.
@@ -53,6 +53,8 @@ class GameTree {
 
     [[nodiscard]] TreeHalf &active_half();
     [[nodiscard]] const TreeHalf &active_half() const;
+
+    [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
     std::vector<TreeHalf> halves_;
     u64 tree_usage_ = 0;

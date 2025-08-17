@@ -30,10 +30,14 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
+    if (!advance_root_node(board_, root_board, active_half().root_idx())) {
+        active_half().clear();
+        active_half().push_node(Node{});
+    }
+
     board_ = root_board;
     sum_depths_ = 0;
-    active_half().clear();
-    active_half().push_node(Node{});
+
     vine_assert(expand_node(active_half().root_idx()));
 }
 
@@ -136,11 +140,11 @@ NodeIndex GameTree::select_and_expand_node() {
     }
 }
 
-void GameTree::compute_policy(NodeIndex node_idx) {
+void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     const Node &node = node_at(node_idx);
 
     // We keep track of a policy context so that we only accumulate once per node
-    const network::policy::PolicyContext ctx(board_.state());
+    const network::policy::PolicyContext ctx(state);
 
     const bool root_node = node_idx == active_half().root_idx();
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
@@ -213,7 +217,7 @@ bool GameTree::expand_node(NodeIndex node_idx) {
     tree_usage_ += node.num_children * sizeof(Node);
 
     // Compute and store policy values for all the child nodes
-    compute_policy(node_idx);
+    compute_policy(board_.state(), node_idx);
 
     return true;
 }
@@ -319,6 +323,39 @@ void GameTree::flip_halves() {
 
 [[nodiscard]] const TreeHalf &GameTree::active_half() const {
     return halves_[active_half_];
+}
+
+bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIndex start) {
+    if (active_half().filled_size() == 0) {
+        return false;
+    }
+
+    const auto &node = node_at(start);
+    if (!node.expanded()) {
+        return false;
+    }
+
+    for (u16 i = 0; i < node.num_children; ++i) {
+        const auto child_node = node_at(node.first_child_idx + i);
+        // Ensure this move leads to the same resulting position
+        old_board.make_move(child_node.move);
+        if (old_board.state() == new_board.state()) {
+            // Copy over the new root node to the correct place
+            root() = child_node;
+            root().parent_idx = NodeIndex::none();
+
+            // Re-compute the policy scores for the new root node
+            compute_policy(new_board.state(), active_half().root_idx());
+            return true;
+        }
+        // Check two moves deep from the root position
+        if (start == active_half().root_idx() && advance_root_node(old_board, new_board, node.first_child_idx + i)) {
+            return true;
+        }
+        old_board.undo_move();
+    }
+
+    return old_board.state().hash_key == new_board.state().hash_key;
 }
 
 } // namespace search
