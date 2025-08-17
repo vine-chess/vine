@@ -339,14 +339,10 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board) {
             root() = child_node;
             root().parent_idx = NodeIndex::none();
 
-            // Ensure we have the children of the new root node in the active half
-            if (!fetch_children(active_half().root_idx())) {
-                return false;
-            }
+            exit(0);
 
             // Re-compute the policy scores for the new root node
             compute_policy(new_board.state(), active_half().root_idx());
-            exit(0);
             return true;
         }
         old_board.undo_move();
