@@ -1,5 +1,4 @@
 EXE = vine
-
 FILES = $(shell find src -name '*.cpp')
 
 OBJS = $(FILES:.cpp=.o)
@@ -9,6 +8,10 @@ OPTIMIZE ?= -O3 -flto
 FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
+
+ifeq ($(DATAGEN), 1)
+	FLAGS += -DDATAGEN
+endif
 
 ifdef EVALFILE
 	FLAGS += -DEVALFILE=\"$(EVALFILE)\"
@@ -42,6 +45,9 @@ else ifeq ($(findstring avx2, $(build)), avx2)
 else ifeq ($(findstring avx512, $(build)), avx512)
 	FLAGS += $(MAVX512)
 endif
+
+datagen: FLAGS += -DDATAGEN
+datagen: all
 
 %.o: %.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
