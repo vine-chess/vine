@@ -221,9 +221,12 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::exit(0);
         } else if (parts[0] == "genfens") {
             handle_genfens(out, parts);
-        } else if (parts[0] == "datagen") {
+        }
+#ifdef DATAGEN
+        else if (parts[0] == "datagen") {
             handle_datagen(out, parts);
         }
+#endif
     }
 }
 
