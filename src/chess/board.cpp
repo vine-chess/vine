@@ -79,8 +79,6 @@ Board::Board(std::string_view fen) {
     stream >> hmc;
     state().fifty_moves_clock = static_cast<u8>(hmc);
     state().compute_masks();
-
-    last_move_ = Move::null();
 }
 
 Board::Board(const BoardState &board_state) {
@@ -148,13 +146,8 @@ Move Board::create_move(std::string_view uci_move) const {
     throw std::runtime_error("cannot create illegal move");
 }
 
-Move Board::last_move() const {
-    return last_move_;
-}
-
 void Board::make_move(Move move) {
     history_.push_back(state());
-    last_move_ = move;
 
     const u8 old_castle_rights_mask = state().castle_rights.to_mask();
 

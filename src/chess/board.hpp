@@ -22,7 +22,6 @@ class Board {
     [[nodiscard]] bool is_fifty_move_draw() const;
 
     [[nodiscard]] Move create_move(std::string_view uci_move) const;
-    [[nodiscard]] Move last_move() const;
 
     void make_move(Move move);
     void undo_move();
@@ -36,5 +35,4 @@ class Board {
 
   private:
     History history_;
-    Move last_move_ = Move::null();
 };

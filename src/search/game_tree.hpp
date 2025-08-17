@@ -54,7 +54,7 @@ class GameTree {
     [[nodiscard]] TreeHalf &active_half();
     [[nodiscard]] const TreeHalf &active_half() const;
 
-    [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, Move root_move);
+    [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board);
 
     std::vector<TreeHalf> halves_;
     u64 tree_usage_ = 0;

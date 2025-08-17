@@ -30,8 +30,9 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
-    if (!advance_root_node(board_, root_board, root_board.last_move())) {
+    if (!advance_root_node(board_, root_board)) {
         active_half().clear();
+        std::cout << "cleared\n";
         active_half().push_node(Node{});
     }
 
@@ -325,25 +326,16 @@ void GameTree::flip_halves() {
     return halves_[active_half_];
 }
 
-bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move root_move) {
+bool GameTree::advance_root_node(Board old_board, const Board &new_board) {
     if (active_half().filled_size() == 0 || !root().expanded()) {
         return false;
     }
 
-    // If we didn't make a move, check that we also didn't change positions
-    if (root_move == Move::null()) {
-        return old_board.state().hash_key != new_board.state().hash_key;
-    }
-
     for (u16 i = 0; i < root().num_children; ++i) {
         const auto child_node = node_at(root().first_child_idx + i);
-        if (child_node.move == root_move) {
-            // Ensure this move leads to the same resulting position
-            old_board.make_move(root_move);
-            if (old_board.state().hash_key != new_board.state().hash_key) {
-                return false;
-            }
-
+        // Ensure this move leads to the same resulting position
+        old_board.make_move(child_node.move);
+        if (old_board.state().hash_key == new_board.state().hash_key) {
             // Copy over the new root node to the correct place
             root() = child_node;
             root().parent_idx = NodeIndex::none();
@@ -357,9 +349,10 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, Move r
             compute_policy(new_board.state(), active_half().root_idx());
             return true;
         }
+        old_board.undo_move();
     }
 
-    return false;
+    return old_board.state().hash_key == new_board.state().hash_key;
 }
 
 } // namespace search
