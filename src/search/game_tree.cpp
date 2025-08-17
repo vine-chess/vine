@@ -32,7 +32,6 @@ void GameTree::set_node_capacity(usize node_capacity) {
 void GameTree::new_search(const Board &root_board) {
     if (!advance_root_node(board_, root_board)) {
         active_half().clear();
-        std::cout << "cleared\n";
         active_half().push_node(Node{});
     }
 
@@ -347,6 +346,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board) {
 
             // Re-compute the policy scores for the new root node
             compute_policy(new_board.state(), active_half().root_idx());
+            exit(0);
             return true;
         }
         old_board.undo_move();
