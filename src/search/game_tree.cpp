@@ -329,6 +329,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board) {
     if (active_half().filled_size() == 0 || !root().expanded()) {
         return false;
     }
+    exit(0);
 
     for (u16 i = 0; i < root().num_children; ++i) {
         const auto child_node = node_at(root().first_child_idx + i);
@@ -339,7 +340,6 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board) {
             root() = child_node;
             root().parent_idx = NodeIndex::none();
 
-            exit(0);
 
             // Re-compute the policy scores for the new root node
             compute_policy(new_board.state(), active_half().root_idx());
