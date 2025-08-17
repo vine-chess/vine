@@ -339,7 +339,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
         const auto child_node = node_at(node.first_child_idx + i);
         // Ensure this move leads to the same resulting position
         old_board.make_move(child_node.move);
-        if (old_board.state().hash_key == new_board.state().hash_key) {
+        if (old_board.state() == new_board.state()) {
             // Copy over the new root node to the correct place
             root() = child_node;
             root().parent_idx = NodeIndex::none();
@@ -349,7 +349,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
             return true;
         }
         // Check two moves deep from the root position
-        if (node.parent_idx.is_none() && advance_root_node(old_board, new_board, node.first_child_idx + i)) {
+        if (start == active_half().root_idx() && advance_root_node(old_board, new_board, node.first_child_idx + i)) {
             return true;
         }
         old_board.undo_move();
