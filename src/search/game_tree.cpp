@@ -363,7 +363,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
         old_board.undo_move();
     }
 
-    return old_board.state().hash_key == new_board.state().hash_key;
+    return old_board.state() == new_board.state();
 }
 
 } // namespace search
