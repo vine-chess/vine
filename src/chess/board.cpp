@@ -14,7 +14,7 @@
 }
 
 Board::Board(std::string_view fen) {
-    history_.reserve(2048);
+    history_.reserve(256);
     history_.emplace_back();
     std::istringstream stream((std::string(fen)));
 
@@ -82,7 +82,7 @@ Board::Board(std::string_view fen) {
 }
 
 Board::Board(const BoardState &board_state) {
-    history_.reserve(2048);
+    history_.reserve(256);
     history_.push_back(board_state);
 }
 
