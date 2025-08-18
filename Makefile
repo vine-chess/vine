@@ -9,10 +9,6 @@ FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 
-ifeq ($(DATAGEN), 1)
-	FLAGS += -DDATAGEN
-endif
-
 ifdef EVALFILE
 	FLAGS += -DEVALFILE=\"$(EVALFILE)\"
 else
@@ -46,7 +42,10 @@ else ifeq ($(findstring avx512, $(build)), avx512)
 	FLAGS += $(MAVX512)
 endif
 
-datagen: FLAGS += -DDATAGEN
+ifeq ($(MAKECMDGOALS),datagen)
+	FLAGS += -DDATAGEN
+endif
+
 datagen: all
 
 %.o: %.cpp
