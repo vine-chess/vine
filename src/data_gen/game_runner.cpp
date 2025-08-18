@@ -23,7 +23,6 @@ void thread_loop(const Settings &settings, std::ofstream &out_file) {
 
     search::Searcher searcher;
     searcher.set_hash_size(settings.hash_size);
-    searcher.set_verbosity(search::Verbosity::NONE);
 
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 

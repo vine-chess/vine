@@ -1,5 +1,4 @@
 #include "thread.hpp"
-#include "info.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,7 +14,7 @@ u64 Thread::iterations() const {
     return num_iterations_;
 }
 
-void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &time_settings, Verbosity verbosity) {
+void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &time_settings) {
     time_manager_.start_tracking(time_settings);
 
     tree.new_search(root_board);
@@ -34,9 +33,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         const u64 depth = tree.sum_depths() / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
-            if (verbosity == Verbosity::VERBOSE) {
                 write_info(tree, iterations);
-            }
         }
 
         if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth)) {
@@ -49,9 +46,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         return;
     }
 
-    if (verbosity != Verbosity::NONE) {
         write_info(tree, iterations, true);
-    }
     num_iterations_ = iterations;
 }
 

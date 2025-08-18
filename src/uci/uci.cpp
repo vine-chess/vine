@@ -30,10 +30,6 @@ Handler::Handler() {
         std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [&](const Option &option) {
             searcher_.set_hash_size(std::get<i32>(option.value_as_variant()));
         }));
-    options.add(std::make_unique<BoolOption>("Minimal", false, [&](const Option &option) {
-        searcher_.set_verbosity(std::get<bool>(option.value_as_variant()) ? search::Verbosity::MINIMAL
-                                                                          : search::Verbosity::VERBOSE);
-    }));
     options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
     board_ = Board(STARTPOS_FEN);
 }

@@ -3,7 +3,6 @@
 
 #include "../chess/board.hpp"
 #include "game_tree.hpp"
-#include "info.hpp"
 #include "time_manager.hpp"
 #include <thread>
 
@@ -28,7 +27,7 @@ class Thread {
         return *this;
     }
 
-    void go(GameTree &tree, const Board &board, const TimeSettings &time_settings, Verbosity verbosity);
+    void go(GameTree &tree, const Board &board, const TimeSettings &time_settings);
 
     [[nodiscard]] u64 iterations() const;
 
