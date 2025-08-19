@@ -1,8 +1,6 @@
 #include "policy_network.hpp"
 #include "../chess/move_gen.hpp"
 
-#include "../third_party/incbin.h"
-#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -13,8 +11,9 @@ const extern PolicyNetwork *const network;
 namespace detail {
 
 [[nodiscard]] const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
-                                                                            Color piece_color, Color perspective) {
-    usize flip = 0b111000 * perspective;
+                                                                            Color piece_color, Color perspective,
+                                                                            Square king_sq) {
+    usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
 }
 
@@ -41,8 +40,8 @@ constexpr std::array<usize, 65> OFFSETS = [] {
     return static_cast<i32>(pt) - 2;
 }
 
-[[nodiscard]] usize move_output_idx(Color stm, Move move) {
-    const i32 flipper = stm == Color::BLACK ? 56 : 0;
+[[nodiscard]] usize move_output_idx(Color stm, Move move, Square king_sq) {
+    const i32 flipper = (king_sq.file() >= File::E ? 7 : 0) ^ (stm == Color::BLACK ? 56 : 0);
     if (move.is_promo()) {
         constexpr usize PROMO_STRIDE = 22;
         const i32 promo_id = 2 * move.from().file() + move.to().file();
@@ -59,7 +58,7 @@ constexpr std::array<usize, 65> OFFSETS = [] {
 
 } // namespace detail
 
-PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move) {
+PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move), king_sq_(state.king(stm_).lsb()) {
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
@@ -70,21 +69,21 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_)[i]);
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_, king_sq_)[i]);
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_)[i]);
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_, king_sq_)[i]);
             }
         }
     }
 }
 
 f32 PolicyContext::logit(Move move) const {
-    const usize idx = detail::move_output_idx(stm_, move);
+    const usize idx = detail::move_output_idx(stm_, move, king_sq_);
 
     util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
     const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
