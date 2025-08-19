@@ -21,6 +21,12 @@ BoardState generate_opening(usize random_moves) {
 
             board.make_move(moves[rng::next_u64(0, moves.size() - 1)]);
         }
+
+        MoveList moves;
+        generate_moves(board.state(), moves);
+        if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            success = false;
+        }
     } while (!success);
 
     return board.state();
