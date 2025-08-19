@@ -9,10 +9,21 @@ FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 
+DOWNLOAD_NETS = no
+
 ifdef EVALFILE
 	FLAGS += -DEVALFILE=\"$(EVALFILE)\"
+else ifdef VALUEFILE
+	ifdef POLICYFILE
+		FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
+	else
+		$(error POLICYFILE must be defined alongside VALUEFILE)
+	endif
 else
+	VALUEFILE = net20.vn
+	POLICYFILE = net3.pn
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
+	DOWNLOAD_NETS = yes
 endif
 
 CC ?= gcc
@@ -48,13 +59,24 @@ endif
 
 datagen: all
 
+.PHONY: nets
+nets:
+ifeq ($(DOWNLOAD_NETS),yes)
+	@if [ ! -f $(VALUEFILE) ]; then \
+		curl -sOL https://github.com/vine-chess/vine-networks/raw/refs/heads/main/value/$(VALUEFILE); \
+	fi
+	@if [ ! -f $(POLICYFILE) ]; then \
+		curl -sOL https://github.com/vine-chess/vine-networks/raw/refs/heads/main/policy/$(POLICYFILE); \
+	fi
+endif
+
 %.o: %.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
 
 %.o: %.c
 	$(CC) $(FLAGS) -c $< -o $@
 
-all: $(OBJS)
+all: nets $(OBJS)
 	$(CXX) $(FLAGS) $(OBJS) -o $(EXE)
 
 clean:
