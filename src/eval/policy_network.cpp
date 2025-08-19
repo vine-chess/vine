@@ -58,7 +58,7 @@ constexpr std::array<usize, 65> OFFSETS = [] {
 
 } // namespace detail
 
-PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move), king_sq_(state.king(stm_).lsb()) {
+PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
