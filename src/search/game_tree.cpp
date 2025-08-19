@@ -124,9 +124,6 @@ NodeIndex GameTree::select_and_expand_node() {
             continue;
         }
 
-        const bool q_declining =
-            node_idx != active_half().root_idx() && (1.0 - node_at(node.parent_idx).q()) - node.q() > 0.05;
-
         NodeIndex best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
@@ -134,8 +131,7 @@ NodeIndex GameTree::select_and_expand_node() {
             // Track the child with the highest PUCT score
             const f64 child_score =
                 compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT
-                                                                  : EXPLORATION_CONSTANT - q_declining * 0.1);
+                             node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
