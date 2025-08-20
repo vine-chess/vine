@@ -33,7 +33,7 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
         }
 
         // Reduce the time we need to search based on what % of visits the best move contributes to
-        time_to_search *= tree.node_at(best_child_idx).num_visits / tree.root().num_visits * 0.5;
+        time_to_search *= tree.node_at(best_child_idx).num_visits / tree.root().num_visits * 0.1;
 
         const auto now = std::chrono::high_resolution_clock::now();
         const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_);
