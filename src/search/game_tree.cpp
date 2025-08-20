@@ -34,7 +34,10 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
-    if (!advance_root_node(board_, root_board, active_half().root_idx())) {
+    if (advance_root_node(board_, root_board, active_half().root_idx())) {
+        // Re-compute root policy scores, since the node we advanced to was searched with non-root parameters
+        compute_policy(root_board.state(), active_half().root_idx());
+    } else {
         active_half().clear();
         active_half().push_node(Node{});
     }
@@ -43,6 +46,7 @@ void GameTree::new_search(const Board &root_board) {
     sum_depths_ = 0;
     tree_usage_ = 0;
 
+    // Ensure the root node is expanded
     if (!expand_node(active_half().root_idx())) {
         flip_halves();
         vine_assert(expand_node(active_half().root_idx()));
@@ -344,12 +348,13 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
         // Ensure this move leads to the same resulting position
         old_board.make_move(child_node.move);
         if (old_board.state() == new_board.state()) {
+            // Don't advance to unexpanded nodes
+            if (!child_node.expanded()) {
+                return false;
+            }
             // Copy over the new root node to the correct place
             root() = child_node;
             root().parent_idx = NodeIndex::none();
-
-            // Re-compute the policy scores for the new root node
-            compute_policy(new_board.state(), active_half().root_idx());
             return true;
         }
         // Check two moves deep from the root position

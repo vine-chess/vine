@@ -17,7 +17,7 @@ usize TreeHalf::filled_size() const {
 }
 
 bool TreeHalf::has_room_for(usize n) const {
-    return filled_size() + n <= nodes_.capacity();
+    return filled_size() + n <= nodes_.size();
 }
 
 void TreeHalf::clear_dangling_references() {
