@@ -15,28 +15,27 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
 
         // Reduce the time we need to search based on what % of visits the best move contributes to
         if (iterations >= 1024) {
-            const auto get_child_score = [&](NodeIndex child_idx) {
-                const f64 MATE_SCORE = 1000.0;
-                const Node &child = tree.node_at(child_idx);
-                switch (child.terminal_state.flag()) {
-                case TerminalState::Flag::WIN:
-                    return MATE_SCORE - child.terminal_state.distance_to_terminal();
-                case TerminalState::Flag::LOSS:
-                    return -MATE_SCORE + child.terminal_state.distance_to_terminal();
-                default:
-                    return child.q();
+            const auto& root = tree.root();
+            const u16 K = root.num_children;
+            const u64 N = root.num_visits;
+            if (K > 1 && N > 0) {
+                double H = 0.0;
+                for (u16 i = 0; i < K; ++i) {
+                    const auto& child = tree.node_at(root.first_child_idx + i);
+                    if (child.num_visits == 0) {
+                        continue;
+                    }
+                    const double p = static_cast<double>(child.num_visits) / static_cast<double>(N);
+                    H += -p * std::log(p);
                 }
-            };
 
-            NodeIndex best_child_idx = tree.root().first_child_idx;
-            for (u16 i = 0; i < tree.root().num_children; ++i) {
-                if (get_child_score(tree.root().first_child_idx + i) < get_child_score(best_child_idx)) {
-                    best_child_idx = tree.root().first_child_idx + i;
-                }
+                const double Hmax = std::log(static_cast<double>(K));
+                const double h = (Hmax > 0.0) ? (H / Hmax) : 1.0; // normalize
+
+                // Reduction when very peaked (h ≈ 0), no reduction when flat (h ≈ 1).
+                const double reduction = (1.0 - h) * 0.25;
+                time_to_search *= (1.0 - reduction);
             }
-
-            time_to_search *= 1.0 - (static_cast<f64>(tree.node_at(best_child_idx).num_visits) /
-                                     static_cast<f64>(tree.root().num_visits) * 0.25);
         }
 
         const auto now = std::chrono::high_resolution_clock::now();
