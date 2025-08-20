@@ -34,7 +34,8 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
                 }
             }
 
-            time_to_search *= tree.node_at(best_child_idx).num_visits / tree.root().num_visits * 0.1;
+            time_to_search *= static_cast<f64>(tree.node_at(best_child_idx).num_visits) /
+                              static_cast<f64>(tree.root().num_visits) * 0.25;
         }
 
         const auto now = std::chrono::high_resolution_clock::now();
