@@ -32,9 +32,8 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
                 const double Hmax = std::log(static_cast<double>(K));
                 const double h = (Hmax > 0.0) ? (H / Hmax) : 1.0; // normalize
 
-                // Reduction when very peaked (h ≈ 0), no reduction when flat (h ≈ 1).
-                const double reduction = (1.0 - h) * 0.25;
-                time_to_search *= (1.0 - reduction);
+                const double scale = 0.75 + 0.5 * h;
+                time_to_search *= scale;
             }
         }
 
