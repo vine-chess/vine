@@ -42,14 +42,14 @@ constexpr std::array<usize, 65> OFFSETS = [] {
 
 [[nodiscard]] usize move_output_idx(Color stm, Move move, Square king_sq) {
     const i32 flipper = (king_sq.file() >= File::E ? 7 : 0) ^ (stm == Color::BLACK ? 56 : 0);
+    const Square from = move.from() ^ flipper;;
+    const Square to = move.to() ^ flipper;
     if (move.is_promo()) {
         constexpr usize PROMO_STRIDE = 22;
-        const i32 promo_id = 2 * move.from().file() + move.to().file();
+        const i32 promo_id = 2 * from.file() + to.file();
         const i32 kind = promo_kind_id(move.promo_type());
         return OFFSETS[64] + static_cast<usize>(kind * PROMO_STRIDE + promo_id);
     } else {
-        const Square from = move.from() ^ flipper;
-        const Square to = move.to() ^ flipper;
         const u64 all = static_cast<u64>(ALL_DESTINATIONS[from]);
         const u64 below = to == 0 ? 0ull : (all & (to.to_bb() - 1ull));
         return OFFSETS[from] + static_cast<usize>(std::popcount(below));
