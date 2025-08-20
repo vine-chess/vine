@@ -35,7 +35,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
             }
         }
 
-        if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth)) {
+        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth)) {
             break;
         }
     }
