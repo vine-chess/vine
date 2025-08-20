@@ -1,5 +1,6 @@
 #include "time_manager.hpp"
 #include <chrono>
+#include <iostream>
 
 namespace search {
 
@@ -34,8 +35,8 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
                 }
             }
 
-            time_to_search *= static_cast<f64>(tree.node_at(best_child_idx).num_visits) /
-                              static_cast<f64>(tree.root().num_visits) * 0.25;
+            time_to_search *= 1.0 - (static_cast<f64>(tree.node_at(best_child_idx).num_visits) /
+                                     static_cast<f64>(tree.root().num_visits) * 0.25);
         }
 
         const auto now = std::chrono::high_resolution_clock::now();
