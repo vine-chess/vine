@@ -68,14 +68,17 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
             return MATE_SCORE - child.terminal_state.distance_to_terminal();
         case TerminalState::Flag::LOSS:
             return -MATE_SCORE + child.terminal_state.distance_to_terminal();
-        default:
-            return child.q();
+        default: {
+            const f64 visit_ratio = static_cast<f64>(child.num_visits) / node.num_visits;
+            const f64 q = 1.0 - child.q();
+            return (q + visit_ratio) / 2.0;
+        }
         }
     };
 
     NodeIndex best_child_idx = node.first_child_idx;
     for (u16 i = 0; i < node.num_children; ++i) {
-        if (get_child_score(node.first_child_idx + i) < get_child_score(best_child_idx)) {
+        if (get_child_score(node.first_child_idx + i) >= get_child_score(best_child_idx)) {
             best_child_idx = node.first_child_idx + i;
         }
     }
@@ -108,7 +111,8 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
               << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
-              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps " << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
+              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps "
+              << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
