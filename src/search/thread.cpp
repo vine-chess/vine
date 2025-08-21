@@ -45,8 +45,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         return;
     }
 
-    if (verbosity != Verbosity::NONE &&
-        time_settings.max_iters == 0) { // Only print at the end if we're not node-limited
+    if (verbosity != Verbosity::NONE)
         write_info(tree, iterations, true);
     }
     num_iterations_ = iterations;
