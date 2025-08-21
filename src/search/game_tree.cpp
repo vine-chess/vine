@@ -99,11 +99,11 @@ NodeIndex GameTree::select_and_expand_node() {
     nodes_in_path_.clear();
     nodes_in_path_.emplace_back(node_idx);
 
+    const auto old_board = board_;
+
     const auto flip_and_unwind = [&] {
         flip_halves();
-        if (!nodes_in_path_.empty()) {
-            board_.undo_n_moves(nodes_in_path_.size() - 1);
-        }
+        board_ = old_board;
     };
 
     while (true) {
@@ -318,11 +318,11 @@ bool GameTree::fetch_children(NodeIndex node_idx) {
 }
 
 void GameTree::flip_halves() {
-    auto old_root_node = active_half().root_node();
+    auto old_root_idx = active_half().root_idx();
     active_half().clear_dangling_references();
     active_half_ = ~active_half_;
     active_half().clear();
-    active_half().push_node(old_root_node);
+    active_half().push_node(node_at(old_root_idx));
 }
 
 [[nodiscard]] TreeHalf &GameTree::active_half() {
