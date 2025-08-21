@@ -268,6 +268,7 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
+    // Set the board back to its original state
     board_.undo_n_moves(nodes_in_path_.size() - 1);
 
     auto child_terminal_state = TerminalState::none();
