@@ -25,6 +25,10 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
 
     while (++iterations) {
         const auto node = tree.select_and_expand_node();
+        if (node.is_none()) {
+            //tree.flip_halves();
+            continue;
+        }
         tree.backpropagate_score(tree.simulate_node(node));
 
         const u64 depth = tree.sum_depths() / iterations;

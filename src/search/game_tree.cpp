@@ -99,12 +99,11 @@ NodeIndex GameTree::select_and_expand_node() {
     nodes_in_path_.clear();
     nodes_in_path_.emplace_back(node_idx);
 
-    const auto flip_and_restart = [&] {
+    const auto flip_and_unwind = [&] {
         flip_halves();
-        board_.undo_n_moves(std::max<usize>(nodes_in_path_.size() - 1, 0u));
-        node_idx = active_half().root_idx();
-        nodes_in_path_.clear();
-        nodes_in_path_.emplace_back(node_idx);
+        if (!nodes_in_path_.empty()) {
+            board_.undo_n_moves(nodes_in_path_.size() - 1);
+        }
     };
 
     while (true) {
@@ -114,8 +113,8 @@ NodeIndex GameTree::select_and_expand_node() {
         // might have been bad enough that this node is likely to not get selected again
         if (node.num_visits > 0) {
             if (!expand_node(node_idx)) {
-                flip_and_restart();
-                continue;
+                flip_and_unwind();
+                return NodeIndex::none();
             }
         }
 
@@ -126,8 +125,8 @@ NodeIndex GameTree::select_and_expand_node() {
         }
 
         if (!fetch_children(node_idx)) {
-            flip_and_restart();
-            continue;
+            flip_and_unwind();
+            return NodeIndex::none();
         }
 
         NodeIndex best_child_idx = 0;
@@ -144,7 +143,7 @@ NodeIndex GameTree::select_and_expand_node() {
             }
         }
 
-        // Keep descending through the game nodes_ until we find a suitable node to expand
+        // Keep descending through the game tree until we find a suitable node to expand
         node_idx = best_child_idx, nodes_in_path_.push_back(node_idx);
         board_.make_move(node_at(node_idx).move);
     }
@@ -268,6 +267,7 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 }
 
 void GameTree::backpropagate_score(f64 score) {
+    vine_assert(!nodes_in_path_.empty());
     board_.undo_n_moves(nodes_in_path_.size() - 1);
 
     auto child_terminal_state = TerminalState::none();
@@ -303,14 +303,14 @@ bool GameTree::fetch_children(NodeIndex node_idx) {
     }
 
     // Check if we need to the active tree half
+    vine_assert(node.num_children > 0);
     if (!active_half().has_room_for(node.num_children)) {
         return false;
     }
 
     // Copy over the children from the other tree half to this half
     for (u16 i = 0; i < node.num_children; ++i) {
-        auto new_child = node_at(node.first_child_idx + i);
-        active_half().push_node(new_child);
+        active_half().push_node(node_at(node.first_child_idx + i));
     }
     node.first_child_idx = active_half().construct_idx(active_half().filled_size() - node.num_children);
 
