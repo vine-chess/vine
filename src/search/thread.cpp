@@ -65,7 +65,7 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
         const Node &child = tree.node_at(child_idx);
         switch (child.terminal_state.flag()) {
         case TerminalState::Flag::WIN:
-            return -MATE_SCORE + child.terminal_state.distance_to_terminal();
+            return MATE_SCORE + child.terminal_state.distance_to_terminal();
         case TerminalState::Flag::LOSS:
             return -MATE_SCORE - child.terminal_state.distance_to_terminal();
         default:
