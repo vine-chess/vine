@@ -1,12 +1,16 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
 #include "../search/searcher.hpp"
+#include <iostream>
 
 namespace datagen {
 
 BoardState generate_opening(usize random_moves) {
-    Board board(STARTPOS_FEN);
     search::Searcher searcher;
+    searcher.set_hash_size(4);
+    searcher.set_verbosity(search::Verbosity::NONE);
+
+    Board board(STARTPOS_FEN);
     bool success;
     do {
         board = Board(STARTPOS_FEN);
