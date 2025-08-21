@@ -97,13 +97,13 @@ NodeIndex GameTree::select_and_expand_node() {
 
     NodeIndex node_idx = active_half().root_idx();
     nodes_in_path_.clear();
-    nodes_in_path_.emplace_back(node_idx);
+    nodes_in_path_.push_back(node_idx);
 
-    const auto old_board = board_;
-
-    const auto flip_and_unwind = [&] {
+    const auto flip_and_restart = [&] {
         flip_halves();
-        board_ = old_board;
+        board_.undo_n_moves(nodes_in_path_.size() - 1);
+        nodes_in_path_.clear();
+        nodes_in_path_.push_back(node_idx = active_half().root_idx());
     };
 
     while (true) {
@@ -113,8 +113,8 @@ NodeIndex GameTree::select_and_expand_node() {
         // might have been bad enough that this node is likely to not get selected again
         if (node.num_visits > 0) {
             if (!expand_node(node_idx)) {
-                flip_and_unwind();
-                return NodeIndex::none();
+                flip_and_restart();
+                continue;
             }
         }
 
@@ -125,8 +125,8 @@ NodeIndex GameTree::select_and_expand_node() {
         }
 
         if (!fetch_children(node_idx)) {
-            flip_and_unwind();
-            return NodeIndex::none();
+            flip_and_restart();
+            continue;
         }
 
         NodeIndex best_child_idx = 0;
