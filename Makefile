@@ -5,7 +5,7 @@ OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3 -flto
 
-FLAGS = -std=c++17 -fconstexpr-steps=100000000
+FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 
@@ -26,8 +26,8 @@ else
 	DOWNLOAD_NETS = yes
 endif
 
-CC ?= clang
-CXX ?= clang++
+CC ?= gcc
+CXX ?= g++
 
 ifeq ($(OS),Windows_NT)
 	FLAGS += -static
