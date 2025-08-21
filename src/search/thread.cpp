@@ -67,12 +67,11 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
         case TerminalState::Flag::WIN:
             return -MATE_SCORE + child.terminal_state.distance_to_terminal();
         case TerminalState::Flag::LOSS:
-            return-MATE_SCORE - child.terminal_state.distance_to_terminal();
-        default: {
+            return -MATE_SCORE - child.terminal_state.distance_to_terminal();
+        default:
             const f64 visit_ratio = static_cast<f64>(child.num_visits) / node.num_visits;
             const f64 q = 1.0 - child.q();
-            return (q + visit_ratio) / 2.0;
-        }
+            return (q * 192 + visit_ratio * 64) / 256.0;
         }
     };
 
