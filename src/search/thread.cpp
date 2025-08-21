@@ -45,7 +45,8 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         return;
     }
 
-    if (verbosity != Verbosity::NONE) {
+    if (verbosity != Verbosity::NONE &&
+        time_settings.max_iters == 0) { // Only print at the end if we're not node-limited
         write_info(tree, iterations, true);
     }
     num_iterations_ = iterations;
@@ -69,7 +70,7 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
         case TerminalState::Flag::LOSS:
             return -MATE_SCORE + child.terminal_state.distance_to_terminal();
         default:
-            return child.q();
+            return child.visited() ? child.q() : 1.0 - child.policy_score;
         }
     };
 
@@ -108,7 +109,8 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
     std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
               << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
-              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps " << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
+              << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps "
+              << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
         std::cout << "bestmove " << pv[0].to_string() << std::endl;
     }
