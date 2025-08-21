@@ -24,7 +24,7 @@ BoardState generate_opening(usize random_moves) {
             board.make_move(moves[rng::next_u64(0, moves.size() - 1)]);
         }
 
-        const bool is_opening_valid = [&]() {
+        const auto is_opening_valid = [&]() {
             // Opening ends in a terminal state
             MoveList moves;
             generate_moves(board.state(), moves);
