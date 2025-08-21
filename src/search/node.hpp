@@ -174,8 +174,6 @@ struct Node {
     f64 sum_of_scores = 0.0;
     // Policy given to us by our parent node
     f32 policy_score = 0.0;
-    // Index of the parent node
-    NodeIndex parent_idx = NodeIndex::none();
     // Index of the first child in the node table
     NodeIndex first_child_idx = NodeIndex::none();
     // Number of times this node has been visited

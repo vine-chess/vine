@@ -96,13 +96,15 @@ NodeIndex GameTree::select_and_expand_node() {
     };
 
     NodeIndex node_idx = active_half().root_idx();
-    nodes_in_path_ = 0;
+    nodes_in_path_.clear();
+    nodes_in_path_.emplace_back(node_idx);
 
     const auto flip_and_restart = [&] {
         flip_halves();
-        board_.undo_n_moves(nodes_in_path_);
-        nodes_in_path_ = 0;
+        board_.undo_n_moves(std::max<usize>(nodes_in_path_.size() - 1, 0u));
         node_idx = active_half().root_idx();
+        nodes_in_path_.clear();
+        nodes_in_path_.emplace_back(node_idx);
     };
 
     while (true) {
@@ -119,7 +121,7 @@ NodeIndex GameTree::select_and_expand_node() {
 
         // Return if we cannot go any further down the tree
         if (node.terminal() || !node.visited()) {
-            sum_depths_ += nodes_in_path_ + 1;
+            sum_depths_ += nodes_in_path_.size();
             return node_idx;
         }
 
@@ -143,7 +145,7 @@ NodeIndex GameTree::select_and_expand_node() {
         }
 
         // Keep descending through the game nodes_ until we find a suitable node to expand
-        node_idx = best_child_idx, ++nodes_in_path_;
+        node_idx = best_child_idx, nodes_in_path_.push_back(node_idx);
         board_.make_move(node_at(node_idx).move);
     }
 }
@@ -217,7 +219,6 @@ bool GameTree::expand_node(NodeIndex node_idx) {
     // Append all child nodes to the nodes with the move that leads to it
     for (const auto move : move_list) {
         active_half().push_node(Node{
-            .parent_idx = node_idx,
             .move = move,
         });
     }
@@ -266,9 +267,13 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
     }
 }
 
-void GameTree::backpropagate_score(f64 score, NodeIndex node_idx) {
+void GameTree::backpropagate_score(f64 score) {
+    board_.undo_n_moves(nodes_in_path_.size() - 1);
+
     auto child_terminal_state = TerminalState::none();
-    while (!node_idx.is_none()) {
+    while (!nodes_in_path_.empty()) {
+        const auto node_idx = nodes_in_path_.pop_back();
+
         // A node's score is the average of all of its children's score
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
@@ -285,13 +290,9 @@ void GameTree::backpropagate_score(f64 score, NodeIndex node_idx) {
             child_terminal_state = node.terminal_state;
         }
 
-        // Travel up to the parent
-        node_idx = node.parent_idx;
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
     }
-    // Undo all the moves that were selected
-    board_.undo_n_moves(nodes_in_path_);
 }
 
 bool GameTree::fetch_children(NodeIndex node_idx) {
@@ -309,7 +310,6 @@ bool GameTree::fetch_children(NodeIndex node_idx) {
     // Copy over the children from the other tree half to this half
     for (u16 i = 0; i < node.num_children; ++i) {
         auto new_child = node_at(node.first_child_idx + i);
-        new_child.parent_idx = node_idx;
         active_half().push_node(new_child);
     }
     node.first_child_idx = active_half().construct_idx(active_half().filled_size() - node.num_children);
@@ -354,7 +354,6 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
             }
             // Copy over the new root node to the correct place
             root() = child_node;
-            root().parent_idx = NodeIndex::none();
             return true;
         }
         // Check two moves deep from the root position
