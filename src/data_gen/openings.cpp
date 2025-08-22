@@ -14,7 +14,7 @@ BoardState generate_opening(usize random_moves, std::string_view initial_fen) {
     Board board(initial_fen);
     bool success;
     do {
-        board = Board(STARTPOS_FEN);
+        board = Board(initial_fen);
         success = true;
 
         for (usize ply = 0; ply < random_moves; ++ply) {
