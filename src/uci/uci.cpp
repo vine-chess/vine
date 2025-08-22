@@ -97,7 +97,7 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
             opening_fens.push_back(opening);
         }
     }
-    const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
+    const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 4; // TODO:
     rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
