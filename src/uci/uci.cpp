@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <ostream>
 #include <random>
 #include <string>
 #include <string_view>
@@ -87,12 +88,21 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     const auto seed = *util::parse_int<usize>(parts[3]);
     vine_assert(parts[4] == "book");
     const auto path = parts[5];
-    vine_assert(path == "None"); // TODO: book support, needs test
+    std::vector<std::string> opening_fens;
+    if (path == "None") {
+        opening_fens.push_back(std::string(STARTPOS_FEN));
+    } else {
+        std::ifstream book{std::string(path)};
+        for (std::string opening; std::getline(book, opening);) {
+            opening_fens.push_back(opening);
+        }
+    }
     const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
     rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
-        out << "info string genfens " << datagen::generate_opening(random_moves).to_fen() << std::endl;
+        const auto opening = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
+        out << "info string genfens " << datagen::generate_opening(random_moves, opening).to_fen() << std::endl;
     }
 }
 
