@@ -30,7 +30,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file) {
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
         Board board(generate_opening(settings.random_moves));
-        writer->push_board_state(board.state());
+        writer->push_board_state(board.state(), settings.temperature, settings.gamma);
 
         f64 game_result;
         while (true) {

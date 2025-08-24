@@ -31,7 +31,7 @@ Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
 }
 
 BoardState generate_opening(const usize random_moves, const f64 initial_temperature, const f64 gamma) {
-    search::Searcher searcher;
+    thread_local search::Searcher searcher;
     searcher.set_hash_size(4);
     searcher.set_verbosity(search::Verbosity::NONE);
 
