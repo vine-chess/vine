@@ -89,9 +89,9 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     vine_assert(parts[4] == "book");
     const auto path = parts[5];
     vine_assert(path == "None"); // TODO: book support, needs test
-    usize random_moves = 8;
-    f64 temperature = 1.25;
-    f64 gamma = 0.9;
+    usize random_moves = 15;
+    f64 temperature = 1.5;
+    f64 gamma = 1.1;
 
     constexpr std::string_view random_moves_str = "ply=";
     constexpr std::string_view temperature_str = "temp=";
