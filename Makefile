@@ -57,7 +57,6 @@ ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
 endif
 
-datagen: all
 
 .PHONY: nets
 nets:
@@ -69,6 +68,8 @@ ifeq ($(DOWNLOAD_NETS),yes)
 		curl -sOL https://github.com/vine-chess/vine-networks/raw/refs/heads/main/policy/$(POLICYFILE); \
 	fi
 endif
+
+datagen: all
 
 %.o: %.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
