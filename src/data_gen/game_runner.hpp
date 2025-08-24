@@ -19,6 +19,8 @@ struct Settings {
     search::TimeSettings time_settings;
     // The output file location
     std::string output_file;
+    // Opening settings
+    f64 temperature, gamma;
 };
 
 void run_games(Settings settings, std::ostream &out);
