@@ -53,6 +53,8 @@ else ifeq ($(findstring avx512, $(build)), avx512)
 	FLAGS += $(MAVX512)
 endif
 
+.DEFAULT_GOAL := all 
+
 ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
 endif
