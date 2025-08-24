@@ -51,10 +51,8 @@ BoardState generate_opening(const usize random_moves, const f64 initial_temperat
                 break;
             }
 
-            searcher.go(board, {.max_depth = 5, .max_iters = 1000});
 
-            temperature *= gamma;
-            board.make_move(pick_move_temperature(searcher.game_tree(), temperature));
+            board.make_move(moves[rng::next_u64(0, moves.size() - 1)]);
         }
 
         const auto is_opening_valid = [&]() {
