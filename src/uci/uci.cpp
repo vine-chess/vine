@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -65,15 +66,15 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
     search::TimeSettings time_settings{};
     for (i32 i = 1; i < parts.size(); ++i) {
         if (parts[i] == "wtime") {
-            time_settings.time_left_per_side[Color::WHITE] = *util::parse_int<i64>(parts[i + 1].data());
+            time_settings.time_left_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "btime") {
-            time_settings.time_left_per_side[Color::BLACK] = *util::parse_int<i64>(parts[i + 1].data());
+            time_settings.time_left_per_side[Color::BLACK] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "winc") {
-            time_settings.increment_per_side[Color::WHITE] = *util::parse_int<i64>(parts[i + 1].data());
+            time_settings.increment_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "binc") {
-            time_settings.increment_per_side[Color::BLACK] = *util::parse_int<i64>(parts[i + 1].data());
+            time_settings.increment_per_side[Color::BLACK] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "nodes") {
-            time_settings.max_iters = *util::parse_int<u64>(parts[i + 1].data());
+            time_settings.max_iters = *util::parse_number<u64>(parts[i + 1].data());
         }
     }
 
@@ -82,17 +83,34 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
 
 void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_view> &parts) {
     vine_assert(parts[0] == "genfens");
-    const auto count = *util::parse_int<usize>(parts[1]);
+    const auto count = *util::parse_number<usize>(parts[1]);
     vine_assert(parts[2] == "seed");
-    const auto seed = *util::parse_int<usize>(parts[3]);
+    const auto seed = *util::parse_number<usize>(parts[3]);
     vine_assert(parts[4] == "book");
     const auto path = parts[5];
     vine_assert(path == "None"); // TODO: book support, needs test
-    const auto random_moves = parts.size() >= 7 ? *util::parse_int<usize>(parts[6]) : 8; // TODO:
+    usize random_moves = 15;
+    f64 temperature = 1.5;
+    f64 gamma = 1.1;
+
+    constexpr std::string_view random_moves_str = "ply=";
+    constexpr std::string_view temperature_str = "temp=";
+    constexpr std::string_view gamma_str = "gamma=";
+    for (const auto part : std::span(parts).subspan(6)) {
+        if (part.starts_with(random_moves_str)) {
+            random_moves = *util::parse_number<usize>(part.substr(random_moves_str.length()));
+        }
+        if (part.starts_with(temperature_str)) {
+            temperature = *util::parse_number<f64>(part.substr(temperature_str.length()));
+        }
+        if (part.starts_with(gamma_str)) {
+            gamma = *util::parse_number<f64>(part.substr(gamma_str.length()));
+        }
+    }
     rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
-        out << "info string genfens " << datagen::generate_opening(random_moves).to_fen() << std::endl;
+        out << "info string genfens " << datagen::generate_opening(random_moves, temperature, gamma).to_fen() << std::endl;
     }
 }
 
@@ -110,17 +128,17 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         const auto value = parts[i + 1];
 
         if (key == "random_moves") {
-            settings.random_moves = *util::parse_int<usize>(value.data());
+            settings.random_moves = *util::parse_number<usize>(value.data());
         } else if (key == "games") {
-            settings.num_games = *util::parse_int<usize>(value.data());
+            settings.num_games = *util::parse_number<usize>(value.data());
         } else if (key == "threads") {
-            settings.num_threads = *util::parse_int<usize>(value.data());
+            settings.num_threads = *util::parse_number<usize>(value.data());
         } else if (key == "hash") {
-            settings.hash_size = *util::parse_int<usize>(value.data());
+            settings.hash_size = *util::parse_number<usize>(value.data());
         } else if (key == "nodes") {
-            settings.time_settings.max_iters = *util::parse_int<u64>(value.data());
+            settings.time_settings.max_iters = *util::parse_number<u64>(value.data());
         } else if (key == "depth") {
-            settings.time_settings.max_depth = *util::parse_int<i32>(value.data());
+            settings.time_settings.max_depth = *util::parse_number<i32>(value.data());
         } else if (key == "out") {
             settings.output_file = std::string(value);
         } else {
@@ -152,7 +170,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "isready") {
             out << "readyok" << std::endl;
         } else if (parts[0] == "perft") {
-            handle_perft(out, *util::parse_int(parts[1]));
+            handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "print") {
             out << network::value::evaluate(board_.state()) << '\n';
             MoveList moves;
