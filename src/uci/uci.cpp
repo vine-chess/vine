@@ -101,10 +101,12 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
             random_moves = *util::parse_number<usize>(part.substr(random_moves_str.length()));
         }
         if (part.starts_with(temperature_str)) {
-            temperature = *util::parse_number<f64>(part.substr(temperature_str.length()));
+            char *dummy;
+            temperature = std::strtod(std::string(part.substr(temperature_str.length())).c_str(), &dummy);
         }
         if (part.starts_with(gamma_str)) {
-            gamma = *util::parse_number<f64>(part.substr(gamma_str.length()));
+            char *dummy;
+            gamma = std::strtod(std::string(part.substr(gamma_str.length())).c_str(), &dummy);
         }
     }
     rng::seed_generator(seed);
