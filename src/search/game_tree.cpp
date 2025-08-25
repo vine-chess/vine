@@ -20,6 +20,8 @@ constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
 constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
+constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
+constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -129,14 +131,20 @@ NodeIndex GameTree::select_and_expand_node() {
             continue;
         }
 
+        const f64 cpuct = [&]() {
+            f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+            // Scale the exploration constant logarithmically with the number of visits this node has
+            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+            return base;
+        }();
+
         NodeIndex best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
+
             // Track the child with the highest PUCT score
-            const f64 child_score =
-                compute_puct(node, child_node, child_node.policy_score,
-                             node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT);
+            const f64 child_score = compute_puct(node, child_node, child_node.policy_score, cpuct);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;

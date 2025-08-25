@@ -101,10 +101,12 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
             random_moves = *util::parse_number<usize>(part.substr(random_moves_str.length()));
         }
         if (part.starts_with(temperature_str)) {
-            temperature = *util::parse_number<f64>(part.substr(temperature_str.length()));
+            char *dummy;
+            temperature = std::strtod(std::string(part.substr(temperature_str.length())).c_str(), &dummy);
         }
         if (part.starts_with(gamma_str)) {
-            gamma = *util::parse_number<f64>(part.substr(gamma_str.length()));
+            char *dummy;
+            gamma = std::strtod(std::string(part.substr(gamma_str.length())).c_str(), &dummy);
         }
     }
     rng::seed_generator(seed);
@@ -129,23 +131,25 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         const auto value = parts[i + 1];
 
         if (key == "random_moves") {
-            settings.random_moves = *util::parse_number<usize>(value.data());
+            settings.random_moves = *util::parse_number<usize>(value);
         } else if (key == "games") {
-            settings.num_games = *util::parse_number<usize>(value.data());
+            settings.num_games = *util::parse_number<usize>(value);
         } else if (key == "threads") {
-            settings.num_threads = *util::parse_number<usize>(value.data());
+            settings.num_threads = *util::parse_number<usize>(value);
         } else if (key == "hash") {
-            settings.hash_size = *util::parse_number<usize>(value.data());
+            settings.hash_size = *util::parse_number<usize>(value);
         } else if (key == "nodes") {
-            settings.time_settings.max_iters = *util::parse_number<u64>(value.data());
+            settings.time_settings.max_iters = *util::parse_number<u64>(value);
         } else if (key == "depth") {
-            settings.time_settings.max_depth = *util::parse_number<i32>(value.data());
+            settings.time_settings.max_depth = *util::parse_number<i32>(value);
         } else if (key == "out") {
             settings.output_file = std::string(value);
         } else if (key == "temp" || key == "temperature") {
-            settings.temperature = *util::parse_number<f64>(value.data());
+            char *dummy;
+            settings.temperature = std::strtod(std::string(value).c_str(), &dummy);
         } else if (key == "gamma") {
-            settings.gamma = *util::parse_number<f64>(value.data());
+            char *dummy;
+            settings.gamma = std::strtod(std::string(value).c_str(), &dummy);
         } else {
             out << "info string warning: unknown datagen key: " << key << std::endl;
         }
