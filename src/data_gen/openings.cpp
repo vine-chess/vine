@@ -1,8 +1,6 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
 #include "../search/searcher.hpp"
-#include <iostream>
-#include <ostream>
 #include <string_view>
 
 namespace datagen {
