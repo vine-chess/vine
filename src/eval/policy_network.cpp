@@ -64,21 +64,33 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
 
+    util::StaticVector<std::reference_wrapper<const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE>>, 32> features;
+
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_)[i]);
-            }
+            features.push_back(std::ref(detail::feature(sq, piece, stm_, stm_)));
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_)[i]);
+            features.push_back(std::ref(detail::feature(sq, piece, ~stm_, stm_)));
+        }
+    }
+    usize feature_idx = 0;
+    constexpr auto UNROLL = 8;
+    for (; feature_idx + UNROLL <= features.size(); feature_idx += UNROLL) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            i16Vec sum = util::set1_epi16<VECTOR_SIZE>(0);
+            for (usize j = 0; j < UNROLL; ++j) {
+                sum += util::convert_vector<i16, i8, VECTOR_SIZE>(features[feature_idx + j].get()[i]);
             }
+            feature_accumulator_[i] += sum;
+        }
+    }
+    for (; feature_idx < features.size(); feature_idx += 1) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(features[feature_idx].get()[i]);
         }
     }
 }
