@@ -159,6 +159,8 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         } else if (key == "gamma") {
             char *dummy;
             settings.gamma = std::strtod(std::string(value).c_str(), &dummy);
+        } else if (key == "book") {
+            settings.book_path = value;
         } else {
             out << "info string warning: unknown datagen key: " << key << std::endl;
         }
