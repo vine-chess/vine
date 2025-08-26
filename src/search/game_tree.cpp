@@ -137,7 +137,7 @@ NodeIndex GameTree::select_and_expand_node() {
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
 
-            f64 chi2 = 0.0;
+            f64 l1 = 0.0;
             if (node.num_visits > 0 && node.num_children > 0) {
                 const f64 total_visits = static_cast<f64>(node.num_visits);
                 f64 sum_policies = 0.0;
@@ -148,11 +148,10 @@ NodeIndex GameTree::select_and_expand_node() {
                     Node &child = node_at(node.first_child_idx + i);
                     f64 v = static_cast<f64>(child.num_visits) / total_visits;
                     f64 p = child.policy_score / (sum_policies + 1e-12);
-                    f64 diff = v - p;
-                    chi2 += diff * diff / (p + 1e-6);
+                    l1 += std::abs(v - p);
                 }
             }
-            base /= (1.0 + 0.2 * chi2);
+            base /= (1.0 + 0.25 * l1);
 
             return base;
         }();
