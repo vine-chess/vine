@@ -134,36 +134,11 @@ NodeIndex GameTree::select_and_expand_node() {
         const f64 cpuct = [&]() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
 
-            constexpr f64 ENTROPY_EPS = 1e-12;
+            // Scale based on the entropy of the policy distributions
             constexpr f64 ENTROPY_MIN_SCALE = 0.75;
             constexpr f64 ENTROPY_MAX_SCALE = 1.25;
-
-            f64 entropy_scale = 1.0;
-            {
-                const u16 K = node.num_children;
-                if (K > 1) {
-                    f64 sum_policy = 0.0;
-                    for (u16 i = 0; i < K; ++i) {
-                        const Node &child = node_at(node.first_child_idx + i);
-                        sum_policy += std::max<f64>(child.policy_score, ENTROPY_EPS);
-                    }
-
-                    f64 H = 0.0;
-                    for (u16 i = 0; i < K; ++i) {
-                        const Node &child = node_at(node.first_child_idx + i);
-                        const f64 p = std::max<f64>(child.policy_score, ENTROPY_EPS) / sum_policy;
-                        H -= p * std::log(p);
-                    }
-
-                    // Normalize by log(K) so H_norm ∈ [0,1]
-                    const f64 H_norm = H / std::log(static_cast<f64>(K));
-
-                    entropy_scale =
-                        ENTROPY_MIN_SCALE + (ENTROPY_MAX_SCALE - ENTROPY_MIN_SCALE) * std::clamp(H_norm, 0.0, 1.0);
-                }
-            }
-
-            // Scale based on the entropy of the policy distributions
+            const f64 entropy_scale =
+                ENTROPY_MIN_SCALE + (ENTROPY_MAX_SCALE - ENTROPY_MIN_SCALE) * std::clamp(node.normalized_entropy, 0.0, 1.0);
             base *= entropy_scale;
 
             // Scale the exploration constant logarithmically with the number of visits this node has
@@ -192,7 +167,7 @@ NodeIndex GameTree::select_and_expand_node() {
 }
 
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
-    const Node &node = node_at(node_idx);
+    Node &node = node_at(node_idx);
 
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(state);
@@ -223,6 +198,30 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         child.policy_score /= sum_exponents;
+    }
+
+    constexpr f64 ENTROPY_EPS = 1e-12;
+
+    f64 entropy_scale = 1.0;
+    {
+        const u16 K = node.num_children;
+        if (K > 1) {
+            f64 sum_policy = 0.0;
+            for (u16 i = 0; i < K; ++i) {
+                const Node &child = node_at(node.first_child_idx + i);
+                sum_policy += std::max<f64>(child.policy_score, ENTROPY_EPS);
+            }
+
+            f64 H = 0.0;
+            for (u16 i = 0; i < K; ++i) {
+                const Node &child = node_at(node.first_child_idx + i);
+                const f64 p = std::max<f64>(child.policy_score, ENTROPY_EPS) / sum_policy;
+                H -= p * std::log(p);
+            }
+
+            // Normalize by log(K) so H_norm ∈ [0,1]
+            node.normalized_entropy = H / std::log(static_cast<f64>(K));
+        }
     }
 }
 

@@ -184,6 +184,8 @@ struct Node {
     u16 num_children = 0;
     // What kind of state this (terminal) node is
     TerminalState terminal_state = TerminalState::none();
+    // Entropy of child policy distributions
+    f64 normalized_entropy = 0.0;
 
     [[nodiscard]] bool visited() const;
     [[nodiscard]] bool terminal() const;
