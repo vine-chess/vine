@@ -133,8 +133,42 @@ NodeIndex GameTree::select_and_expand_node() {
 
         const f64 cpuct = [&]() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+
+            constexpr f64 ENTROPY_EPS = 1e-12;
+            constexpr f64 ENTROPY_MIN_SCALE = 0.75;
+            constexpr f64 ENTROPY_MAX_SCALE = 1.25;
+
+            f64 entropy_scale = 1.0;
+            {
+                const u16 K = node.num_children;
+                if (K > 1) {
+                    f64 sum_policy = 0.0;
+                    for (u16 i = 0; i < K; ++i) {
+                        const Node &child = node_at(node.first_child_idx + i);
+                        sum_policy += std::max<f64>(child.policy_score, ENTROPY_EPS);
+                    }
+
+                    f64 H = 0.0;
+                    for (u16 i = 0; i < K; ++i) {
+                        const Node &child = node_at(node.first_child_idx + i);
+                        const f64 p = std::max<f64>(child.policy_score, ENTROPY_EPS) / sum_policy;
+                        H -= p * std::log(p);
+                    }
+
+                    // Normalize by log(K) so H_norm ∈ [0,1]
+                    const f64 H_norm = H / std::log(static_cast<f64>(K));
+
+                    entropy_scale =
+                        ENTROPY_MIN_SCALE + (ENTROPY_MAX_SCALE - ENTROPY_MIN_SCALE) * std::clamp(H_norm, 0.0, 1.0);
+                }
+            }
+
+            // Scale based on the entropy of the policy distributions
+            base *= entropy_scale;
+
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+
             return base;
         }();
 
