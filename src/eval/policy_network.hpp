@@ -35,7 +35,7 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
 class PolicyContext {
   public:
     // Build the feature accumulator for the given position (one-time per node)
-    PolicyContext(const BoardState& state);
+    PolicyContext(const BoardState &state);
 
     // Raw score (logit) for a specific move in the position
     [[nodiscard]] f32 logit(Move move) const;

@@ -36,11 +36,11 @@ NodeIndex TreeHalf::root_idx() const {
     return {0, our_half_};
 }
 
-Node& TreeHalf::root_node() {
+Node &TreeHalf::root_node() {
     return nodes_[0];
 }
 
-const Node& TreeHalf::root_node() const {
+const Node &TreeHalf::root_node() const {
     return nodes_[0];
 }
 
