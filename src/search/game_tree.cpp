@@ -13,7 +13,7 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 4.5f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
 #else
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #endif
@@ -133,8 +133,27 @@ NodeIndex GameTree::select_and_expand_node() {
 
         const f64 cpuct = [&]() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+
+            f64 chi2 = 0.0;
+            if (node.num_visits > 0 && node.num_children > 0) {
+                const f64 total_visits = static_cast<f64>(node.num_visits);
+                f64 sum_policies = 0.0;
+                for (u16 i = 0; i < node.num_children; ++i)
+                    sum_policies += node_at(node.first_child_idx + i).policy_score;
+
+                for (u16 i = 0; i < node.num_children; ++i) {
+                    Node &child = node_at(node.first_child_idx + i);
+                    f64 v = static_cast<f64>(child.num_visits) / total_visits;
+                    f64 p = child.policy_score / (sum_policies + 1e-12);
+                    f64 diff = v - p;
+                    chi2 += diff * diff / (p + 1e-6);
+                }
+            }
+            base /= (1.0 + 0.2 * chi2);
+
             return base;
         }();
 
