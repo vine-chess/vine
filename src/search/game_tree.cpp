@@ -13,7 +13,7 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 4.5f;
 #else
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #endif
@@ -142,7 +142,6 @@ NodeIndex GameTree::select_and_expand_node() {
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
-
             // Track the child with the highest PUCT score
             const f64 child_score = compute_puct(node, child_node, child_node.policy_score, cpuct);
             if (child_score > best_child_score) {
