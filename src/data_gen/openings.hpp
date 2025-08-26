@@ -6,7 +6,8 @@
 
 namespace datagen {
 
-BoardState generate_opening( usize random_moves,  f64 initial_temperature = 1.25, f64 gamma = 0.9);
+BoardState generate_opening(std::string_view initial_fen, usize random_moves, f64 initial_temperature = 1.25,
+                            f64 gamma = 0.9);
 
 }
 

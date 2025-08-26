@@ -1,6 +1,7 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
 #include "../search/searcher.hpp"
+#include <string_view>
 
 namespace datagen {
 
@@ -30,15 +31,16 @@ Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
     return tree.node_at(root.first_child_idx + root.num_children - 1).move;
 }
 
-BoardState generate_opening(const usize random_moves, const f64 initial_temperature, const f64 gamma) {
+BoardState generate_opening(std::string_view initial_fen, const usize random_moves, const f64 initial_temperature,
+                            const f64 gamma) {
     thread_local search::Searcher searcher;
     searcher.set_hash_size(4);
     searcher.set_verbosity(search::Verbosity::NONE);
 
-    Board board(STARTPOS_FEN);
+    Board board(initial_fen);
     bool success;
     do {
-        board = Board(STARTPOS_FEN);
+        board = Board(initial_fen);
         success = true;
 
         f64 temperature = initial_temperature;
