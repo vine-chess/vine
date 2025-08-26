@@ -22,6 +22,7 @@ constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
 constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
+constexpr f64 CPUCT_Q_VARIANCE_SCALE = 0.25;
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -133,8 +134,32 @@ NodeIndex GameTree::select_and_expand_node() {
 
         const f64 cpuct = [&]() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+
+            if (node.num_children > 1) {
+                // Compute mean Q across children
+                f64 mean_q = 0.0;
+                for (u16 i = 0; i < node.num_children; ++i) {
+                    const Node &child_node = node_at(node.first_child_idx + i);
+                    mean_q += (child_node.num_visits > 0) ? child_node.q() : node.q();
+                }
+                mean_q /= static_cast<f64>(node.num_children);
+
+                // Compute variance
+                f64 var_q = 0.0;
+                for (u16 i = 0; i < node.num_children; ++i) {
+                    const Node &child_node = node_at(node.first_child_idx + i);
+                    const f64 q = (child_node.num_visits > 0) ? child_node.q() : 1.0 - node.q();
+                    const f64 d = q - mean_q;
+                    var_q += d * d;
+                }
+                var_q /= static_cast<f64>(node.num_children - 1);
+
+                base *= (1.0 + CPUCT_Q_VARIANCE_SCALE * std::sqrt(var_q));
+            }
+
             return base;
         }();
 
@@ -142,7 +167,6 @@ NodeIndex GameTree::select_and_expand_node() {
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
-
             // Track the child with the highest PUCT score
             const f64 child_score = compute_puct(node, child_node, child_node.policy_score, cpuct);
             if (child_score > best_child_score) {
