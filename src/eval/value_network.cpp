@@ -1,5 +1,5 @@
 #include "value_network.hpp"
-
+#include "../util/static_vector.hpp"
 #include <array>
 #include <cstring>
 
@@ -24,19 +24,33 @@ f64 evaluate(const BoardState &state) {
 
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
+
+    util::StaticVector<std::reference_wrapper<const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE>>, 32> features;
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, stm, stm, king_sq)[i];
-            }
+            features.push_back(std::ref(detail::feature(sq, piece, stm, stm, king_sq)));
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, ~stm, stm, king_sq)[i];
+            features.push_back(std::ref(detail::feature(sq, piece, ~stm, stm, king_sq)));
+        }
+    }
+    usize feature_idx = 0;
+    constexpr auto UNROLL = 8;
+    for (; feature_idx + UNROLL <= features.size(); feature_idx += UNROLL) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            i16Vec sum = util::set1_epi16<VECTOR_SIZE>(0);
+            for (usize j = 0; j < UNROLL; ++j) {
+                sum += features[feature_idx + j].get()[i];
             }
+            accumulator[i] += sum;
+        }
+    }
+    for (; feature_idx < features.size(); feature_idx += 1) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            accumulator[i] += features[feature_idx].get()[i];
         }
     }
 
