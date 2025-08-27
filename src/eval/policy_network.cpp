@@ -1,8 +1,6 @@
 #include "policy_network.hpp"
 #include "../chess/move_gen.hpp"
 
-#include "../third_party/incbin.h"
-#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -77,20 +75,19 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
             features.push_back(std::ref(detail::feature(sq, piece, ~stm_, stm_)));
         }
     }
-    usize feature_idx = 0;
-    constexpr auto UNROLL = 8;
-    for (; feature_idx + UNROLL <= features.size(); feature_idx += UNROLL) {
-        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-            i16Vec sum = util::set1_epi16<VECTOR_SIZE>(0);
-            for (usize j = 0; j < UNROLL; ++j) {
-                sum += util::convert_vector<i16, i8, VECTOR_SIZE>(features[feature_idx + j].get()[i]);
+
+    // the actual adding of features to the accumulator is unrolled
+    // to save on redundant loads and stores to the accumulator
+    for (usize feature_idx = 0; auto unroll : {32, 16, 8, 4, 2, 1}) {
+        if (feature_idx + unroll <= features.size()) {
+            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+                i16Vec sum = util::set1_epi16<VECTOR_SIZE>(0);
+                for (usize j = 0; j < unroll; ++j) {
+                    sum += util::convert_vector<i16, i8, VECTOR_SIZE>(features[feature_idx + j].get()[i]);
+                }
+                feature_accumulator_[i] += sum;
             }
-            feature_accumulator_[i] += sum;
-        }
-    }
-    for (; feature_idx < features.size(); feature_idx += 1) {
-        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-            feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(features[feature_idx].get()[i]);
+            feature_idx += unroll;
         }
     }
 }
