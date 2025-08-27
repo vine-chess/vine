@@ -78,8 +78,9 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
 
     // the actual adding of features to the accumulator is unrolled
     // to save on redundant loads and stores to the accumulator
-    for (usize feature_idx = 0; auto unroll : {32, 16, 8, 4, 2, 1}) {
-        if (feature_idx + unroll <= features.size()) {
+
+    for (usize feature_idx = 0; auto unroll : {8, 1}) {
+        for (; feature_idx + unroll <= features.size(); feature_idx += unroll) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 i16Vec sum = util::set1_epi16<VECTOR_SIZE>(0);
                 for (usize j = 0; j < unroll; ++j) {
@@ -87,7 +88,6 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
                 }
                 feature_accumulator_[i] += sum;
             }
-            feature_idx += unroll;
         }
     }
 }
