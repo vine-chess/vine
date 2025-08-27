@@ -31,7 +31,6 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
         const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
         Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
-        std::cout << board.state().to_fen() << std::endl;
         writer->push_board_state(board.state());
 
         f64 game_result;
@@ -145,7 +144,7 @@ void run_games(Settings settings, std::ostream &out) {
         const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
         thread_files.push_back(thread_file_path);
 
-        threads.emplace_back([settings, thread_file_path, &out, opening_fens]() {
+        threads.emplace_back([settings, thread_file_path, &out, &opening_fens]() {
             std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
             if (!thread_output) {
                 out << "failed to open thread output file " << thread_file_path << std::endl;
