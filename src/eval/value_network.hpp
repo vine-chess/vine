@@ -8,6 +8,7 @@
 
 namespace network::value {
 
+constexpr i16 SCALE = 400;
 constexpr i16 QA = 255;
 constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 512;
@@ -28,7 +29,7 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     std::array<i16, 1> l1_biases;
 };
 
-f64 evaluate(const BoardState &state);
+i32 evaluate(const BoardState &state);
 
 } // namespace network::value
 

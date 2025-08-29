@@ -18,7 +18,7 @@ namespace detail {
 
 } // namespace detail
 
-f64 evaluate(const BoardState &state) {
+i32 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
     std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
 
@@ -51,7 +51,7 @@ f64 evaluate(const BoardState &state) {
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
     const i32 bias = network->l1_biases[0];
-    return (dot / static_cast<f64>(QA) + bias) / static_cast<f64>(QA * QB);
+    return static_cast<i32>((dot / static_cast<f64>(QA) + bias) / static_cast<f64>(QA * QB) * SCALE);
 }
 
 } // namespace network::value
