@@ -23,12 +23,11 @@ constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
 constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
 // Material scaling constants
-constexpr u32 PAWN_VALUE = 150;
 constexpr u32 KNIGHT_VALUE = 300;
 constexpr u32 BISHOP_VALUE = 300;
 constexpr u32 ROOK_VALUE = 500;
 constexpr u32 QUEEN_VALUE = 1200;
-constexpr u32 MATERIAL_SCALING_BASE = 23000;
+constexpr u32 MATERIAL_SCALING_BASE = 26500;
 constexpr u32 MATERIAL_SCALING_MAX = 32768; // Not for tuning
 
 GameTree::GameTree()
@@ -254,7 +253,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     i32 cp_score = network::value::evaluate(board_.state());
     // Scale the evaluation based on the number of material left on the board
     const u32 phase =
-        board_.state().pawns().pop_count() * PAWN_VALUE + board_.state().knights().pop_count() * KNIGHT_VALUE +
+        board_.state().knights().pop_count() * KNIGHT_VALUE +
         board_.state().bishops().pop_count() * BISHOP_VALUE + board_.state().rooks().pop_count() * ROOK_VALUE +
         board_.state().queens().pop_count() * QUEEN_VALUE;
     cp_score = static_cast<i64>(cp_score) * (MATERIAL_SCALING_BASE + phase) / MATERIAL_SCALING_MAX;
