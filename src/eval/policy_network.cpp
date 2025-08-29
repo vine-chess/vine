@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <iostream>
 
 namespace network::policy {
 
@@ -93,12 +94,34 @@ f32 PolicyContext::logit(Move move) const {
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         const auto clamped =
             util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        sum += util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
+        sum += util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_1_weights_vec[idx][i]));
     }
 
-    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
-    const i32 bias = network->l1_biases[idx];
-    return static_cast<f32>(dot + bias) / static_cast<f32>(Q * Q);
+    const i32 dot1 = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
+    const i32 bias1 = network->l1_1_biases[idx];
+
+    std::array<i16, L1_2_SIZE> hl2{};
+    for (usize h = 0; h < L1_2_SIZE; ++h) {
+        util::SimdVector<i32, VECTOR_SIZE / 2> sumh{};
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            const auto clamped =
+                util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
+            sumh +=
+                util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_2_weights_vec[h][i]));
+        }
+        i32 acc = util::reduce_vector<i32, VECTOR_SIZE / 2>(sumh) + network->l1_2_biases[h];
+        i32 rescaled = acc / Q / Q;
+        rescaled = std::min(std::max(rescaled, 0), static_cast<i32>(Q));
+        hl2[h] = static_cast<i16>(rescaled);
+    }
+
+    i32 dot2 = network->l2_biases[idx];
+    for (usize h = 0; h < L1_2_SIZE; ++h) {
+        dot2 += static_cast<i32>(hl2[h]) * static_cast<i32>(network->l2_weights[idx][h]);
+    }
+
+    const i32 total = dot1 + bias1 + dot2;
+    return static_cast<f32>(total) / static_cast<f32>(Q * Q);
 }
 
 } // namespace network::policy
