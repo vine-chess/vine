@@ -255,7 +255,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const u32 phase =
         board_.state().knights().pop_count() * KNIGHT_VALUE + board_.state().bishops().pop_count() * BISHOP_VALUE +
         board_.state().rooks().pop_count() * ROOK_VALUE + board_.state().queens().pop_count() * QUEEN_VALUE;
-    cp_score *= static_cast<f64>(MATERIAL_SCALING_BASE + phase) / MATERIAL_SCALING_MAX;
+    cp_score *= static_cast<f64>(700.0 + phase / 32.0) / 1024.0;
 
     return 1.0 / (1.0 + std::exp(-static_cast<f64>(cp_score) / network::value::SCALE));
 }
