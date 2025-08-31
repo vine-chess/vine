@@ -13,7 +13,7 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.0f;
 #else
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #endif
