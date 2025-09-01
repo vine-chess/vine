@@ -1,4 +1,6 @@
 #include "../third_party/incbin.h"
+#include "../util/assert.hpp"
+#include "../util/simd.hpp"
 #include "policy_network.hpp"
 #include "value_network.hpp"
 
@@ -13,7 +15,11 @@ struct CombinedNetworks {
     alignas(64) policy::PolicyNetwork policy_net;
 };
 INCBIN(COMBINEDNETWORKS, EVALFILE);
-const auto combined_networks = reinterpret_cast<const CombinedNetworks *>(gCOMBINEDNETWORKSData);
+const auto combined_networks = []() {
+    const auto alignment = alignof(CombinedNetworks);
+    vine_assert(util::nextMultiple(gCOMBINEDNETWORKSSize, alignment) == sizeof(CombinedNetworks));
+    return reinterpret_cast<const CombinedNetworks *>(gCOMBINEDNETWORKSData);
+}();
 
 } // namespace detail
 
@@ -34,15 +40,22 @@ extern const auto network = &detail::combined_networks->policy_net;
 namespace value {
 
 INCBIN(VALUENETWORK, VALUEFILE);
-extern const auto network = reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
+extern const auto network = []() {
+    const auto alignment = alignof(ValueNetwork);
+    vine_assert(util::nextMultiple(gVALUENETWORKSize, alignment) == sizeof(ValueNetwork));
+    return reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
+}();
 
 } // namespace value
 
 namespace policy {
 
 INCBIN(POLICYNETWORK, POLICYFILE);
-extern const auto network = reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
-
+extern const auto network = []() {
+    const auto alignment = alignof(PolicyNetwork);
+    vine_assert(util::nextMultiple(gPOLICYNETWORKSize, alignment) == sizeof(PolicyNetwork));
+    return reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
+}();
 } // namespace policy
 
 #endif
