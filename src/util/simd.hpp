@@ -25,7 +25,7 @@ constexpr auto NATIVE_VECTOR_BYTES = 0;
 #endif
 
 // Useful for calculating sizes of structs aligned for simd purposes
-[[nodiscard]] constexpr auto nextMultiple(auto x, auto m) {
+[[nodiscard]] constexpr auto next_multiple(auto x, auto m) {
     return x + (m - x % m) % m;
 }
 
