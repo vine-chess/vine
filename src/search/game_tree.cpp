@@ -3,6 +3,7 @@
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/assert.hpp"
+#include "../uci/uci.hpp"
 #include "node.hpp"
 #include <algorithm>
 #include <cmath>
@@ -36,6 +37,9 @@ void GameTree::set_node_capacity(usize node_capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
+    dirichlet_epsilon_ = std::get<i32>(uci::options.get("DirichletNoiseEpsilon")->value_as_variant()) / 100.0;
+    dirichlet_alpha_ = std::get<i32>(uci::options.get("DirichletNoiseAlpha")->value_as_variant()) / 100.0;
+
     if (advance_root_node(board_, root_board, active_half().root_idx())) {
         // Re-compute root policy scores, since the node we advanced to was searched with non-root parameters
         compute_policy(root_board.state(), active_half().root_idx());
@@ -53,6 +57,9 @@ void GameTree::new_search(const Board &root_board) {
         flip_halves();
         vine_assert(expand_node(active_half().root_idx()));
     }
+
+    // Add Dirichlet noise to the policy prior distributions of the root node during data generation
+    inject_dirichlet_noise(active_half().root_idx());
 }
 
 const Node &GameTree::root() const {
@@ -378,20 +385,26 @@ void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
     auto &node = node_at(node_idx);
     vine_assert(node_idx == active_half().root_idx());
 
-    std::vector<f64> sample;
-    sample.reserve(node.num_children);
+    const f64 epsilon = dirichlet_noise_options_.epsilon;
+    const f64 alpha = dirichlet_noise_options_.alpha;
 
-    // Gather distribution of random numbers
+    std::vector<f64> noise;
+    noise.reserve(node.num_children);
+
+    // Generate a distribution of random numbers and normalize
     f64 sum = 0.0f;
-    for (usize i = 0; i < k; i++) {
-        const f64 random_number = rng::next_f64_gamma()
-        sample[i] = gamma(rng);
-        sum += sample[i];
+    for (usize i = 0; i < node.num_children; i++) {
+        noise.push_back(rng::next_f64_gamma(alpha));
+        sum += noise.back();
+    }
+    for (size_t i = 0; i < node.num_children; i++) {
+        noise[i] /= sum;
     }
 
-    // Normalize
-    for (size_t i = 0; i < k; i++) {
-        sample[i] /= sum;
+    // Mix in the Dirichlet noise with the policy priors
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = node_at(node.first_child_idx + i);
+        child.policy_score = static_cast<f32>((1.0 - epsilon) * child.policy_score + epsilon * noise[i]);
     }
 }
 

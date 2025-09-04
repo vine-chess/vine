@@ -7,6 +7,7 @@
 
 namespace search {
 
+
 class GameTree {
   public:
     GameTree();
@@ -64,6 +65,8 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    f64 dirichlet_epsilon_ = 0.0;
+    f64 dirichlet_alpha_ = 0.0;
 };
 
 } // namespace search
