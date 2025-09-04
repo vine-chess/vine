@@ -2,8 +2,8 @@
 #include "../chess/move_gen.hpp"
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
-#include "../util/assert.hpp"
 #include "../uci/uci.hpp"
+#include "../util/assert.hpp"
 #include "node.hpp"
 #include <algorithm>
 #include <cmath>
@@ -59,6 +59,7 @@ void GameTree::new_search(const Board &root_board) {
     }
 
     // Add Dirichlet noise to the policy prior distributions of the root node during data generation
+    rng::seed_generator(root_board.state().hash_key);
     inject_dirichlet_noise(active_half().root_idx());
 }
 
@@ -385,16 +386,13 @@ void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
     auto &node = node_at(node_idx);
     vine_assert(node_idx == active_half().root_idx());
 
-    const f64 epsilon = dirichlet_noise_options_.epsilon;
-    const f64 alpha = dirichlet_noise_options_.alpha;
-
     std::vector<f64> noise;
     noise.reserve(node.num_children);
 
     // Generate a distribution of random numbers and normalize
     f64 sum = 0.0f;
     for (usize i = 0; i < node.num_children; i++) {
-        noise.push_back(rng::next_f64_gamma(alpha));
+        noise.push_back(rng::next_f64_gamma(dirichlet_alpha_));
         sum += noise.back();
     }
     for (size_t i = 0; i < node.num_children; i++) {
@@ -404,7 +402,8 @@ void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
     // Mix in the Dirichlet noise with the policy priors
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
-        child.policy_score = static_cast<f32>((1.0 - epsilon) * child.policy_score + epsilon * noise[i]);
+        child.policy_score =
+            static_cast<f32>((1.0 - dirichlet_epsilon_) * child.policy_score + dirichlet_epsilon_ * noise[i]);
     }
 }
 
