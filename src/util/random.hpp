@@ -32,8 +32,13 @@ static u64 next_u64(u64 min, u64 max) {
     return dist(generator);
 }
 
-static f64 next_double() {
+static f64 next_f64() {
     std::uniform_real_distribution dist(0.0, 1.0);
+    return dist(generator);
+}
+
+static f64 next_f64_gamma(f64 alpha) {
+    std::gamma_distribution<> dist(alpha, 1.0);
     return dist(generator);
 }
 

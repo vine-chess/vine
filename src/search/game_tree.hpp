@@ -56,6 +56,8 @@ class GameTree {
 
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
+    void inject_dirichlet_noise(NodeIndex node_idx);
+
     std::vector<TreeHalf> halves_;
     u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;

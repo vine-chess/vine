@@ -18,7 +18,7 @@ Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
         total += distr[i];
     }
 
-    f64 random_choice = rng::next_double();
+    f64 random_choice = rng::next_f64();
     f64 sum = 0;
     for (usize i = 0; i < root.num_children; ++i) {
         const auto child = tree.node_at(root.first_child_idx + i);

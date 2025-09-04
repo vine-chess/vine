@@ -374,4 +374,25 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
     return old_board.state() == new_board.state();
 }
 
+void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
+    auto &node = node_at(node_idx);
+    vine_assert(node_idx == active_half().root_idx());
+
+    std::vector<f64> sample;
+    sample.reserve(node.num_children);
+
+    // Gather distribution of random numbers
+    f64 sum = 0.0f;
+    for (usize i = 0; i < k; i++) {
+        const f64 random_number = rng::next_f64_gamma()
+        sample[i] = gamma(rng);
+        sum += sample[i];
+    }
+
+    // Normalize
+    for (size_t i = 0; i < k; i++) {
+        sample[i] /= sum;
+    }
+}
+
 } // namespace search
