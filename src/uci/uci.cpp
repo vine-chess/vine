@@ -36,8 +36,8 @@ Handler::Handler() {
     }));
     options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
     options.add(std::make_unique<IntegerOption>("KldMinGain", 0, 0, 100));
-    options.add(std::make_unique<IntegerOption>("DirichletNoiseEpsilon", 25, 0, 100));
-    options.add(std::make_unique<IntegerOption>("DirichletNoiseAlpha", 30, 0, 100));
+    options.add(std::make_unique<IntegerOption>("DirichletNoiseEpsilon", 0, 0, 100));
+    options.add(std::make_unique<IntegerOption>("DirichletNoiseAlpha", 0, 0, 100));
     board_ = Board(STARTPOS_FEN);
 }
 

@@ -59,8 +59,10 @@ void GameTree::new_search(const Board &root_board) {
     }
 
     // Add Dirichlet noise to the policy prior distributions of the root node during data generation
-    rng::seed_generator(root_board.state().hash_key);
-    inject_dirichlet_noise(active_half().root_idx());
+    if (dirichlet_alpha_ != 0 && dirichlet_epsilon_ != 0) {
+        rng::seed_generator(root_board.state().hash_key);
+        inject_dirichlet_noise(active_half().root_idx());
+    }
 }
 
 const Node &GameTree::root() const {
@@ -395,7 +397,7 @@ void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
         noise.push_back(rng::next_f64_gamma(dirichlet_alpha_));
         sum += noise.back();
     }
-    for (size_t i = 0; i < node.num_children; i++) {
+    for (usize i = 0; i < node.num_children; i++) {
         noise[i] /= sum;
     }
 
