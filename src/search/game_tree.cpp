@@ -22,6 +22,9 @@ constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
 constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
+constexpr f32 GINI_BASE = 0.5;
+constexpr f32 GINI_MULTIPLIER = 1.5;
+constexpr f32 GINI_MAXIMUM = 2.25;
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -135,6 +138,9 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+
+            base *=
+                std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
         }();
 
@@ -157,7 +163,7 @@ NodeIndex GameTree::select_and_expand_node() {
 }
 
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
-    const Node &node = node_at(node_idx);
+    Node &node = node_at(node_idx);
 
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(state);
@@ -176,7 +182,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     }
 
     // Softmax the policy logits
-    f32 sum_exponents = 0;
+    f32 sum_exponents = 0.0f;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         const f32 exp_policy = std::exp(child.policy_score - highest_policy);
@@ -184,11 +190,15 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         child.policy_score = exp_policy;
     }
 
+    f32 sum_squares = 0.0f;
     // Normalize into policy scores
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         child.policy_score /= sum_exponents;
+        sum_squares += child.policy_score * child.policy_score;
     }
+
+    node.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
 }
 
 bool GameTree::expand_node(NodeIndex node_idx) {
