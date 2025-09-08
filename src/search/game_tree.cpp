@@ -140,14 +140,13 @@ NodeIndex GameTree::select_and_expand_node() {
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
 
 #ifdef DATAGEN
-            // const f32 gini_impurity = GINI_MULTIPLIER - node.gini_impurity / 255.0;
+            const f32 gini_impurity = GINI_MULTIPLIER - node.gini_impurity / 255.0;
 #else
             const f32 gini_impurity = node.gini_impurity / 255.0;
-
+#endif
             const f64 gini_exploration_multiplier =
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(gini_impurity + 0.001));
             base *= gini_exploration_multiplier;
-#endif
             return base;
         }();
 
