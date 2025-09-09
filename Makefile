@@ -21,13 +21,13 @@ else ifdef VALUEFILE
 	endif
 else
 	VALUEFILE = net31.vn
-	POLICYFILE = net11.pn
+	POLICYFILE = net12.pn
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
 	DOWNLOAD_NETS = yes
 endif
 
-CC ?= gcc
-CXX ?= g++
+CC ?= clang
+CXX ?= clang++
 
 ifeq ($(OS),Windows_NT)
 	FLAGS += -static
@@ -58,7 +58,6 @@ endif
 ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
 endif
-
 
 .PHONY: nets
 nets:

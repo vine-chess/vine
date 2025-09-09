@@ -110,7 +110,7 @@ void BoardState::compute_masks() {
     checkers |= pawns(~side_to_move) & PAWN_ATTACKS[our_king][side_to_move];
 }
 
-[[nodiscard]] Bitboard BoardState::threats_by(Color color) const {
+Bitboard BoardState::threats_by(Color color) const {
     Bitboard threats = KING_MOVES[king(color).lsb()];
 
     const Bitboard occ = occupancy() ^ king(~color);
