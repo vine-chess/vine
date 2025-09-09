@@ -1,4 +1,5 @@
 #include "hash_table.hpp"
+#include "../util/assert.hpp"
 
 namespace search {
 
@@ -8,12 +9,9 @@ void HashTable::set_entry_capacity(usize capacity) {
     table_.resize(capacity);
 }
 
-std::optional<const HashEntry *> HashTable::probe(const HashKey &hash_key) const {
+const HashEntry *HashTable::probe(const HashKey &hash_key) const {
     const auto entry = &table_[index(hash_key)];
-    if (entry->compressed_hash_key == static_cast<u16>(hash_key)) {
-        return entry;
-    }
-    return std::nullopt;
+    return entry->compressed_hash_key == static_cast<u16>(hash_key) ? entry : nullptr;
 }
 
 void HashTable::update(const HashKey &hash_key, f64 q) {
@@ -23,6 +21,7 @@ void HashTable::update(const HashKey &hash_key, f64 q) {
 }
 
 usize HashTable::index(const HashKey &hash_key) const {
+    vine_assert(!table_.empty());
     return hash_key % table_.size();
 }
 

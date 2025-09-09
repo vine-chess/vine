@@ -18,14 +18,13 @@ class HashTable {
   public:
     void set_entry_capacity(usize capacity);
 
-    std::optional<const HashEntry *> probe(const HashKey &hash_key) const;
+    [[nodiscard]] const HashEntry *probe(const HashKey &hash_key) const;
 
     void update(const HashKey &hash_key, f64 q);
 
   private:
-    usize index(const HashKey &hash_key) const;
+    [[nodiscard]] usize index(const HashKey &hash_key) const;
 
-  private:
     std::vector<HashEntry> table_;
 };
 

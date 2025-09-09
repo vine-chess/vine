@@ -93,10 +93,10 @@ NodeIndex GameTree::select_and_expand_node() {
     // - child: the candidate child node being scored
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](Node &parent, Node &child, f64 parent_q, f32 exploration_constant) -> f64 {
+    const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
-        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent_q;
+        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
         const f64 u_value = exploration_constant * static_cast<f64>(child.policy_score) * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
@@ -138,10 +138,7 @@ NodeIndex GameTree::select_and_expand_node() {
             continue;
         }
 
-        const auto hash_entry = hash_table_.probe(board_.state().hash_key);
-        const f64 parent_q = hash_entry ? hash_entry.value()->q : node.q();
-
-        const f64 cpuct = [&]() {
+        const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
@@ -156,7 +153,7 @@ NodeIndex GameTree::select_and_expand_node() {
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, parent_q, cpuct);
+            const f64 child_score = compute_puct(node, child_node, cpuct);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
@@ -255,6 +252,11 @@ bool GameTree::expand_node(NodeIndex node_idx) {
 }
 
 f64 GameTree::simulate_node(NodeIndex node_idx) {
+    // Return the cached Q of this node if it exists instead of calling out to the value network
+    if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
+        return hash_entry->q;
+    }
+
     const auto &node = node_at(node_idx);
     if (node.terminal()) {
         return node.terminal_state.score();
