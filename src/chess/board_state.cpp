@@ -1,6 +1,7 @@
 #include "board_state.hpp"
 #include "../uci/uci.hpp"
 #include "move_gen.hpp"
+#include "magics.hpp"
 
 #include <cassert>
 #include <string>
@@ -107,6 +108,26 @@ void BoardState::compute_masks() {
     checkers |= knights(~side_to_move) & KNIGHT_MOVES[our_king];
     checkers |= king(~side_to_move) & KING_MOVES[our_king];
     checkers |= pawns(~side_to_move) & PAWN_ATTACKS[our_king][side_to_move];
+}
+
+[[nodiscard]] Bitboard BoardState::threats_by(Color color) const {
+    Bitboard threats = KING_MOVES[king(color).lsb()];
+
+    const Bitboard occ = occupancy() ^ king(~color);
+    for (const auto sq : pawns(color)) {
+        threats |= PAWN_ATTACKS[sq][color];
+    }
+    for (const auto sq : knights(color)) {
+        threats |= KNIGHT_MOVES[sq];
+    }
+    for (const auto sq : bishops(color) | queens(color)) {
+        threats |= get_bishop_attacks(sq, occ);
+    }
+    for (const auto sq : rooks(color) | queens(color)) {
+        threats |= get_rook_attacks(sq, occ);
+    }
+
+    return threats;
 }
 
 std::string BoardState::to_fen() const {
