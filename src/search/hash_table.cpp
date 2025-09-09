@@ -1,5 +1,6 @@
 #include "hash_table.hpp"
 #include "../util/assert.hpp"
+#include <algorithm>
 
 namespace search {
 
@@ -7,6 +8,10 @@ void HashTable::set_entry_capacity(usize capacity) {
     table_.clear();
     table_.shrink_to_fit();
     table_.resize(capacity);
+}
+
+void HashTable::clear() {
+    std::ranges::fill(table_, HashEntry{});
 }
 
 const HashEntry *HashTable::probe(const HashKey &hash_key) const {

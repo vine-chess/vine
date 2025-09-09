@@ -18,6 +18,8 @@ class HashTable {
   public:
     void set_entry_capacity(usize capacity);
 
+    void clear();
+
     [[nodiscard]] const HashEntry *probe(const HashKey &hash_key) const;
 
     void update(const HashKey &hash_key, f64 q);

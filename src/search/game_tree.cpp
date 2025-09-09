@@ -54,6 +54,7 @@ void GameTree::new_search(const Board &root_board) {
     board_ = root_board;
     sum_depths_ = 0;
     tree_usage_ = 0;
+    hash_table_.clear();
 
     // Ensure the root node is expanded
     if (!expand_node(active_half().root_idx())) {
