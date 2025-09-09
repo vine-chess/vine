@@ -14,7 +14,10 @@ void Searcher::set_thread_count(u16 thread_count) {
 }
 
 void Searcher::set_hash_size(u32 size_in_mb) {
-    game_tree_.set_node_capacity(1024 * 1024 * size_in_mb / sizeof(Node));
+    const usize size_in_bytes = 1024 * 1024 * size_in_mb;
+    const usize hash_table_capacity = size_in_bytes / 20;
+    game_tree_.set_node_capacity((size_in_bytes - hash_table_capacity + size_in_bytes % 20) / sizeof(Node));
+    game_tree_.set_hash_table_capacity(hash_table_capacity / sizeof(HashEntry));
 }
 
 void Searcher::set_verbosity(Verbosity verbosity) {
