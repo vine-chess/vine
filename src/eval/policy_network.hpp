@@ -42,6 +42,7 @@ class PolicyContext {
 
   private:
     Color stm_;
+    Square king_sq_;
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_{};
 };
 
