@@ -24,7 +24,7 @@ Board::Board(std::string_view fen) {
     i32 square = Square::A8;
     for (const char &ch : position) {
         if (ch == '/') {
-            square = square - 16 + (square % 8);
+            square = square - 16 + square % 8;
             continue;
         }
 

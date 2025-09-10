@@ -253,7 +253,12 @@ bool GameTree::expand_node(NodeIndex node_idx) {
 
 f64 GameTree::simulate_node(NodeIndex node_idx) {
     // Return the cached Q of this node if it exists instead of calling out to the value network
+    if (board_.state().hash_key == 0) {
+        std::cout << board_ << std::endl;
+    }
     if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
+        std::cout << board_ << std::endl << (u16)board_.state().hash_key << std::endl;
+        exit(0);
         return hash_entry->q;
     }
 
