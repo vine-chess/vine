@@ -254,7 +254,7 @@ bool GameTree::expand_node(NodeIndex node_idx) {
 f64 GameTree::simulate_node(NodeIndex node_idx) {
     // Return the cached Q of this node if it exists instead of calling out to the value network
     if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
-        //return hash_entry->q;
+        return hash_entry->q;
     }
 
     const auto &node = node_at(node_idx);

@@ -40,6 +40,9 @@ Board::Board(std::string_view fen) {
     char side_to_move;
     stream >> side_to_move;
     state().side_to_move = side_to_move == 'w' ? Color::WHITE : Color::BLACK;
+    if (state().side_to_move == Color::BLACK) {
+        state().hash_key ^= zobrist::side_to_move;
+    }
 
     std::string castle_data;
     stream >> castle_data;
