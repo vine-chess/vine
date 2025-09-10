@@ -232,6 +232,24 @@ void Board::undo_n_moves(usize n) {
     }
 }
 
+HashKey Board::predict_hash_key(Move move) const {
+    HashKey hash_key = state().hash_key ^ zobrist::side_to_move;
+    const auto from_type = state().get_piece_type(move.from());
+    auto to_type = state().get_piece_type(move.from());
+
+    if (move.is_capture()) {
+        hash_key ^= zobrist::pieces[state().get_piece_type(move.to()) - 1][~state().side_to_move][move.to()];
+    }
+
+    if (move.is_promo()) {
+        to_type = move.promo_type();
+    }
+
+    hash_key ^= zobrist::pieces[from_type - 1][state().side_to_move][move.from()];
+    hash_key ^= zobrist::pieces[to_type - 1][state().side_to_move][move.to()];
+    return hash_key;
+}
+
 std::ostream &operator<<(std::ostream &out, const BoardState &board) {
     for (int rank = 7; rank >= 0; rank--) {
         out << rank + 1 << ' ';

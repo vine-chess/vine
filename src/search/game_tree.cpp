@@ -93,10 +93,7 @@ NodeIndex GameTree::select_and_expand_node() {
     // - child: the candidate child node being scored
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
-        // Average value of the child from previous visits (Q value), flipped to match current node's perspective
-        // If the node hasn't been visited, use the parent node's Q value
-        const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
+    const auto compute_puct = [&](Node &parent, Node &child, f64 q_value, f32 exploration_constant) -> f64 {
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
         const f64 u_value = exploration_constant * static_cast<f64>(child.policy_score) * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
@@ -152,8 +149,18 @@ NodeIndex GameTree::select_and_expand_node() {
         f64 best_child_score = std::numeric_limits<f64>::min();
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
+            // Average value of the child from previous visits (Q value), flipped to match current node's perspective
+            const f64 child_q = [&] {
+                if (child_node.num_visits > 0) {
+                    return 1.0 - child_node.q();
+                } else {
+                    // If the node hasn't been visited, use the parent node's Q value
+                    const auto hash_entry = hash_table_.probe(board_.predict_hash_key(child_node.move));
+                    return hash_entry ? 1.0 - hash_entry->q : node.q();
+                }
+            }();
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, cpuct);
+            const f64 child_score = compute_puct(node, child_node, child_q, cpuct);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;

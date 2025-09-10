@@ -23,6 +23,8 @@ class Board {
 
     [[nodiscard]] Move create_move(std::string_view uci_move) const;
 
+    [[nodiscard]] HashKey predict_hash_key(Move move) const;
+
     void make_move(Move move);
     void undo_move();
 
