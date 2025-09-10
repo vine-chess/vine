@@ -30,7 +30,7 @@ void HashTable::update_q(const HashKey &hash_key, f64 q, u16 num_visits) {
 void HashTable::update_policy_score(const HashKey &hash_key, f32 policy_score) {
     auto &entry = table_[index(hash_key)];
     entry.compressed_hash_key = static_cast<u16>(hash_key);
-    entry.policy_score = static_cast<u16>(policy_score / 32768.0);
+    entry.policy_score = policy_score;
 }
 
 usize HashTable::index(const HashKey &hash_key) const {
