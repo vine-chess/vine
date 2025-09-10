@@ -185,8 +185,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         Node &child = node_at(node.first_child_idx + i);
         const auto hash_entry = hash_table_.probe(board_.predict_hash_key(child.move));
         // Compute policy output for this move
-        if (hash_entry && hash_entry->policy_score <= 32768) {
-            const f32 cached_policy_score = static_cast<f32>(std::fabs(hash_entry->policy_score)) / 32768.0f;
+        if (hash_entry && hash_entry->policy_score != 32767) {
+            const f32 cached_policy_score = static_cast<f32>(hash_entry->policy_score) / 32768.0f;
             child.policy_score = cached_policy_score / temperature;
         } else {
             const f32 logit = ctx.logit(child.move);

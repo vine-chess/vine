@@ -12,7 +12,7 @@ namespace search {
 struct HashEntry {
     u16 compressed_hash_key = 0;
     u16 num_visits = 0;
-    u16 policy_score = 32768;
+    i16 policy_score = 32767;
     f64 q = 0.0;
 };
 
