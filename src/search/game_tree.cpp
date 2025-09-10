@@ -294,6 +294,7 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
+    board_.undo_n_moves(nodes_in_path_.size() - 1);
 
     auto child_terminal_state = TerminalState::none();
     while (!nodes_in_path_.empty()) {
@@ -321,7 +322,7 @@ void GameTree::backpropagate_score(f64 score) {
 
         // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
-            board_.undo_move();
+
         }
     }
 }
