@@ -54,7 +54,6 @@ void GameTree::new_search(const Board &root_board) {
     board_ = root_board;
     sum_depths_ = 0;
     tree_usage_ = 0;
-    hash_table_.clear();
 
     // Ensure the root node is expanded
     if (!expand_node(active_half().root_idx())) {
@@ -304,7 +303,7 @@ void GameTree::backpropagate_score(f64 score) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
-        hash_table_.update(board_.state().hash_key, score);
+        hash_table_.update(board_.state().hash_key, score, node.num_visits);
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {

@@ -11,6 +11,7 @@ namespace search {
 
 struct HashEntry {
     u16 compressed_hash_key = 0;
+    u16 num_visits = 0;
     f64 q = 0.0;
 };
 
@@ -22,7 +23,7 @@ class HashTable {
 
     [[nodiscard]] const HashEntry *probe(const HashKey &hash_key) const;
 
-    void update(const HashKey &hash_key, f64 q);
+    void update(const HashKey &hash_key, f64 q, u16 num_visits);
 
   private:
     [[nodiscard]] usize index(const HashKey &hash_key) const;
