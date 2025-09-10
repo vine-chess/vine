@@ -2,6 +2,7 @@
 #define TIME_MANAGER_HPP
 
 #include "../util/types.hpp"
+#include "game_tree.hpp"
 #include <chrono>
 #include <limits>
 
@@ -23,7 +24,7 @@ class TimeManager {
 
     void start_tracking(const TimeSettings &settings);
 
-    [[nodiscard]] bool times_up(u64 iterations, Color color, i32 depth) const;
+    [[nodiscard]] bool times_up(const GameTree &tree, u64 iterations, Color color, i32 depth) const;
 
     [[nodiscard]] u64 time_elapsed() const;
 
