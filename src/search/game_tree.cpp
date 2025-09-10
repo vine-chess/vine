@@ -154,9 +154,7 @@ NodeIndex GameTree::select_and_expand_node() {
                 if (child_node.num_visits > 0) {
                     return 1.0 - child_node.q();
                 } else {
-                    // If the node hasn't been visited, use the parent node's Q value
-                    const auto hash_entry = hash_table_.probe(board_.predict_hash_key(child_node.move));
-                    return hash_entry && hash_entry->num_visits >= node.num_visits ? 1.0 - hash_entry->q : node.q();
+                    return node.q();
                 }
             }();
             // Track the child with the highest PUCT score
@@ -185,8 +183,17 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
+        const auto hash_entry = hash_table_.probe(board_.predict_hash_key(child.move));
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move) / temperature;
+        if (hash_entry && hash_entry->policy_score > 0) {
+            const f32 cached_policy_score = static_cast<f32>(hash_entry->policy_score) / 32768.0f;
+            child.policy_score = cached_policy_score / temperature;
+        } else {
+            const f32 logit = ctx.logit(child.move);
+            hash_table_.update_policy_score(state.hash_key, logit);
+            child.policy_score = logit / temperature;
+        }
+
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -311,7 +318,7 @@ void GameTree::backpropagate_score(f64 score) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
-        hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
+        hash_table_.update_q(board_.state().hash_key, node.q(), node.num_visits);
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
