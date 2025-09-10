@@ -21,7 +21,7 @@ Board::Board(std::string_view fen) {
     std::string position;
     stream >> position;
 
-    u8 square = Square::A8;
+    i32 square = Square::A8;
     for (const char &ch : position) {
         if (ch == '/') {
             square = square - 16 + (square % 8);
