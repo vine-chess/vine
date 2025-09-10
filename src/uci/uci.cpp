@@ -249,9 +249,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                     std::istringstream moves_stream(line.substr(moves_pos + 7));
                     std::string move_str;
                     while (moves_stream >> move_str) {
-                        std::cout << "prediction: " << board_.predict_hash_key(board_.create_move(move_str)) << " | after: ";
                         board_.make_move(board_.create_move(move_str));
-                        std::cout << board_.state().hash_key << std::endl;
                     }
                 }
             }
