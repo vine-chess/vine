@@ -147,7 +147,7 @@ NodeIndex GameTree::select_and_expand_node() {
                 const i32 prev_eval =
                     std::round(400.0 * std::log(1.0 / node_at(nodes_in_path_[nodes_in_path_.size() - 2]).q() - 1.0));
                 if (prev_eval > cur_eval) {
-                    base *= std::exp((prev_eval - cur_eval) * -0.002231);
+                    base *= std::exp((prev_eval - cur_eval) * -0.001);
                 }
             }
             base *=
