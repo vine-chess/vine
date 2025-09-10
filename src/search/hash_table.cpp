@@ -1,5 +1,4 @@
 #include "hash_table.hpp"
-#include "../util/assert.hpp"
 #include <algorithm>
 
 namespace search {
@@ -21,7 +20,7 @@ const HashEntry *HashTable::probe(const HashKey &hash_key) const {
 
 void HashTable::update(const HashKey &hash_key, f64 q, u16 num_visits) {
     auto &entry = table_[index(hash_key)];
-    if (entry.compressed_hash_key != static_cast<u16>(hash_key) || entry.num_visits >= num_visits) {
+    if (entry.compressed_hash_key != static_cast<u16>(hash_key) || num_visits >= entry.num_visits) {
         entry.compressed_hash_key = static_cast<u16>(hash_key);
         entry.num_visits = num_visits;
         entry.q = q;
@@ -29,7 +28,6 @@ void HashTable::update(const HashKey &hash_key, f64 q, u16 num_visits) {
 }
 
 usize HashTable::index(const HashKey &hash_key) const {
-    vine_assert(!table_.empty());
     return hash_key % table_.size();
 }
 
