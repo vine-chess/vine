@@ -2,6 +2,7 @@
 #define GAME_TREE_HPP
 
 #include "../chess/board.hpp"
+#include "hash_table.hpp"
 #include "node.hpp"
 #include "tree_half.hpp"
 
@@ -13,6 +14,7 @@ class GameTree {
     ~GameTree() = default;
 
     void set_node_capacity(usize capacity);
+    void set_hash_table_capacity(usize capacity);
 
     void new_search(const Board &root_board);
 
@@ -57,6 +59,7 @@ class GameTree {
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
     std::vector<TreeHalf> halves_;
+    HashTable hash_table_;
     u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;
     Board board_;
