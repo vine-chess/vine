@@ -18,7 +18,7 @@ void signal_handler([[maybe_unused]] i32 signum) {
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
-void thread_loop(const Settings &settings, std::ofstream &out_file) {
+void thread_loop(const Settings &settings, std::ofstream &out_file, const std::vector<std::string> &opening_fens) {
     auto writer = std::make_unique<MontyFormatWriter>(out_file);
 
     search::Searcher searcher;
@@ -29,7 +29,8 @@ void thread_loop(const Settings &settings, std::ofstream &out_file) {
 
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
-        Board board(generate_opening(settings.random_moves));
+        const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
+        Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
         writer->push_board_state(board.state());
 
         f64 game_result;
@@ -129,18 +130,28 @@ void run_games(Settings settings, std::ostream &out) {
         }
     });
 
+    std::vector<std::string> opening_fens;
+    if (settings.book_path.empty()) {
+        opening_fens.push_back(std::string(STARTPOS_FEN));
+    } else {
+        std::ifstream book{std::string(settings.book_path)};
+        for (std::string opening; std::getline(book, opening);) {
+            opening_fens.push_back(opening);
+        }
+    };
+
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
         const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
         thread_files.push_back(thread_file_path);
 
-        threads.emplace_back([settings, thread_file_path, &out]() {
+        threads.emplace_back([settings, thread_file_path, &out, &opening_fens]() {
             std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
             if (!thread_output) {
                 out << "failed to open thread output file " << thread_file_path << std::endl;
                 return;
             }
 
-            thread_loop(settings, thread_output);
+            thread_loop(settings, thread_output, opening_fens);
 
             thread_output.close();
             if (!thread_output.good()) {

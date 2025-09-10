@@ -13,9 +13,11 @@ const extern PolicyNetwork *const network;
 namespace detail {
 
 [[nodiscard]] const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
-                                                                            Color piece_color, Color perspective) {
+                                                                            Color piece_color, Color perspective,
+                                                                            Bitboard threats, Bitboard defences) {
     usize flip = 0b111000 * perspective;
-    return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
+    return network
+        ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
 constexpr std::array<Bitboard, 64> ALL_DESTINATIONS = [] {
@@ -67,17 +69,18 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
+        const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_)[i]);
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_])[i]);
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_)[i]);
+                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_])[i]);
             }
         }
     }

@@ -19,6 +19,10 @@ struct Settings {
     search::TimeSettings time_settings;
     // The output file location
     std::string output_file;
+    // File path to the book
+    std::string book_path;
+    // Opening settings
+    f64 temperature, gamma;
 };
 
 void run_games(Settings settings, std::ostream &out);

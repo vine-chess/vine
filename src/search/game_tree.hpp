@@ -2,6 +2,7 @@
 #define GAME_TREE_HPP
 
 #include "../chess/board.hpp"
+#include "hash_table.hpp"
 #include "node.hpp"
 #include "tree_half.hpp"
 
@@ -13,6 +14,7 @@ class GameTree {
     ~GameTree() = default;
 
     void set_node_capacity(usize capacity);
+    void set_hash_table_capacity(usize capacity);
 
     void new_search(const Board &root_board);
 
@@ -40,14 +42,14 @@ class GameTree {
     // Stage 4 (Final): Backpropagation
     // Propagates the scores of a node that was just simulated to itself and its ancestor nodes, increasing the number
     // of visits to each node that had a score propagated to it.
-    void backpropagate_score(f64 score, NodeIndex node_idx);
+    void backpropagate_score(f64 score);
+
+    void flip_halves();
 
   private:
     void backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state);
 
     [[nodiscard]] bool expand_node(NodeIndex node_idx);
-
-    void flip_halves();
 
     [[nodiscard]] bool fetch_children(NodeIndex node_idx);
 
@@ -57,11 +59,12 @@ class GameTree {
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
     std::vector<TreeHalf> halves_;
+    HashTable hash_table_;
     u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;
     Board board_;
     u32 sum_depths_ = 0;
-    u32 nodes_in_path_ = 0;
+    util::StaticVector<NodeIndex, 512> nodes_in_path_;
 };
 
 } // namespace search

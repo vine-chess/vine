@@ -1,5 +1,4 @@
 #include "uci/uci.hpp"
-#include <sstream>
 
 int main(int argv, char **argc) {
     std::stringstream cli_arg_stream;

@@ -20,14 +20,14 @@ else ifdef VALUEFILE
 		$(error POLICYFILE must be defined alongside VALUEFILE)
 	endif
 else
-	VALUEFILE = net20.vn
-	POLICYFILE = net3.pn
+	VALUEFILE = net31.vn
+	POLICYFILE = net12.pn
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
 	DOWNLOAD_NETS = yes
 endif
 
-CC ?= gcc
-CXX ?= g++
+CC ?= clang
+CXX ?= clang++
 
 ifeq ($(OS),Windows_NT)
 	FLAGS += -static
@@ -53,11 +53,11 @@ else ifeq ($(findstring avx512, $(build)), avx512)
 	FLAGS += $(MAVX512)
 endif
 
+.DEFAULT_GOAL := all 
+
 ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
 endif
-
-datagen: all
 
 .PHONY: nets
 nets:
@@ -69,6 +69,8 @@ ifeq ($(DOWNLOAD_NETS),yes)
 		curl -sOL https://github.com/vine-chess/vine-networks/raw/refs/heads/main/policy/$(POLICYFILE); \
 	fi
 endif
+
+datagen: all
 
 %.o: %.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
