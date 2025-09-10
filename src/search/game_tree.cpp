@@ -156,7 +156,9 @@ NodeIndex GameTree::select_and_expand_node() {
                 } else {
                     // If the node hasn't been visited, use the parent node's Q value
                     const auto hash_entry = hash_table_.probe(board_.predict_hash_key(child_node.move));
-                    return hash_entry ? 1.0 - hash_entry->q : node.q();
+                    return hash_entry ? std::lerp(node.q(), (1.0 - hash_entry->q),
+                                                  0.5 + 0.5 * (hash_entry->num_visits >= node.num_visits))
+                                      : node.q();
                 }
             }();
             // Track the child with the highest PUCT score
