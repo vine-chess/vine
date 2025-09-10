@@ -245,6 +245,10 @@ HashKey Board::predict_hash_key(Move move) const {
         to_type = move.promo_type();
     }
 
+    if (from_type == PieceType::PAWN && (move.from() ^ move.to()) == 16) {
+        hash_key ^= zobrist::en_passant[Square((move.from() + move.to()) / 2).file()];
+    }
+
     hash_key ^= zobrist::pieces[from_type - 1][state().side_to_move][move.from()];
     hash_key ^= zobrist::pieces[to_type - 1][state().side_to_move][move.to()];
     return hash_key;
