@@ -257,7 +257,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
         std::cout << board_ << std::endl;
     }
     if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
-        std::cout << board_ << std::endl << (u16)board_.state().hash_key << std::endl;
+        std::cout << board_ << std::endl << board_.state().hash_key << std::endl;
         exit(0);
         return hash_entry->q;
     }
