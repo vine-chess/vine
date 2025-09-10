@@ -252,15 +252,16 @@ bool GameTree::expand_node(NodeIndex node_idx) {
 }
 
 f64 GameTree::simulate_node(NodeIndex node_idx) {
+    const auto &node = node_at(node_idx);
+    if (node.terminal()) {
+        return node.terminal_state.score();
+    }
+
     // Return the cached Q of this node if it exists instead of calling out to the value network
     if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
         return hash_entry->q;
     }
 
-    const auto &node = node_at(node_idx);
-    if (node.terminal()) {
-        return node.terminal_state.score();
-    }
     return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
 }
 
@@ -303,7 +304,7 @@ void GameTree::backpropagate_score(f64 score) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
-        hash_table_.update(board_.state().hash_key, score, node.num_visits);
+        hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
