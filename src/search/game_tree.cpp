@@ -189,7 +189,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
             child.policy_score = hash_entry->policy_score / temperature;
         } else {
             const f32 logit = ctx.logit(child.move);
-            hash_table_.update_policy_score(state.hash_key, logit);
+            hash_table_.update_policy_score(board_.predict_hash_key(child.move), logit);
             child.policy_score = logit / temperature;
         }
 
