@@ -23,11 +23,9 @@ constexpr u64 murmur3(u64 x) {
 }
 
 constexpr auto side_to_move = [] {
-    auto next_u64 = [hash = 0xDEADBEEFCAFEBABEull]() mutable {
-        return hash = murmur3(hash);
-    };
+    auto next_u64 = [hash = 0xDEADBEEFCAFEBABEull]() mutable { return hash = murmur3(hash); };
     return next_u64();
-};
+}();
 
 constexpr auto pieces = [] {
     auto next_u64 = [hash = 12477279837831370886ull]() mutable { return hash = murmur3(hash); };
