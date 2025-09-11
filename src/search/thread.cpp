@@ -42,7 +42,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
             new_visit_dist.push_back(tree.node_at(tree.root().first_child_idx + i).num_visits);
         }
 
-        if (time_manager_.times_up(iterations, root_board.state().side_to_move, depth, old_visit_dist, new_visit_dist)) {
+        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth, old_visit_dist, new_visit_dist)) {
             break;
         }
 

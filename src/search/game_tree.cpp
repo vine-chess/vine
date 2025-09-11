@@ -23,6 +23,9 @@ constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
 constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
+constexpr f32 GINI_BASE = 0.5;
+constexpr f32 GINI_MULTIPLIER = 1.5;
+constexpr f32 GINI_MAXIMUM = 2.25;
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -34,6 +37,10 @@ void GameTree::set_node_capacity(usize node_capacity) {
     for (auto &half : halves_) {
         half.set_node_capacity(node_capacity / 2);
     }
+}
+
+void GameTree::set_hash_table_capacity(usize capacity) {
+    hash_table_.set_entry_capacity(capacity);
 }
 
 void GameTree::new_search(const Board &root_board) {
@@ -96,12 +103,12 @@ NodeIndex GameTree::select_and_expand_node() {
     // - child: the candidate child node being scored
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](Node &parent, Node &child, f32 policy_score, f32 exploration_constant) -> f64 {
+    const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
-        const f64 u_value = exploration_constant * static_cast<f64>(policy_score) * std::sqrt(parent.num_visits) /
+        const f64 u_value = exploration_constant * static_cast<f64>(child.policy_score) * std::sqrt(parent.num_visits) /
                             (1.0 + static_cast<f64>(child.num_visits));
         // Final PUCT score is exploitation (Q) + exploration (U)
         return q_value + u_value;
@@ -141,10 +148,13 @@ NodeIndex GameTree::select_and_expand_node() {
             continue;
         }
 
-        const f64 cpuct = [&]() {
+        const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+
+            base *=
+                std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
         }();
 
@@ -153,7 +163,7 @@ NodeIndex GameTree::select_and_expand_node() {
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
             // Track the child with the highest PUCT score
-            const f64 child_score = compute_puct(node, child_node, child_node.policy_score, cpuct);
+            const f64 child_score = compute_puct(node, child_node, cpuct);
             if (child_score > best_child_score) {
                 best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
                 best_child_score = child_score;
@@ -167,7 +177,7 @@ NodeIndex GameTree::select_and_expand_node() {
 }
 
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
-    const Node &node = node_at(node_idx);
+    Node &node = node_at(node_idx);
 
     // We keep track of a policy context so that we only accumulate once per node
     const network::policy::PolicyContext ctx(state);
@@ -186,7 +196,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     }
 
     // Softmax the policy logits
-    f32 sum_exponents = 0;
+    f32 sum_exponents = 0.0f;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         const f32 exp_policy = std::exp(child.policy_score - highest_policy);
@@ -194,11 +204,15 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         child.policy_score = exp_policy;
     }
 
+    f32 sum_squares = 0.0f;
     // Normalize into policy scores
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         child.policy_score /= sum_exponents;
+        sum_squares += child.policy_score * child.policy_score;
     }
+
+    node.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
 }
 
 bool GameTree::expand_node(NodeIndex node_idx) {
@@ -252,6 +266,12 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     if (node.terminal()) {
         return node.terminal_state.score();
     }
+
+    // Return the cached Q of this node if it exists instead of calling out to the value network
+    if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {
+        return hash_entry->q;
+    }
+
     return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
 }
 
@@ -285,8 +305,6 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
-    // Set the board back to its original state
-    board_.undo_n_moves(nodes_in_path_.size() - 1);
 
     auto child_terminal_state = TerminalState::none();
     while (!nodes_in_path_.empty()) {
@@ -296,6 +314,7 @@ void GameTree::backpropagate_score(f64 score) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
+        hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
@@ -310,6 +329,11 @@ void GameTree::backpropagate_score(f64 score) {
 
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
+
+        // Undo all moves except the move that led to the root node
+        if (!nodes_in_path_.empty()) {
+            board_.undo_move();
+        }
     }
 }
 
