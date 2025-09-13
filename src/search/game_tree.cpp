@@ -139,7 +139,8 @@ NodeIndex GameTree::select_and_expand_node() {
         }
 
         const f64 cpuct = [&] {
-            f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+            // f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+            f64 base = 0.3265 + (1.2813 - 0.3265) * std::exp(-0.064101 * (nodes_in_path_.size() - 1.0));
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
 
