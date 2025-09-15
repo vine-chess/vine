@@ -35,7 +35,7 @@ class Thread {
   private:
     void thread_loop();
 
-    void write_info(GameTree &tree, u64 nodes, bool write_bestmove = false) const;
+    void write_info(GameTree &tree, u64 iterations, u64 nodes, bool write_bestmove = false) const;
 
     std::thread raw_thread_;
     TimeManager time_manager_;
