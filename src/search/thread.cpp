@@ -49,7 +49,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
     }
 
     if (verbosity != Verbosity::NONE) {
-        write_info(tree, iterations, true);
+        write_info(tree, iterations, nodes, true);
     }
     num_iterations_ = iterations;
 }
