@@ -21,19 +21,22 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
 
     tree.new_search(root_board);
 
-    u64 iterations = 0;
-    u64 previous_depth = 0;
+    u64 iterations = 0, nodes = 0;
+    u64 previous_depth = 0, previous_sum_depths = 0;
     util::StaticVector<u32, MAX_MOVES> old_visit_dist;
 
     while (++iterations) {
         const auto node = tree.select_and_expand_node();
         tree.backpropagate_score(tree.simulate_node(node));
 
+        nodes += tree.sum_depths() - previous_sum_depths;
+        previous_sum_depths = tree.sum_depths();
+
         const u64 depth = tree.sum_depths() / iterations;
         if (depth > previous_depth) {
             previous_depth = depth;
             if (verbosity == Verbosity::VERBOSE) {
-                write_info(tree, iterations);
+                write_info(tree, iterations, nodes);
             }
         }
 
@@ -55,7 +58,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
     }
 
     if (verbosity != Verbosity::NONE) {
-        write_info(tree, iterations, true);
+        write_info(tree, iterations, nodes, true);
     }
     num_iterations_ = iterations;
 }
@@ -117,7 +120,7 @@ f64 highest_child_q(GameTree &tree) {
     return has_visited_child ? get_child_score(best_child_idx) : node.q();
 }
 
-void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) const {
+void Thread::write_info(GameTree &tree, u64 iterations, u64 nodes, bool write_bestmove) const {
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
     const auto child_score = highest_child_q(tree);
@@ -136,8 +139,8 @@ void Thread::write_info(GameTree &tree, u64 iterations, bool write_bestmove) con
     }
 
     const auto elapsed = std::max<u64>(1, time_manager_.time_elapsed());
-    std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << iterations << " time " << elapsed
-              << " nps " << iterations * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
+    std::cout << "info depth " << tree.sum_depths() / iterations << " nodes " << nodes << " time " << elapsed
+              << " nps " << nodes * 1000 / elapsed << " score " << (is_mate ? "mate " : "cp ")
               << (root.terminal_state.is_loss() ? "-" : "") << score << " mbps "
               << tree.tree_usage() / (1024 * 1024) * 1000 / elapsed << " pv " << pv_stream.str() << std::endl;
     if (write_bestmove) {
