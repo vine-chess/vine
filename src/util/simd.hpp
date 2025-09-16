@@ -24,6 +24,11 @@ constexpr auto NATIVE_VECTOR_BYTES = 0;
 #endif
 #endif
 
+// Useful for calculating sizes of structs aligned for simd purposes
+[[nodiscard]] constexpr auto next_multiple(auto x, auto m) {
+    return x + (m - x % m) % m;
+}
+
 namespace impl {
 
 template <class T, usize N>
@@ -100,7 +105,9 @@ inline T reduce_vector(SimdVector<T, N> v) {
 }
 
 #ifdef __x86_64__
+}
 #include <immintrin.h>
+namespace util {
 #if defined(__AVX512F__)
 inline SimdVector<i32, 16> madd_epi16(SimdVector<i16, 32> a, SimdVector<i16, 32> b) {
     return _mm512_madd_epi16(a, b);
