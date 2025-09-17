@@ -95,6 +95,7 @@ NodeIndex GameTree::select_and_expand_node() {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
+        const auto captured = board_.state().get_piece_type(child.move.to());
         auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
@@ -180,7 +181,9 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        const auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
+        const auto captured = board_.state().get_piece_type(child.move.to());
+        const auto &history_entry =
+            butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()][captured];
         child.policy_score = (ctx.logit(child.move) + history_entry / 16384.0) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
@@ -329,7 +332,9 @@ void GameTree::backpropagate_score(f64 score) {
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
             if (child_terminal_state.is_none()) {
-                auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
+                const auto captured = board_.state().get_piece_type(node.move.to());
+                auto &history_entry =
+                    butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()][captured];
                 score = std::clamp(score, 0.001, 0.999);
                 history_entry +=
                     scale_bonus(history_entry, static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0))));
