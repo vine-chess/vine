@@ -307,7 +307,7 @@ void GameTree::backpropagate_score(f64 score) {
     if (!simulated_node.terminal()) {
         auto &history_entry =
             butterfly_table_[~board_.state().side_to_move][simulated_node.move.from()][simulated_node.move.to()];
-        score = std::clamp(score, 0.001, 0.999);
+        score = std::clamp(1.0 - score, 0.001, 0.999);
         const auto cp_score = static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0)));
         history_entry += scale_bonus(history_entry, cp_score);
     }
