@@ -302,6 +302,16 @@ void GameTree::backpropagate_score(f64 score) {
 
     auto child_terminal_state = TerminalState::none();
     const auto child_depth = nodes_in_path_.size();
+
+    const auto simulated_node = node_at(nodes_in_path_.back());
+    if (!simulated_node.terminal()) {
+        auto &history_entry =
+            butterfly_table_[~board_.state().side_to_move][simulated_node.move.from()][simulated_node.move.to()];
+        score = std::clamp(score, 0.001, 0.999);
+        const auto cp_score = static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0)));
+        history_entry += scale_bonus(history_entry, cp_score);
+    }
+
     while (!nodes_in_path_.empty()) {
         const auto node_idx = nodes_in_path_.pop_back();
 
@@ -327,12 +337,6 @@ void GameTree::backpropagate_score(f64 score) {
 
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
-            if (child_terminal_state.is_none()) {
-                auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
-                score = std::clamp(score, 0.001, 0.999);
-                const auto cp_score = static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0)));
-                history_entry += scale_bonus(history_entry, cp_score / (child_depth - nodes_in_path_.size()));
-            }
         }
     }
 }
