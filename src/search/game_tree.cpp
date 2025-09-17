@@ -398,4 +398,17 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
     return old_board.state() == new_board.state();
 }
 
+void GameTree::clear() {
+    for (auto& half: halves_){
+        half.clear();
+    }
+    hash_table_.clear();
+    tree_usage_ = 0;
+    active_half_ = {};
+    board_ = {};
+    sum_depths_ = 0;
+    nodes_in_path_.clear();
+
+}
+
 } // namespace search

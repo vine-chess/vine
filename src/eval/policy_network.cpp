@@ -72,15 +72,15 @@ PolicyContext::PolicyContext(const BoardState &state) : stm_(state.side_to_move)
         const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_])[i]);
+                feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
+                    detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_])[i]);
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] +=
-                    util::convert_vector<i16, i8, VECTOR_SIZE>(detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_])[i]);
+                feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
+                    detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_])[i]);
             }
         }
     }

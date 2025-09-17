@@ -23,6 +23,8 @@ class Searcher {
     [[nodiscard]] const GameTree &game_tree() const;
     [[nodiscard]] u64 iterations() const;
 
+    void clear();
+
   private:
     std::vector<Thread> threads_;
     GameTree game_tree_;

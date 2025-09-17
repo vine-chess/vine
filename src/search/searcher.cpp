@@ -1,5 +1,6 @@
 #include "searcher.hpp"
 #include "../uci/uci.hpp"
+#include "game_tree.hpp"
 #include <iostream>
 
 namespace search {
@@ -40,6 +41,10 @@ u64 Searcher::iterations() const {
         result += thread.iterations();
     }
     return result;
+}
+
+void Searcher::clear() {
+    game_tree_.clear();
 }
 
 } // namespace search
