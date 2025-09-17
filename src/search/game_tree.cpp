@@ -180,7 +180,10 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        const auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
+        const auto attacks = board_.state().threats_by(~board_.state().side_to_move);
+        const auto &history_entry =
+            butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()]
+                            [attacks.is_set(child.move.from())][attacks.is_set(child.move.to())];
         child.policy_score = (ctx.logit(child.move) + history_entry / 16384.0) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
@@ -329,7 +332,10 @@ void GameTree::backpropagate_score(f64 score) {
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
             if (child_terminal_state.is_none()) {
-                auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
+                const auto attacks = board_.state().threats_by(~board_.state().side_to_move);
+                auto &history_entry =
+                    butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()]
+                                    [attacks.is_set(node.move.from())][attacks.is_set(node.move.to())];
                 score = std::clamp(score, 0.001, 0.999);
                 history_entry +=
                     scale_bonus(history_entry, static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0))));
