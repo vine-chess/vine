@@ -54,6 +54,7 @@ void GameTree::new_search(const Board &root_board) {
     board_ = root_board;
     sum_depths_ = 0;
     tree_usage_ = 0;
+    butterfly_table_ = {};
 
     // Ensure the root node is expanded
     if (!expand_node(active_half().root_idx())) {
@@ -94,6 +95,7 @@ NodeIndex GameTree::select_and_expand_node() {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
+        auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
@@ -142,7 +144,6 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
@@ -179,7 +180,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move) / temperature;
+        const auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
+        child.policy_score = (ctx.logit(child.move) + history_entry / 16384.0) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -293,6 +295,10 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
     }
 }
 
+i16 scale_bonus(i16 score, i16 bonus) {
+    return bonus - score * std::abs(bonus) / 8192;
+}
+
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
@@ -320,9 +326,14 @@ void GameTree::backpropagate_score(f64 score) {
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
 
-        // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
+            if (child_terminal_state.is_none()) {
+                auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
+                score = std::clamp(score, 0.001, 0.999);
+                history_entry +=
+                    scale_bonus(history_entry, static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0))));
+            }
         }
     }
 }

@@ -65,6 +65,7 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    util::MultiArray<i16, 2, 64, 64> butterfly_table_;
 };
 
 } // namespace search
