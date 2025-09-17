@@ -54,7 +54,6 @@ void GameTree::new_search(const Board &root_board) {
     board_ = root_board;
     sum_depths_ = 0;
     tree_usage_ = 0;
-    butterfly_table_ = {};
 
     // Ensure the root node is expanded
     if (!expand_node(active_half().root_idx())) {
@@ -417,6 +416,7 @@ void GameTree::clear() {
     tree_usage_ = 0;
     active_half_ = {};
     board_ = {};
+    butterfly_table_ = {};
     sum_depths_ = 0;
     nodes_in_path_.clear();
 }
