@@ -94,7 +94,6 @@ NodeIndex GameTree::select_and_expand_node() {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
-        auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
@@ -302,6 +301,7 @@ void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
     auto child_terminal_state = TerminalState::none();
+    const auto child_depth = nodes_in_path_.size();
     while (!nodes_in_path_.empty()) {
         const auto node_idx = nodes_in_path_.pop_back();
 
@@ -330,8 +330,8 @@ void GameTree::backpropagate_score(f64 score) {
             if (child_terminal_state.is_none()) {
                 auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
                 score = std::clamp(score, 0.001, 0.999);
-                history_entry +=
-                    scale_bonus(history_entry, static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0))));
+                const auto cp_score = static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0)));
+                history_entry += scale_bonus(history_entry, cp_score / (child_depth - nodes_in_path_.size()));
             }
         }
     }
