@@ -1,7 +1,7 @@
 #include "board_state.hpp"
 #include "../uci/uci.hpp"
-#include "move_gen.hpp"
 #include "magics.hpp"
+#include "move_gen.hpp"
 
 #include <cassert>
 #include <string>

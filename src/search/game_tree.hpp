@@ -46,6 +46,8 @@ class GameTree {
 
     void flip_halves();
 
+    void clear();
+
   private:
     void backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state);
 
