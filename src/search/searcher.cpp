@@ -7,6 +7,7 @@ namespace search {
 
 Searcher::Searcher() : verbosity_(Verbosity::VERBOSE) {
     set_thread_count(1);
+    clear();
 }
 
 void Searcher::set_thread_count(u16 thread_count) {
