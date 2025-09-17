@@ -399,7 +399,7 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
 }
 
 void GameTree::clear() {
-    for (auto& half: halves_){
+    for (auto &half : halves_) {
         half.clear();
     }
     hash_table_.clear();
@@ -408,7 +408,6 @@ void GameTree::clear() {
     board_ = {};
     sum_depths_ = 0;
     nodes_in_path_.clear();
-
 }
 
 } // namespace search
