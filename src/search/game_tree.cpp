@@ -95,7 +95,6 @@ NodeIndex GameTree::select_and_expand_node() {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
-        auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
@@ -181,7 +180,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
         const auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
-        child.policy_score = (ctx.logit(child.move) + history_entry / 16384.0) / temperature;
+        child.policy_score = (ctx.logit(child.move) + history_entry / 8192.0) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
