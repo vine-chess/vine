@@ -189,6 +189,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             out << "uciok" << std::endl;
         } else if (parts[0] == "isready") {
             out << "readyok" << std::endl;
+        } else if (parts[0] == "ucinewgame") {
+            handle_newgame();
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "print") {
@@ -266,6 +268,10 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         }
 #endif
     }
+}
+
+void Handler::handle_newgame() {
+    searcher_.clear();
 }
 
 } // namespace uci

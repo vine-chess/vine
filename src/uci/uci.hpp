@@ -21,6 +21,7 @@ class Handler {
     void handle_go(std::ostream &out, const std::vector<std::string_view> &parts);
     void handle_genfens(std::ostream &out, const std::vector<std::string_view> &parts);
     void handle_datagen(std::ostream &out, const std::vector<std::string_view> &parts);
+    void handle_newgame();
 
     Board board_;
     search::Searcher searcher_;
