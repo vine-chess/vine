@@ -432,4 +432,16 @@ void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
     }
 }
 
+void GameTree::clear() {
+    for (auto &half : halves_) {
+        half.clear();
+    }
+    hash_table_.clear();
+    tree_usage_ = 0;
+    active_half_ = {};
+    board_ = {};
+    sum_depths_ = 0;
+    nodes_in_path_.clear();
+}
+
 } // namespace search
