@@ -20,7 +20,7 @@ else ifdef VALUEFILE
 		$(error POLICYFILE must be defined alongside VALUEFILE)
 	endif
 else
-	VALUEFILE = net36.vn
+	VALUEFILE = net37.vn
 	POLICYFILE = net12.pn
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
 	DOWNLOAD_NETS = yes
