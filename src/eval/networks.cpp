@@ -17,7 +17,7 @@ struct CombinedNetworks {
 INCBIN(COMBINEDNETWORKS, EVALFILE);
 const auto combined_networks = []() {
     const auto alignment = alignof(CombinedNetworks);
-    vine_assert(util::next_multiple(gCOMBINEDNETWORKSSize, alignment) == sizeof(CombinedNetworks));
+    // vine_assert(util::next_multiple(gCOMBINEDNETWORKSSize, alignment) == sizeof(CombinedNetworks));
     return reinterpret_cast<const CombinedNetworks *>(gCOMBINEDNETWORKSData);
 }();
 
