@@ -72,6 +72,7 @@ class GameTree {
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
     f64 dirichlet_epsilon_ = 0.0;
     f64 dirichlet_alpha_ = 0.0;
+    util::MultiArray<i16, 2, 64, 64> butterfly_table_;
 };
 
 } // namespace search
