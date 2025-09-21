@@ -201,7 +201,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
 
             const auto eval = network::value::evaluate(board_.state());
             util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
-            out << 400 * eval << '\n';
+            out << std::round(network::value::EVAL_SCALE * eval) << '\n';
             util::tui::reset_color(out);
 
             out << '\n';
