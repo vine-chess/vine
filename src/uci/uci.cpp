@@ -196,7 +196,13 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "print") {
-            out << "static eval:\n" << 400 * network::value::evaluate(board_.state()) << '\n';
+            out << "static eval:\n";
+
+            const auto eval = network::value::evaluate(board_.state());
+            util::tui::set_color(out, util::tui::get_score_color(1.0 / (1.0 + std::exp(-eval))));
+            out << 400 * eval << '\n';
+            util::tui::reset_color(out);
+
             out << '\n';
             MoveList moves;
             generate_moves(board_.state(), moves);
