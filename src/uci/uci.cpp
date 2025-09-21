@@ -5,6 +5,7 @@
 #include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
+#include "../util/math.hpp"
 #include "../util/string.hpp"
 #include "../util/tui.hpp"
 #include "../util/types.hpp"
@@ -199,7 +200,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             out << "static eval:\n";
 
             const auto eval = network::value::evaluate(board_.state());
-            util::tui::set_color(out, util::tui::get_score_color(1.0 / (1.0 + std::exp(-eval))));
+            util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
             out << 400 * eval << '\n';
             util::tui::reset_color(out);
 
