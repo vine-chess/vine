@@ -194,7 +194,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "print") {
-            out << 400 * network::value::evaluate(board_.state()) << '\n';
+            out << "static eval:\n" << 400 * network::value::evaluate(board_.state()) << '\n';
+            out << '\n';
             MoveList moves;
             generate_moves(board_.state(), moves);
 
@@ -225,11 +226,16 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             }
             std::sort(std::begin(sorted), std::end(sorted), [](auto lhs, auto rhs) { return lhs.first > rhs.first; });
 
+            out << "policy:\n";
             for (auto [logit, move] : sorted) {
                 out << move << ": " << std::fixed << std::setprecision(2) << (100.0 * logit) << '%' << '\n';
             }
+            out << '\n';
 
-            out << board_.state().to_fen() << std::endl;
+            out << "fen:\n" << board_.state().to_fen() << '\n';
+            out << '\n';
+
+            out << "board:\n";
             out << board_ << std::endl;
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
