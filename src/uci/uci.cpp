@@ -6,10 +6,12 @@
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/string.hpp"
+#include "../util/tui.hpp"
 #include "../util/types.hpp"
 #include "options.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -227,8 +229,21 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::sort(std::begin(sorted), std::end(sorted), [](auto lhs, auto rhs) { return lhs.first > rhs.first; });
 
             out << "policy:\n";
-            for (auto [logit, move] : sorted) {
-                out << move << ": " << std::fixed << std::setprecision(2) << (100.0 * logit) << '%' << '\n';
+            if (sorted.empty()) {
+                out << "(no policy, since there are no legal moves)\n";
+            } else {
+                const f64 max_logit = std::sqrt(sorted.front().first);
+                const f64 min_logit = std::sqrt(sorted.back().first);
+                const f64 range = max_logit - min_logit;
+
+                for (const auto &[logit, move] : sorted) {
+                    const f64 t = (std::sqrt(logit) - min_logit) / range;
+
+                    util::tui::set_color(out, util::tui::get_score_color(t));
+                    out << move << ": " << std::fixed << std::setprecision(2) << (100.0 * logit) << '%';
+                    util::tui::reset_color(out);
+                    out << '\n';
+                }
             }
             out << '\n';
 
