@@ -78,6 +78,10 @@ const Node &GameTree::node_at(NodeIndex idx) const {
     return halves_[idx.half()][idx.index()];
 }
 
+const Board &GameTree::board() const {
+    return board_;
+}
+
 [[nodiscard]] u32 GameTree::sum_depths() const {
     return sum_depths_;
 }

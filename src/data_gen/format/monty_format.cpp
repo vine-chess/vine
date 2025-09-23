@@ -40,9 +40,11 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     compressed_board_.full_move_count = 1; // TODO: full move clock
 }
 
-void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist,
+void MontyFormatWriter::push_move(Move best_move, f64 root_q, f64 static_eval, const VisitsDistribution &visit_dist,
                                   const BoardState &state) {
-    moves_.push_back({to_monty_move(best_move, state), root_q, visit_dist});
+
+    moves_.push_back({to_monty_move(best_move, state), static_cast<u16>(root_q * std::numeric_limits<u16>::max()),
+                      static_cast<u16>(static_eval * std::numeric_limits<u16>::max()), visit_dist});
 }
 
 void MontyFormatWriter::write_with_result(f64 result) {

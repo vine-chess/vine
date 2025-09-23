@@ -1,5 +1,6 @@
 #include "game_runner.hpp"
 #include "../chess/move_gen.hpp"
+#include "../eval/value_network.hpp"
 #include "format/monty_format.hpp"
 #include <atomic>
 #include <csignal>
@@ -57,7 +58,9 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
 
-            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
+            writer->push_move(best_child.move, 1.0 - best_child.q(),
+                              network::value::evaluate(searcher.game_tree().board().state()), visits_dist,
+                              board.state());
             board.make_move(best_child.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);

@@ -22,6 +22,7 @@ class GameTree {
     [[nodiscard]] const Node &node_at(NodeIndex idx) const;
     [[nodiscard]] const Node &root() const;
     [[nodiscard]] Node &root();
+    [[nodiscard]] const Board &board() const;
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;

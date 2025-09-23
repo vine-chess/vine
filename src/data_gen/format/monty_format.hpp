@@ -24,7 +24,8 @@ struct __attribute__((packed)) MontyFormatCompressedBoard {
 
 struct MontyFormatMoveData {
     u16 best_move{};
-    f64 root_q{};
+    u16 root_q{};
+    u16 static_eval{};
     VisitsDistribution visits{};
 };
 
@@ -33,7 +34,7 @@ class MontyFormatWriter {
     explicit MontyFormatWriter(std::ostream &out);
 
     void push_board_state(const BoardState &state);
-    void push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist, const BoardState &state);
+    void push_move(Move best_move, f64 root_q, f64 static_eval, const VisitsDistribution &visit_dist, const BoardState &state);
     void write_with_result(double game_result);
 
     [[nodiscard]] u16 to_monty_move(Move move, const BoardState &state) const;
