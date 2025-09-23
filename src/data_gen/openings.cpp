@@ -1,6 +1,8 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
+#include "../eval/value_network.hpp"
 #include "../search/searcher.hpp"
+#include "../util/math.hpp"
 #include <string_view>
 
 namespace datagen {
@@ -69,8 +71,8 @@ BoardState generate_opening(std::string_view initial_fen, const usize random_mov
 
             // Position is too imbalanced
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
-            const auto cp_score =
-                static_cast<i32>(std::round(-400.0 * std::log(1.0 / searcher.game_tree().root().q() - 1.0)));
+            const auto cp_score = static_cast<i32>(
+                std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(searcher.game_tree().root().q())));
             if (std::abs(cp_score) >= 300) {
                 return false;
             }
