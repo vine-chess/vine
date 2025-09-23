@@ -12,6 +12,7 @@ constexpr i16 QA = 255;
 constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 1024;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
+constexpr i16 EVAL_SCALE = 400;
 
 using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
