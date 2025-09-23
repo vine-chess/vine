@@ -18,8 +18,8 @@ using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
 struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     union {
-        util::MultiArray<i16Vec, 2, 6, 64, L1_SIZE / VECTOR_SIZE> ft_weights_vec;
-        util::MultiArray<i16, 2, 6, 64, L1_SIZE> ft_weights;
+        util::MultiArray<i16Vec, 2, 2, 2, 6, 64, L1_SIZE / VECTOR_SIZE> ft_weights_vec;
+        util::MultiArray<i16, 2, 2, 2, 6, 64, L1_SIZE> ft_weights;
     };
     std::array<i16, L1_SIZE> ft_biases;
     union {
