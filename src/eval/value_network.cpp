@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <iostream>
 
 namespace network::value {
 
@@ -13,13 +14,9 @@ namespace detail {
                                                                              Color piece_color, Color perspective,
                                                                              Square king_sq, Bitboard threats,
                                                                              Bitboard defences) {
-    usize hor = 0b000111 * (king_sq.file() >= File::E);
-    hor = 0;
-    usize ver = 0b111000 * perspective;
-
-    usize flip = ver ^ hor;
-    return network->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective]
-                                  [piece - 1][sq ^ flip];
+    usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
+    return network
+        ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
 } // namespace detail
@@ -37,14 +34,16 @@ f64 evaluate(const BoardState &state) {
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
+            const auto feat = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm])[i];
+                accumulator[i] += feat[i];
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
+            const auto feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, ~stm, stm, king_sq, threats[~stm], threats[stm])[i];
+                accumulator[i] += feat[i];
             }
         }
     }
