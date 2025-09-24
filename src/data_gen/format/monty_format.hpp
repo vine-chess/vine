@@ -24,8 +24,8 @@ struct __attribute__((packed)) MontyFormatCompressedBoard {
 
 struct MontyFormatMoveData {
     u16 best_move{};
-    u16 root_q{};
-    u16 static_eval{};
+    f64 root_q{};
+    f64 static_eval{};
     VisitsDistribution visits{};
 };
 

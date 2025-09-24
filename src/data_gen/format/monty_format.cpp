@@ -43,8 +43,7 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
 void MontyFormatWriter::push_move(Move best_move, f64 root_q, f64 static_eval, const VisitsDistribution &visit_dist,
                                   const BoardState &state) {
 
-    moves_.push_back({to_monty_move(best_move, state), static_cast<u16>(root_q * std::numeric_limits<u16>::max()),
-                      static_cast<u16>(static_eval * std::numeric_limits<u16>::max()), visit_dist});
+    moves_.push_back({to_monty_move(best_move, state), root_q, static_eval, visit_dist});
 }
 
 void MontyFormatWriter::write_with_result(f64 result) {
@@ -66,6 +65,7 @@ void MontyFormatWriter::write_with_result(f64 result) {
         // Put the root score and the best move at root for each position
         put_u16(move_data.best_move);
         put_u16(static_cast<u16>(move_data.root_q * std::numeric_limits<u16>::max()));
+        put_u16(static_cast<u16>(move_data.static_eval * std::numeric_limits<u16>::max()));
 
         // Sort by the move value
         std::sort(move_data.visits.begin(), move_data.visits.end(),
