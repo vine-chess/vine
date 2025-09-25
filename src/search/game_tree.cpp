@@ -4,6 +4,8 @@
 #include "../eval/value_network.hpp"
 #include "../uci/uci.hpp"
 #include "../util/assert.hpp"
+#include "../util/math.hpp"
+
 #include "node.hpp"
 #include <algorithm>
 #include <cmath>
@@ -269,7 +271,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
         return hash_entry->q;
     }
 
-    return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
+    return util::math::sigmoid(network::value::evaluate(board_.state()));
 }
 
 void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state) {
