@@ -22,7 +22,6 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
         }
 
         if (settings_.time_left_per_side[color] != std::numeric_limits<i64>::max()) {
-
             auto time_to_search = settings_.time_left_per_side[color] / 20 + settings_.increment_per_side[color] / 2;
 
             // Reduce the time we need to search based on what % of visits the best move contributes to
