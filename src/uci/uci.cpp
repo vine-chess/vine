@@ -75,6 +75,8 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
             time_settings.increment_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "binc") {
             time_settings.increment_per_side[Color::BLACK] = *util::parse_number<i64>(parts[i + 1].data());
+        } else if (parts[i] == "movetime") {
+            time_settings.movetime = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "nodes") {
             time_settings.max_iters = *util::parse_number<u64>(parts[i + 1].data());
         }
