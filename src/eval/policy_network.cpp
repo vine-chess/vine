@@ -101,7 +101,7 @@ f32 PolicyContext::logit(Move move) const {
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
     const i32 bias = network->l1_biases[idx];
-    return static_cast<f32>(dot + bias) / static_cast<f32>(Q * Q * Q);
+    return ((static_cast<f32>(dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(bias)) / static_cast<f32>(Q);
 }
 
 } // namespace network::policy
