@@ -96,12 +96,12 @@ f32 PolicyContext::logit(Move move) const {
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         const auto clamped =
             util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        sum += util::madd_epi16(clamped * clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
+        sum += util::madd_epi16(clamped, util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
     }
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
     const i32 bias = network->l1_biases[idx];
-    return static_cast<f32>(dot + bias) / static_cast<f32>(Q * Q * Q);
+    return ((static_cast<f32>(dot) / static_cast<f32>(Q)) + static_cast<f32>(bias)) / static_cast<f32>(Q);
 }
 
 } // namespace network::policy
