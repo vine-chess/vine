@@ -1,12 +1,14 @@
 #include "game_runner.hpp"
 #include "../chess/move_gen.hpp"
 #include "format/monty_format.hpp"
+#include "format/viri_format.hpp"
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <type_traits>
 
 namespace datagen {
 
@@ -18,8 +20,10 @@ void signal_handler([[maybe_unused]] i32 signum) {
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
+template <bool value = true>
 void thread_loop(const Settings &settings, std::ofstream &out_file, const std::vector<std::string> &opening_fens) {
-    auto writer = std::make_unique<MontyFormatWriter>(out_file);
+    using DataWriter = std::conditional_t<value, ViriformatWriter, MontyFormatWriter>;
+    auto writer = std::make_unique<DataWriter>(out_file);
 
     search::Searcher searcher;
     searcher.set_hash_size(settings.hash_size);
@@ -44,20 +48,26 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
                 break;
             }
 
-            VisitsDistribution visits_dist;
             search::NodeIndex best_child_idx = root_node.first_child_idx;
             for (usize j = 0; j < root_node.num_children; j++) {
                 const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
                     best_child_idx = root_node.first_child_idx + j;
                 }
             }
-
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
 
-            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
+            if constexpr (value) {
+                writer->push_move(best_child.move, 1.0 - best_child.q(), board.state());
+            } else {
+                VisitsDistribution visits_dist;
+                for (usize j = 0; j < root_node.num_children; j++) {
+                    const auto &child = game_tree.node_at(root_node.first_child_idx + j);
+                    visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
+                }
+                writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
+            }
             board.make_move(best_child.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);

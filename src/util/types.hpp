@@ -1,5 +1,7 @@
 #pragma once
 
+
+#define DATAGEN true
 #include <array>
 #include <cassert>
 #include <cctype>

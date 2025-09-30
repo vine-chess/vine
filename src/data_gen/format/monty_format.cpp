@@ -7,19 +7,7 @@
 
 namespace datagen {
 
-void MontyFormatWriter::put_u8(u8 v) {
-    out_.put(static_cast<char>(v));
-}
-
-void MontyFormatWriter::put_u16(u16 v) {
-    out_.write(reinterpret_cast<const char *>(&v), 2);
-}
-
-void MontyFormatWriter::put_u64(u64 v) {
-    out_.write(reinterpret_cast<const char *>(&v), 8);
-}
-
-MontyFormatWriter::MontyFormatWriter(std::ostream &out) : out_(out) {}
+MontyFormatWriter::MontyFormatWriter(std::ostream &out) : writer_(out) {}
 
 void MontyFormatWriter::push_board_state(const BoardState &state) {
     initial_state_ = state;
@@ -47,30 +35,30 @@ void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistri
 
 void MontyFormatWriter::write_with_result(f64 result) {
     // Initial starting position
-    out_.write(reinterpret_cast<const char *>(&compressed_board_), sizeof(compressed_board_));
+    writer_.put_raw_bytes(compressed_board_);
 
     auto valid_file_or_zero = [](File f, File if_wrong) { return f == File::NO_FILE ? if_wrong : static_cast<u8>(f); };
 
     // Initial rook files
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::WHITE), File::A));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::WHITE), File::H));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::BLACK), File::A));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::BLACK), File::H));
+    writer_.put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::WHITE), File::A));
+    writer_.put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::WHITE), File::H));
+    writer_.put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::BLACK), File::A));
+    writer_.put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::BLACK), File::H));
 
     // Game outcome
-    put_u8(static_cast<u8>(result * 2.0));
+    writer_.put_u8(static_cast<u8>(result * 2.0));
 
     for (auto move_data : moves_) {
         // Put the root score and the best move at root for each position
-        put_u16(move_data.best_move);
-        put_u16(static_cast<u16>(move_data.root_q * std::numeric_limits<u16>::max()));
+        writer_.put_u16(move_data.best_move);
+        writer_.put_u16(static_cast<u16>(move_data.root_q * std::numeric_limits<u16>::max()));
 
         // Sort by the move value
         std::sort(move_data.visits.begin(), move_data.visits.end(),
                   [](const auto &a, const auto &b) { return a.first < b.first; });
 
         u8 count = static_cast<u8>(move_data.visits.size());
-        put_u8(count);
+        writer_.put_u8(count);
 
         if (count > 0) {
             u32 max_visits = 0;
@@ -79,13 +67,13 @@ void MontyFormatWriter::write_with_result(f64 result) {
             }
 
             for (const auto &[_, visits] : move_data.visits) {
-                put_u8(static_cast<u8>(visits * 255.0 / max_visits));
+                writer_.put_u8(static_cast<u8>(visits * 255.0 / max_visits));
             }
         }
     }
 
-    put_u16(0); // Move::null() as a sentinel
-    out_.flush();
+    writer_.put_u16(0); // Move::null() as a sentinel
+    writer_.flush();
 }
 
 u16 MontyFormatWriter::to_monty_move(Move move, const BoardState &state) const {
