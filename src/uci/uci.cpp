@@ -28,7 +28,7 @@ Options options;
 Handler handler;
 
 Handler::Handler() {
-    options.add(std::make_unique<IntegerOption>("Threads", 1, 1, 1, [&](const Option &option) {}));
+    options.add(std::make_unique<IntegerOption>("Threads", 1, 1, 1));
     options.add(
         std::make_unique<IntegerOption>("Hash", 16, 1, std::numeric_limits<i32>::max(), [&](const Option &option) {
             searcher_.set_hash_size(std::get<i32>(option.value_as_variant()));
@@ -38,6 +38,9 @@ Handler::Handler() {
                                                                           : search::Verbosity::VERBOSE);
     }));
     options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
+    options.add(std::make_unique<IntegerOption>("KldMinGain", 0, 0, 100));
+    options.add(std::make_unique<IntegerOption>("DirichletNoiseEpsilon", 0, 0, 100));
+    options.add(std::make_unique<IntegerOption>("DirichletNoiseAlpha", 0, 0, 100));
     board_ = Board(STARTPOS_FEN);
 }
 
@@ -66,6 +69,7 @@ void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_
 
 void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &parts) {
     search::TimeSettings time_settings{};
+    time_settings.min_kld_gain = std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
     for (i32 i = 1; i < parts.size(); ++i) {
         if (parts[i] == "wtime") {
             time_settings.time_left_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
@@ -81,7 +85,6 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
             time_settings.max_iters = *util::parse_number<u64>(parts[i + 1].data());
         }
     }
-
     searcher_.go(board_, time_settings);
 }
 
@@ -164,6 +167,9 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         } else if (key == "gamma") {
             char *dummy;
             settings.gamma = std::strtod(std::string(value).c_str(), &dummy);
+        } else if (key == "min_kld_gain") {
+            char *dummy;
+            settings.time_settings.min_kld_gain = std::strtod(std::string(value).c_str(), &dummy);
         } else if (key == "book") {
             settings.book_path = value;
         } else {

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 namespace search {
 
@@ -22,6 +23,7 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
 
     u64 iterations = 0, nodes = 0;
     u64 previous_depth = 0, previous_sum_depths = 0;
+    util::StaticVector<u32, MAX_MOVES> old_visit_dist;
 
     while (++iterations) {
         const auto node = tree.select_and_expand_node();
@@ -38,9 +40,16 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
             }
         }
 
-        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth)) {
+        util::StaticVector<u32, MAX_MOVES> new_visit_dist;
+        for (u16 i = 0; i < tree.root().num_children; ++i) {
+            new_visit_dist.push_back(tree.node_at(tree.root().first_child_idx + i).num_visits);
+        }
+
+        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth, old_visit_dist, new_visit_dist)) {
             break;
         }
+
+        old_visit_dist = new_visit_dist;
     }
 
     const Node &root = tree.root();
@@ -91,11 +100,32 @@ void extract_pv(std::vector<Move> &pv, GameTree &tree) {
     extract_pv_internal(pv, tree.root(), tree);
 }
 
+f64 highest_child_q(GameTree &tree) {
+    const auto node = tree.root();
+
+    bool has_visited_child = false;
+    const auto get_child_score = [&](NodeIndex child_idx) {
+        const Node &child = tree.node_at(child_idx);
+        has_visited_child |= child.visited();
+
+        return child.visited() ? 1.0 - child.q() : -std::numeric_limits<f64>::max();
+    };
+
+    NodeIndex best_child_idx = node.first_child_idx;
+    for (u16 i = 0; i < node.num_children; ++i) {
+        if (get_child_score(node.first_child_idx + i) > get_child_score(best_child_idx)) {
+            best_child_idx = node.first_child_idx + i;
+        }
+    }
+    return has_visited_child ? get_child_score(best_child_idx) : node.q();
+}
+
 void Thread::write_info(GameTree &tree, u64 iterations, u64 nodes, bool write_bestmove) const {
     const Node &root = tree.root();
     const auto is_mate = root.terminal_state.is_win() || root.terminal_state.is_loss();
+    const auto child_score = highest_child_q(tree);
     const auto score = is_mate ? (root.terminal_state.distance_to_terminal() + 1) / 2
-                               : static_cast<int>(std::round(-400.0 * std::log(1.0 / root.q() - 1.0)));
+                               : static_cast<int>(std::round(-400.0 * std::log(1.0 / child_score - 1.0)));
 
     std::vector<Move> pv;
     extract_pv(pv, tree);

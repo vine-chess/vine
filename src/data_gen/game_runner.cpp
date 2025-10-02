@@ -35,6 +35,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
         const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
         Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
+        std::cout << "before temp: " << base_opening_fen << " after temp: " << board.state().to_fen() << std::endl;
         writer->push_board_state(board.state());
 
         f64 game_result;

@@ -8,6 +8,7 @@
 
 namespace search {
 
+
 class GameTree {
   public:
     GameTree();
@@ -60,6 +61,8 @@ class GameTree {
 
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
+    void inject_dirichlet_noise(NodeIndex node_idx);
+
     std::vector<TreeHalf> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;
@@ -67,6 +70,9 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    f64 dirichlet_epsilon_ = 0.0;
+    f64 dirichlet_alpha_ = 0.0;
+    util::MultiArray<i16, 2, 64, 64> butterfly_table_;
 };
 
 } // namespace search

@@ -2,6 +2,7 @@
 #include "../chess/move_gen.hpp"
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
+#include "../uci/uci.hpp"
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 
@@ -20,7 +21,11 @@ constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #endif
 constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
+#ifdef DATAGEN
+constexpr f32 ROOT_EXPLORATION_CONSTANT = 2.0f;
+#else
 constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
+#endif
 constexpr f32 EXPLORATION_CONSTANT = 1.0f;
 constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
 constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
@@ -45,6 +50,9 @@ void GameTree::set_hash_table_capacity(usize capacity) {
 }
 
 void GameTree::new_search(const Board &root_board) {
+    dirichlet_epsilon_ = std::get<i32>(uci::options.get("DirichletNoiseEpsilon")->value_as_variant()) / 100.0;
+    dirichlet_alpha_ = std::get<i32>(uci::options.get("DirichletNoiseAlpha")->value_as_variant()) / 100.0;
+
     if (advance_root_node(board_, root_board, active_half().root_idx())) {
         // Re-compute root policy scores, since the node we advanced to was searched with non-root parameters
         compute_policy(root_board.state(), active_half().root_idx());
@@ -61,6 +69,12 @@ void GameTree::new_search(const Board &root_board) {
     if (!expand_node(active_half().root_idx())) {
         flip_halves();
         vine_assert(expand_node(active_half().root_idx()));
+    }
+
+    // Add Dirichlet noise to the policy prior distributions of the root node during data generation
+    if (dirichlet_alpha_ != 0 && dirichlet_epsilon_ != 0) {
+        rng::seed_generator(root_board.state().hash_key);
+        inject_dirichlet_noise(active_half().root_idx());
     }
 }
 
@@ -96,6 +110,7 @@ NodeIndex GameTree::select_and_expand_node() {
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
     const auto compute_puct = [&](Node &parent, Node &child, f32 exploration_constant) -> f64 {
+        auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
@@ -144,7 +159,6 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
@@ -181,7 +195,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move) / temperature;
+        const auto &history_entry = butterfly_table_[board_.state().side_to_move][child.move.from()][child.move.to()];
+        child.policy_score = (ctx.logit(child.move) + history_entry / 16384.0) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -295,6 +310,10 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
     }
 }
 
+i16 scale_bonus(i16 score, i16 bonus) {
+    return bonus - score * std::abs(bonus) / 8192;
+}
+
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
@@ -322,9 +341,14 @@ void GameTree::backpropagate_score(f64 score) {
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
 
-        // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
+            if (child_terminal_state.is_none()) {
+                auto &history_entry = butterfly_table_[board_.state().side_to_move][node.move.from()][node.move.to()];
+                score = std::clamp(score, 0.001, 0.999);
+                history_entry +=
+                    scale_bonus(history_entry, static_cast<i32>(std::round(-400.0 * std::log(1.0 / score - 1.0))));
+            }
         }
     }
 }
@@ -400,6 +424,31 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
     return old_board.state() == new_board.state();
 }
 
+void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
+    auto &node = node_at(node_idx);
+    vine_assert(node_idx == active_half().root_idx());
+
+    std::vector<f64> noise;
+    noise.reserve(node.num_children);
+
+    // Generate a distribution of random numbers and normalize
+    f64 sum = 0.0f;
+    for (usize i = 0; i < node.num_children; i++) {
+        noise.push_back(rng::next_f64_gamma(dirichlet_alpha_));
+        sum += noise.back();
+    }
+    for (usize i = 0; i < node.num_children; i++) {
+        noise[i] /= sum;
+    }
+
+    // Mix in the Dirichlet noise with the policy priors
+    for (u16 i = 0; i < node.num_children; ++i) {
+        Node &child = node_at(node.first_child_idx + i);
+        child.policy_score =
+            static_cast<f32>((1.0 - dirichlet_epsilon_) * child.policy_score + dirichlet_epsilon_ * noise[i]);
+    }
+}
+
 void GameTree::clear() {
     for (auto &half : halves_) {
         half.clear();
@@ -408,6 +457,7 @@ void GameTree::clear() {
     tree_usage_ = 0;
     active_half_ = {};
     board_ = {};
+    butterfly_table_ = {};
     sum_depths_ = 0;
     nodes_in_path_.clear();
 }
