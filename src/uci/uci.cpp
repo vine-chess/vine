@@ -140,6 +140,7 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     settings.num_threads = 1;
     settings.hash_size = 16;
     settings.time_settings = search::TimeSettings{};
+    settings.time_settings.min_kld_gain = std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
     settings.output_file = "output.bin";
 
     for (size_t i = 1; i + 1 < parts.size(); i += 2) {
@@ -166,9 +167,6 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         } else if (key == "gamma") {
             char *dummy;
             settings.gamma = std::strtod(std::string(value).c_str(), &dummy);
-        } else if (key == "min_kld_gain") {
-            char *dummy;
-            settings.time_settings.min_kld_gain = std::strtod(std::string(value).c_str(), &dummy);
         } else if (key == "book") {
             settings.book_path = value;
         } else {
