@@ -17,8 +17,6 @@ u64 Thread::iterations() const {
     return num_iterations_;
 }
 
-u64 total_iters = 0;
-u64 total_count = 0;
 void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &time_settings, Verbosity verbosity) {
     time_manager_.start_tracking(time_settings);
 
@@ -55,13 +53,6 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
 
         old_visit_dist = new_visit_dist;
     }
-    total_iters += iterations;
-    total_count += 1;
-    if (total_count % 1024 == 0) {
-        // TODO: REMOVE ME
-        std::cout << "average iters: " << (double)total_iters / total_count << '\n';
-    }
-
 
     const Node &root = tree.root();
     if (root.num_children == 0) {
