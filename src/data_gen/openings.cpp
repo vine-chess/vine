@@ -3,6 +3,8 @@
 #include "../eval/value_network.hpp"
 #include "../search/searcher.hpp"
 #include "../util/math.hpp"
+#include <iostream>
+#include <optional>
 #include <string_view>
 
 namespace datagen {
@@ -33,16 +35,16 @@ Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
     return tree.node_at(root.first_child_idx + root.num_children - 1).move;
 }
 
-BoardState generate_opening(std::string_view initial_fen, const usize random_moves, const f64 initial_temperature,
+BoardState generate_opening(std::span<const std::string> opening_fens, const usize random_moves, const f64 initial_temperature,
                             const f64 gamma) {
     thread_local search::Searcher searcher;
     searcher.set_hash_size(4);
     searcher.set_verbosity(search::Verbosity::NONE);
 
-    Board board(initial_fen);
+    Board board;
     bool success;
     do {
-        board = Board(initial_fen);
+        board = Board(opening_fens[rng::next_u64(0, opening_fens.size() - 1)]);
         success = true;
 
         f64 temperature = initial_temperature;

@@ -21,7 +21,7 @@ std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
 template <bool value = true>
-void thread_loop(const Settings &settings, std::ofstream &out_file, const std::vector<std::string> &opening_fens) {
+void thread_loop(const Settings &settings, std::ofstream &out_file, std::span<const std::string> opening_fens) {
     using DataWriter = std::conditional_t<value, ViriformatWriter, MontyFormatWriter>;
     auto writer = std::make_unique<DataWriter>(out_file);
 
@@ -33,8 +33,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
 
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
-        const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
-        Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
+        Board board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
         writer->push_board_state(board.state());
 
         f64 game_result;

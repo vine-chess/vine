@@ -128,8 +128,7 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
-        const auto opening = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
-        out << "info string genfens " << datagen::generate_opening(opening, random_moves, temperature, gamma).to_fen()
+        out << "info string genfens " << datagen::generate_opening(opening_fens, random_moves, temperature, gamma).to_fen()
             << std::endl;
     }
 }
