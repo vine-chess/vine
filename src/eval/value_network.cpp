@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <iostream>
 
 namespace network::value {
 
@@ -11,9 +12,11 @@ namespace detail {
 
 [[nodiscard]] const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
                                                                              Color piece_color, Color perspective,
-                                                                             Square king_sq) {
+                                                                             Square king_sq, Bitboard threats,
+                                                                             Bitboard defences) {
     usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
-    return network->ft_weights_vec[piece_color != perspective][piece - 1][sq ^ flip];
+    return network
+        ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
 } // namespace detail
@@ -24,18 +27,23 @@ f64 evaluate(const BoardState &state) {
 
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
+
+    const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
+
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
+            const auto feat = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, stm, stm, king_sq)[i];
+                accumulator[i] += feat[i];
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
+            const auto feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += detail::feature(sq, piece, ~stm, stm, king_sq)[i];
+                accumulator[i] += feat[i];
             }
         }
     }

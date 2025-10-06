@@ -12,6 +12,7 @@ using TimePoint = std::chrono::high_resolution_clock::time_point;
 
 struct TimeSettings {
     std::array<i64, 2> time_left_per_side = {std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max()};
+    i64 movetime = std::numeric_limits<i64>::max();
     std::array<i64, 2> increment_per_side = {0, 0};
     i32 max_depth = std::numeric_limits<i32>::max();
     u64 max_iters = std::numeric_limits<u64>::max();
