@@ -148,7 +148,8 @@ NodeIndex GameTree::select_and_expand_node() {
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
 
-            base *= 1 + node.q_variance() / 4;
+            // std::cout << "q var: " << node.q_variance() << '\n';
+            base *= 0.90 + std::sqrt(std::max<f64>(0, node.q_variance()));
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             // sum_var += base;
