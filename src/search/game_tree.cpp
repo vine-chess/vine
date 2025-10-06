@@ -88,6 +88,9 @@ u64 GameTree::tree_usage() const {
     return tree_usage_;
 }
 
+// f64 sum_var = 0;
+// u32 count_var = 0;
+
 NodeIndex GameTree::select_and_expand_node() {
     // Lambda to compute the PUCT score for a given child node in MCTS
     // Arguments:
@@ -144,7 +147,11 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-            base *= 1 + (node.q_variance() - 0.125) * (2 * util::math::sigmoid(node.num_visits / 16.0) - 1);
+
+            // sum_var += node.q_variance();
+            // count_var += 1;
+            // std::cout << sum_var / count_var << '\n';
+            base *= 1 + (node.q_variance() - 0.005) * (2 * util::math::sigmoid(node.num_visits / 16.0) - 1);
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
