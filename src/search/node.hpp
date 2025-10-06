@@ -172,6 +172,8 @@ class NodeIndex {
 struct Node {
     // Sum of all scores that have been propagated back to this node
     f64 sum_of_scores = 0.0;
+    // Sum of squares all scores that have been propagated back to this node
+    f64 sum_of_scores_squared = 0.0;
     // Policy given to us by our parent node
     f32 policy_score = 0.0;
     // Index of the first child in the node table
@@ -192,6 +194,7 @@ struct Node {
     [[nodiscard]] bool expanded() const;
     // Average of all scores this node has received
     [[nodiscard]] f64 q() const;
+    [[nodiscard]] f64 q_variance() const;
 };
 
 } // namespace search

@@ -144,7 +144,7 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-
+            base *= 1 + (node.q_variance() - 0.125) * (2 * util::math::sigmoid(node.num_visits / 16.0) - 1);
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
@@ -305,6 +305,7 @@ void GameTree::backpropagate_score(f64 score) {
         // A node's score is the average of all of its children's score
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
+        node.sum_of_scores_squared += score * score;
         node.num_visits++;
         hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
 

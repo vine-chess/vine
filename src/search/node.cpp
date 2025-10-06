@@ -19,4 +19,10 @@ f64 Node::q() const {
     return sum_of_scores / static_cast<f64>(num_visits);
 }
 
+f64 Node::q_variance() const {
+    const auto avg = sum_of_scores / static_cast<f64>(num_visits);
+    const auto avg_squares = sum_of_scores_squared / static_cast<f64>(num_visits);
+    return avg_squares - avg * avg;
+}
+
 } // namespace search
