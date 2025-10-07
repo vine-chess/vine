@@ -16,7 +16,7 @@ constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
 using i8Vec = util::SimdVector<i8, VECTOR_SIZE>;
 using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
-struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
+struct alignas(64) PolicyNetwork {
     union {
         util::MultiArray<i8Vec, 2, 2, 2, 6, 64, L1_SIZE / VECTOR_SIZE> ft_weights_vec;
         util::MultiArray<i8, 2, 2, 2, 6, 64, L1_SIZE> ft_weights;
