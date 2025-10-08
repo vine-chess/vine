@@ -20,7 +20,7 @@ class History {
     [[nodiscard]] Entry &entry(const BoardState &state, Move move);
 
   private:
-    util::MultiArray<Entry, 2, 64, 64> table_;
+    util::MultiArray<Entry, 2, 64, 64> table_{};
 };
 
 } // namespace search
