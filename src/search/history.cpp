@@ -1,5 +1,6 @@
 #include "history.hpp"
 #include "../util/math.hpp"
+#include "../eval/value_network.hpp"
 #include <algorithm>
 
 namespace search {
@@ -10,7 +11,7 @@ namespace search {
 
 void History::Entry::update(f64 score) {
     score = std::clamp(score, 0.001, 0.999);
-    value += scale_bonus(value, static_cast<i32>(util::math::inverse_sigmoid(score)));
+    value += scale_bonus(value, static_cast<i32>(-network::value::EVAL_SCALE * util::math::inverse_sigmoid(score)));
 }
 
 void History::clear() {
