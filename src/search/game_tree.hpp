@@ -5,6 +5,7 @@
 #include "hash_table.hpp"
 #include "node.hpp"
 #include "tree_half.hpp"
+#include "history.hpp"
 
 namespace search {
 
@@ -67,6 +68,7 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    History history_;
 };
 
 } // namespace search

@@ -181,7 +181,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move) / temperature;
+        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        child.policy_score = (ctx.logit(child.move) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -325,6 +326,11 @@ void GameTree::backpropagate_score(f64 score) {
         // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
+
+            // Update the history for this move to influence new node policy scores
+            if (child_terminal_state.is_none()) {
+                history_.entry(board_.state(), node.move).update(score);
+            }
         }
     }
 }
@@ -410,6 +416,7 @@ void GameTree::clear() {
     board_ = {};
     sum_depths_ = 0;
     nodes_in_path_.clear();
+    history_.clear();
 }
 
 } // namespace search
