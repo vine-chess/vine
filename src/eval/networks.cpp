@@ -42,8 +42,7 @@ namespace value {
 INCBIN(VALUENETWORK, VALUEFILE);
 extern const auto network = []() {
     const auto alignment = alignof(ValueNetwork);
-    vine_assert(alignment == 64);
-    //vine_assert(util::next_multiple(gVALUENETWORKSize, alignment) == sizeof(ValueNetwork));
+    vine_assert(util::next_multiple(gVALUENETWORKSize, alignment) == sizeof(ValueNetwork));
     return reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
 }();
 
@@ -54,8 +53,6 @@ namespace policy {
 INCBIN(POLICYNETWORK, POLICYFILE);
 extern const auto network = []() {
     const auto alignment = alignof(PolicyNetwork);
-    vine_assert(alignment == 64);
-
     vine_assert(util::next_multiple(gPOLICYNETWORKSize, alignment) == sizeof(PolicyNetwork));
     return reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
 }();
