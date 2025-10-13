@@ -16,10 +16,10 @@ void History::update(const BoardState &state, Move move, f64 score) {
     auto &table_entry = butterfly_table_[state.side_to_move][move.from()][move.to()];
 
     i16 &entry_score = table_entry.score;
-    entry_score += scale_bonus(entry_score, bonus, 7168);
+    entry_score += scale_bonus(entry_score, bonus, 1024);
 
     i16 &bucket = table_entry.piece_buckets[state.get_piece_type(move.from()) - 1];
-    bucket += scale_bonus(bucket, bonus, 1024);
+    bucket += scale_bonus(bucket, bonus, 7168);
 }
 
 void History::clear() {
