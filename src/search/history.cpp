@@ -18,7 +18,7 @@ void History::update(const BoardState &state, Move move, f64 score) {
     i16 &entry_score = table_entry.score;
     entry_score += scale_bonus(entry_score, bonus, 7168);
 
-    i16 &bucket = table_entry.piece_buckets[state.get_piece_type(move.from())];
+    i16 &bucket = table_entry.piece_buckets[state.get_piece_type(move.from()) - 1];
     bucket += scale_bonus(bucket, bonus, 1024);
 }
 
@@ -28,7 +28,7 @@ void History::clear() {
 
 i16 History::entry(const BoardState &state, Move move) {
     const auto &table_entry = butterfly_table_[state.side_to_move][move.from()][move.to()];
-    return table_entry.score + table_entry.piece_buckets[state.get_piece_type(move.from())];
+    return table_entry.score + table_entry.piece_buckets[state.get_piece_type(move.from()) - 1];
 }
 
 } // namespace search
