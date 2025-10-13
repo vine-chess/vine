@@ -5,7 +5,7 @@
 
 namespace search {
 
-[[nodiscard]] i16 scale_bonus(i16 score, i16 bonus, u32 gravity) {
+[[nodiscard]] i16 scale_bonus(i16 score, i16 bonus, i32 gravity) {
     return bonus - score * std::abs(bonus) / gravity;
 }
 
