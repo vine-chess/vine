@@ -15,7 +15,7 @@ struct CombinedNetworks {
     alignas(64) policy::PolicyNetwork policy_net;
 };
 INCBIN(COMBINEDNETWORKS, EVALFILE);
-const auto combined_networks = return reinterpret_cast<const CombinedNetworks *>(gCOMBINEDNETWORKSData);
+const auto combined_networks = reinterpret_cast<const CombinedNetworks *>(gCOMBINEDNETWORKSData);
 
 } // namespace detail
 
