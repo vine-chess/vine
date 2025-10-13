@@ -45,6 +45,7 @@ vine
 *.dwo
 
 # Network files
+*.bin
 *.vn
 *.pn
 *.cn
