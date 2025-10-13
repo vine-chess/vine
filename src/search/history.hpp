@@ -9,18 +9,19 @@ namespace search {
 
 class History {
   public:
-    struct Entry {
-        i16 value;
-
-        void update(f64 score);
-    };
-
     void clear();
 
-    [[nodiscard]] Entry &entry(const BoardState &state, Move move);
+    void update(const BoardState &state, Move move, f64 score);
+
+    [[nodiscard]] i16 entry(const BoardState &state, Move move);
 
   private:
-    util::MultiArray<Entry, 2, 64, 64> table_{};
+    struct Entry {
+      i16 score;
+      util::MultiArray<i16, 2, 2> threat_buckets;
+    };
+
+    util::MultiArray<Entry, 2, 64, 64> butterfly_table_{};
 };
 
 } // namespace search
