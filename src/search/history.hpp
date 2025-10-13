@@ -18,7 +18,7 @@ class History {
   private:
     struct Entry {
       i16 score;
-      util::MultiArray<i16, 2, 2> threat_buckets;
+      std::array<i16, 6> piece_buckets;
     };
 
     util::MultiArray<Entry, 2, 64, 64> butterfly_table_{};
