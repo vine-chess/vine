@@ -36,14 +36,14 @@ extern const auto network = &detail::combined_networks->policy_net;
 namespace value {
 
 INCBIN(VALUENETWORK, VALUEFILE);
-extern const auto network =reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
+extern const auto network = reinterpret_cast<const ValueNetwork *>(gVALUENETWORKData);
 
 } // namespace value
 
 namespace policy {
 
 INCBIN(POLICYNETWORK, POLICYFILE);
-extern const auto network =reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
+extern const auto network = reinterpret_cast<const PolicyNetwork *>(gPOLICYNETWORKData);
 } // namespace policy
 
 #endif

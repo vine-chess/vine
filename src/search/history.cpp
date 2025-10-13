@@ -1,6 +1,6 @@
 #include "history.hpp"
-#include "../util/math.hpp"
 #include "../eval/value_network.hpp"
+#include "../util/math.hpp"
 #include <algorithm>
 
 namespace search {

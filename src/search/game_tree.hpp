@@ -3,9 +3,9 @@
 
 #include "../chess/board.hpp"
 #include "hash_table.hpp"
+#include "history.hpp"
 #include "node.hpp"
 #include "tree_half.hpp"
-#include "history.hpp"
 
 namespace search {
 
