@@ -140,6 +140,10 @@ NodeIndex GameTree::select_and_expand_node() {
             continue;
         }
 
+        if (node.num_visits % 1024 == 0) {
+            compute_policy(board_.state(), node_idx);
+        }
+
         const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
