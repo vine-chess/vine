@@ -299,6 +299,7 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
+    const auto score_depth = nodes_in_path_.size();
     auto child_terminal_state = TerminalState::none();
     while (!nodes_in_path_.empty()) {
         const auto node_idx = nodes_in_path_.pop_back();
@@ -329,7 +330,7 @@ void GameTree::backpropagate_score(f64 score) {
 
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
-                history_.entry(board_.state(), node.move).update(score);
+                history_.entry(board_.state(), node.move).update(score, (nodes_in_path_.size() + 1) - score_depth);
             }
         }
     }
