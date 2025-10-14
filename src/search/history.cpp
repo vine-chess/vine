@@ -11,9 +11,9 @@ namespace search {
 
 void History::Entry::update(f64 score, i32 score_depth_diff) {
     score = std::clamp(score, 0.001, 0.999);
-    score_depth_diff = std::min(score_depth_diff, 16);
+    score_depth_diff = std::min(score_depth_diff, 8);
     value += scale_bonus(value, static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(score) *
-                                                 (16 - score_depth_diff) / 16));
+                                                 (8 - score_depth_diff) / 8));
 }
 
 void History::clear() {
