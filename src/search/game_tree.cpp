@@ -117,6 +117,10 @@ NodeIndex GameTree::select_and_expand_node() {
         nodes_in_path_.push_back(node_idx = active_half().root_idx());
     };
 
+    if (node_at(node_idx).num_visits % 128 == 0) {
+        compute_policy(board_.state(), node_idx);
+    }
+
     while (true) {
         Node &node = node_at(node_idx);
 
@@ -138,10 +142,6 @@ NodeIndex GameTree::select_and_expand_node() {
         if (!fetch_children(node_idx)) {
             flip_and_restart();
             continue;
-        }
-
-        if (node.num_visits % 1024 == 0) {
-            compute_policy(board_.state(), node_idx);
         }
 
         const f64 cpuct = [&] {
