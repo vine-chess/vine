@@ -181,7 +181,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.move).value / 4096.0;
+        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
         child.policy_score = (ctx.logit(child.move) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents

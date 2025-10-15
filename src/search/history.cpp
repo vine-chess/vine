@@ -6,7 +6,7 @@
 namespace search {
 
 [[nodiscard]] i16 scale_bonus(i16 score, i16 bonus) {
-    return bonus - score * std::abs(bonus) / 8192;
+    return bonus - score * std::abs(bonus) / 16384;
 }
 
 void History::Entry::update(f64 score) {
