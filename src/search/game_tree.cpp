@@ -329,7 +329,7 @@ void GameTree::backpropagate_score(f64 score) {
 
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
-                history_.entry(board_.state(), node.move).update(score, 1.0 - node.q());
+                history_.entry(board_.state(), node.move).update(score, node.q());
             }
         }
     }
