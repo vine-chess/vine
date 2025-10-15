@@ -12,7 +12,7 @@ class History {
     struct Entry {
         i16 value;
 
-        void update(f64 score);
+        void update(f64 score, f64 q);
     };
 
     void clear();
