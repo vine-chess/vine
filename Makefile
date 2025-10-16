@@ -21,7 +21,7 @@ else ifdef VALUEFILE
 	endif
 else
 	VALUEFILE = net46.vn
-	POLICYFILE = net16.pn
+	POLICYFILE = net17.pn
 	FLAGS += -DVALUEFILE=\"$(VALUEFILE)\" -DPOLICYFILE=\"$(POLICYFILE)\"
 	DOWNLOAD_NETS = yes
 endif
