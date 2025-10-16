@@ -329,7 +329,7 @@ void GameTree::backpropagate_score(f64 score) {
             board_.undo_move();
 
             // Update the history for this move to influence new node policy scores
-            if (child_terminal_state.is_none()) {
+            if (child_terminal_state.is_none() && !node.move.is_capture()) {
                 history_.entry(board_.state(), node.move).update(score);
             }
         }
