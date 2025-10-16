@@ -19,7 +19,7 @@ void History::clear() {
 }
 
 History::Entry &History::entry(const BoardState &state, Move move) {
-    return table_[state.side_to_move][move.from()][move.to()];
+    return table_[state.side_to_move][state.get_piece_type(move.from()) - 1][move.from()][move.to()];
 }
 
 } // namespace search
