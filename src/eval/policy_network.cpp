@@ -22,7 +22,7 @@ namespace detail {
         ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
-const static std::array<std::array<Bitboard, 6>, 64> DESTINATIONS = [] {
+constexpr static std::array<std::array<Bitboard, 6>, 64> DESTINATIONS = [] {
     std::array<std::array<Bitboard, 6>, 64> arr{};
     for (i32 sq = 0; sq < 64; ++sq) {
         const auto sq_bb = Bitboard(Square(sq));
@@ -36,7 +36,7 @@ const static std::array<std::array<Bitboard, 6>, 64> DESTINATIONS = [] {
     return arr;
 }();
 
-const std::array<std::array<usize, 65>, 6> OFFSETS = [] {
+constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
     std::array<std::array<usize, 65>, 6> off{};
     usize cur = 0;
     for (i32 p = 0; p < 6; ++p) {
