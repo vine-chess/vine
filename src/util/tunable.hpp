@@ -10,8 +10,6 @@ namespace util {
 #define SPSA
 
 #ifdef SPSA
-#define TUNABLE(name, value, min, max) inline Tunable<decltype(value)> name(#name, value, min, max, (max - min) / 20)
-
 constexpr f64 LEARNING_RATE = 0.002;
 
 template <typename T>
@@ -22,7 +20,7 @@ class Tunable {
         std::string type;
         if constexpr (std::is_same_v<T, i32>) {
             type = "int";
-        } else if constexpr (std::is_same_v<T, f32>) {
+        } else if constexpr (std::is_same_v<T, f32> || std::is_same_v<T, f64>) {
             type = "float";
         } else {
             throw std::invalid_argument("Tunable: invalid type");
@@ -62,6 +60,9 @@ class Tunable {
     std::string_view name_;
     T value_, min_, max_;
 };
+
+#define TUNABLE(name, value, min, max) inline util::Tunable<decltype(value)> name(#name, value, min, max, (max - min) / 20)
+
 #else
 #define TUNABLE(name, value, min, max, disabled) static constexpr auto name = value
 #endif

@@ -3,7 +3,11 @@
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/assert.hpp"
+#include "../util/math.hpp"
+
+#include "../util/tunable.hpp"
 #include "node.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -13,18 +17,18 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
+TUNABLE(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f);
 #else
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
+TUNABLE(ROOT_SOFTMAX_TEMPERATURE, 1.3f, 0.5f, 3.0f);
 #endif
-constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
-constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
-constexpr f32 EXPLORATION_CONSTANT = 1.0f;
-constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
-constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
-constexpr f32 GINI_BASE = 0.5;
-constexpr f32 GINI_MULTIPLIER = 1.5;
-constexpr f32 GINI_MAXIMUM = 2.25;
+TUNABLE(SOFTMAX_TEMPERATURE, 1.0f, 1.0f, 3.0f);
+TUNABLE(ROOT_EXPLORATION_CONSTANT, 1.3f, 0.5f, 2.5f);
+TUNABLE(EXPLORATION_CONSTANT, 1.0f, 0.5f, 2.5f);
+TUNABLE(CPUCT_VISIT_SCALE, 8192, 2048, 16384);
+TUNABLE(CPUCT_VISIT_SCALE_DIVISOR, 8192, 2048, 16384);
+TUNABLE(GINI_BASE, 0.5f, 0.0f, 1.5f);
+TUNABLE(GINI_MULTIPLIER, 1.5f, 0.5f, 3.0f);
+TUNABLE(GINI_MAXIMUM, 2.25f, 1.25f, 3.25f);
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -178,7 +182,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
         // Compute policy output for this move
-        child.policy_score = ctx.logit(child.move) / temperature;
+        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        child.policy_score = (ctx.logit(child.move) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -261,7 +266,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
         return hash_entry->q;
     }
 
-    return 1.0 / (1.0 + std::exp(-network::value::evaluate(board_.state())));
+    return util::math::sigmoid(network::value::evaluate(board_.state()));
 }
 
 void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state) {
@@ -322,6 +327,11 @@ void GameTree::backpropagate_score(f64 score) {
         // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
+
+            // Update the history for this move to influence new node policy scores
+            if (child_terminal_state.is_none()) {
+                history_.entry(board_.state(), node.move).update(score);
+            }
         }
     }
 }
@@ -395,6 +405,19 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
     }
 
     return old_board.state() == new_board.state();
+}
+
+void GameTree::clear() {
+    for (auto &half : halves_) {
+        half.clear();
+    }
+    hash_table_.clear();
+    tree_usage_ = 0;
+    active_half_ = {};
+    board_ = {};
+    sum_depths_ = 0;
+    nodes_in_path_.clear();
+    history_.clear();
 }
 
 } // namespace search
