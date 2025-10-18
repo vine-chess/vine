@@ -3,6 +3,7 @@
 
 #include "../chess/board.hpp"
 #include "hash_table.hpp"
+#include "history.hpp"
 #include "node.hpp"
 #include "tree_half.hpp"
 
@@ -67,6 +68,7 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    History history_;
 };
 
 } // namespace search

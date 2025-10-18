@@ -9,8 +9,8 @@
 namespace network::policy {
 
 constexpr i16 Q = 128;
-constexpr usize L1_SIZE = 1024;
-constexpr usize OUTPUT_SIZE = 1880;
+constexpr usize L1_SIZE = 2048;
+constexpr usize OUTPUT_SIZE = 3920;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
 
 using i8Vec = util::SimdVector<i8, VECTOR_SIZE>;
@@ -26,8 +26,8 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
         std::array<i8Vec, L1_SIZE / VECTOR_SIZE> ft_biases_vec;
     };
     union {
-        util::MultiArray<i8Vec, OUTPUT_SIZE, L1_SIZE / VECTOR_SIZE> l1_weights_vec;
-        util::MultiArray<i8, OUTPUT_SIZE, L1_SIZE> l1_weights;
+        util::MultiArray<i8Vec, OUTPUT_SIZE, L1_SIZE / 2 / VECTOR_SIZE> l1_weights_vec;
+        util::MultiArray<i8, OUTPUT_SIZE, L1_SIZE / 2> l1_weights;
     };
     std::array<i8, OUTPUT_SIZE> l1_biases;
 };
@@ -38,10 +38,11 @@ class PolicyContext {
     PolicyContext(const BoardState &state);
 
     // Raw score (logit) for a specific move in the position
-    [[nodiscard]] f32 logit(Move move) const;
+    [[nodiscard]] f32 logit(Move move, PieceType moving_piece) const;
 
   private:
     Color stm_;
+    Square king_sq_;
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_{};
 };
 

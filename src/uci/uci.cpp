@@ -5,11 +5,14 @@
 #include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
+#include "../util/math.hpp"
 #include "../util/string.hpp"
+#include "../util/tui.hpp"
 #include "../util/types.hpp"
 #include "options.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -72,6 +75,8 @@ void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &
             time_settings.increment_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "binc") {
             time_settings.increment_per_side[Color::BLACK] = *util::parse_number<i64>(parts[i + 1].data());
+        } else if (parts[i] == "movetime") {
+            time_settings.movetime = *util::parse_number<i64>(parts[i + 1].data());
         } else if (parts[i] == "nodes") {
             time_settings.max_iters = *util::parse_number<u64>(parts[i + 1].data());
         }
@@ -194,7 +199,14 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "print") {
-            out << network::value::evaluate(board_.state()) << '\n';
+            out << "static eval:\n";
+
+            const auto eval = network::value::evaluate(board_.state());
+            util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
+            out << std::round(network::value::EVAL_SCALE * eval) << '\n';
+            util::tui::reset_color(out);
+
+            out << '\n';
             MoveList moves;
             generate_moves(board_.state(), moves);
 
@@ -203,7 +215,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::vector<f64> logits;
             logits.reserve(moves.size());
             for (const auto move : moves) {
-                logits.push_back(ctx.logit(move));
+                logits.push_back(ctx.logit(move, board_.state().get_piece_type(move.from())));
             }
 
             if (!logits.empty()) {
@@ -219,11 +231,35 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
                 }
             }
 
+            std::vector<std::pair<f64, Move>> sorted;
             for (usize i = 0; i < moves.size(); ++i) {
-                out << moves[i] << ": " << std::fixed << std::setprecision(2) << (100.0 * logits[i]) << '%' << '\n';
+                sorted.emplace_back(logits[i], moves[i]);
             }
+            std::sort(std::begin(sorted), std::end(sorted), [](auto lhs, auto rhs) { return lhs.first > rhs.first; });
 
-            out << board_.state().to_fen() << std::endl;
+            out << "policy:\n";
+            if (sorted.empty()) {
+                out << "(no policy, since there are no legal moves)\n";
+            } else {
+                const f64 max_logit = std::sqrt(sorted.front().first);
+                const f64 min_logit = std::sqrt(sorted.back().first);
+                const f64 range = max_logit - min_logit;
+
+                for (const auto &[logit, move] : sorted) {
+                    const f64 t = (std::sqrt(logit) - min_logit) / range;
+
+                    util::tui::set_color(out, util::tui::get_score_color(t));
+                    out << move << ": " << std::fixed << std::setprecision(2) << (100.0 * logit) << '%';
+                    util::tui::reset_color(out);
+                    out << '\n';
+                }
+            }
+            out << '\n';
+
+            out << "fen:\n" << board_.state().to_fen() << '\n';
+            out << '\n';
+
+            out << "board:\n";
             out << board_ << std::endl;
         } else if (parts[0] == "setoption") {
             handle_setoption(out, parts);
