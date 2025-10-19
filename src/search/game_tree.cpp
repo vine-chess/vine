@@ -168,6 +168,10 @@ NodeIndex GameTree::select_and_expand_node() {
     }
 }
 
+f32 fastexp(f32 x) {
+    return 1.0f / std::fma(x, x, 1.0f - x);
+}
+
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     Node &node = node_at(node_idx);
 
@@ -193,7 +197,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 sum_exponents = 0.0f;
     for (u16 i = 0; i < node.num_children; ++i) {
         Node &child = node_at(node.first_child_idx + i);
-        const f32 exp_policy = std::exp(child.policy_score - highest_policy);
+        const f32 exp_policy = fastexp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
         child.policy_score = exp_policy;
     }
