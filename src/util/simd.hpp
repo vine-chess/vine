@@ -59,6 +59,20 @@ inline SimdVector<T, N> min(SimdVector<T, N> a, SimdVector<T, N> b) {
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> set1(T val) {
+    std::array<T, N> vals;
+    vals.fill(val);
+    SimdVector<T, N> res;
+    std::memcpy(&res, vals.data(), sizeof(res));
+    return res;
+}
+
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> clampScalar(SimdVector<T, N> a, T lo, T hi) {
+    return min<T, N>(set1<T, N>(hi), max<T, N>(set1<T, N>(lo), a));
+}
+
+template <class T = i16, usize N = NATIVE_SIZE<T>>
 inline SimdVector<T, N> loadu(const T *ptr) {
     SimdVector<T, N> res;
     std::memcpy(&res, ptr, sizeof(res));
@@ -68,15 +82,6 @@ inline SimdVector<T, N> loadu(const T *ptr) {
 template <class T = i16, usize N = NATIVE_SIZE<T>>
 inline void storeu(T *ptr, SimdVector<T, N> v) {
     std::memcpy(ptr, &v, sizeof(v));
-}
-
-template <class T = i16, usize N = NATIVE_SIZE<T>>
-inline SimdVector<T, N> set1(T val) {
-    std::array<T, N> vals;
-    vals.fill(val);
-    SimdVector<T, N> res;
-    std::memcpy(&res, vals.data(), sizeof(res));
-    return res;
 }
 
 template <class To, class From, usize N>

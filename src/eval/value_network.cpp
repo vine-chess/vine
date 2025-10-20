@@ -64,45 +64,44 @@ f64 evaluate(const BoardState &state) {
     std::array<f32, L2_SIZE> l2;
     std::memcpy(l2.data(), &network->l1_biases, sizeof(l2));
     for (usize j = 0; j < L2_SIZE; ++j) {
+        i32 s = 0;
         for (usize i = 0; i < L1_SIZE / 2; ++i) {
-            l2[j] += l1_activated[i] * network->l1_weights[j][i] * dequantisation_constant;
+            s += l1_activated[i] * network->l1_weights[j][i];
         }
+        l2[j] = s;
+    }
+    for (auto &i : l2) {
+        i *= dequantisation_constant;
     }
 
     // activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
-        auto reg = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        reg = util::max<f32, L2_REG_SIZE>(reg, util::set1<f32, L2_REG_SIZE>(0));
-        reg = util::min<f32, L2_REG_SIZE>(reg, util::set1<f32, L2_REG_SIZE>(1));
-        reg *= reg;
-        util::storeu(l2.data() + L2_REG_SIZE * i, reg);
+        auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
+        v = util::clampScalar<f32, L2_REG_SIZE>(v, 0, 1);
+        v *= v;
+        util::storeu(l2.data() + L2_REG_SIZE * i, v);
     }
 
-    std::array<f32, L3_SIZE> l3;
+    auto res = util::set1<f32, L3_REG_SIZE>(0);
     for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
-        auto reg = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
+        auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
 
         // l2 -> l3 matmul
         for (usize j = 0; j < L2_SIZE; ++j) {
             const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
             const auto w = network->l2_weights_vec[j][i];
-            reg = util::fmadd_ps(l2_val, w, reg);
+            v = util::fmadd_ps(l2_val, w, v);
         }
 
         // activate l3
-        reg = util::max<f32, L3_REG_SIZE>(reg, util::set1<f32, L3_REG_SIZE>(0));
-        reg = util::min<f32, L3_REG_SIZE>(reg, util::set1<f32, L3_REG_SIZE>(1));
-        reg *= reg;
-        util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i, reg);
+        v = util::clampScalar<f32, L3_REG_SIZE>(v, 0, 1);
+        v *= v;
+
+        // l3 -> out matmul
+        res = util::fmadd_ps(v, network->l3_weights_vec[i], res);
     }
 
-    // l3 -> out matmul
-    f32 res = network->l3_biases[0];
-    for (usize i = 0; i < L3_SIZE; ++i) {
-        res += l3[i] * network->l3_weights[i];
-    }
-
-    return res;
+    return util::reduce_ps(res) + network->l3_biases[0];
 }
 
 } // namespace network::value
