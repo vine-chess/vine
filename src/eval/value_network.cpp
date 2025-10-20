@@ -50,20 +50,46 @@ f64 evaluate(const BoardState &state) {
 
     const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
 
-    std::array<i16, L1_SIZE> l1;
-    std::memcpy(l1.data(), accumulator.data(), sizeof(l1));
+    std::array<i32, L1_SIZE / 2> l1;
 
-    // activate l1
-    std::array<i32, L1_SIZE / 2> l1_activated;
-    for (usize i = 0; i < L1_SIZE / 2; ++i) {
-        l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
+    const auto accumulator_vec_i32 = reinterpret_cast<util::SimdVector<i32, VECTOR_SIZE / 2> *>(accumulator.data());
+    const auto zero = util::set1<i16, VECTOR_SIZE>(0);
+    const auto one = util::set1<i16, VECTOR_SIZE>(QA);
+    for (usize i = 0, half = L1_SIZE / 2 / VECTOR_SIZE; i < half; ++i) {
+        const auto a = accumulator[i];
+        const auto b = accumulator[i + half];
+
+        const auto a_clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(a, zero), one);
+        const auto b_clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(b, zero), one);
+
+        const auto a_lo =
+            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::lower_half<i16, VECTOR_SIZE>(a_clamped));
+        const auto a_hi =
+            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::upper_half<i16, VECTOR_SIZE>(a_clamped));
+        const auto b_lo =
+            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::lower_half<i16, VECTOR_SIZE>(b_clamped));
+        const auto b_hi =
+            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::upper_half<i16, VECTOR_SIZE>(b_clamped));
+
+        const auto prod_lo = a_lo * b_lo;
+        const auto prod_hi = a_hi * b_hi;
+
+        util::storeu(&l1[(2 * i + 0) * VECTOR_SIZE / 2], prod_lo);
+        util::storeu(&l1[(2 * i + 1) * VECTOR_SIZE / 2], prod_hi);
     }
+
+    // // activate l1
+    // std::array<i32, L1_SIZE / 2> l1_activated;
+    // for (usize i = 0; i < L1_SIZE / 2; ++i) {
+    //     l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
+    // }
+
     // l1 -> l2 matmul
     std::array<f32, L2_SIZE> l2;
     std::memcpy(l2.data(), &network->l1_biases, sizeof(l2));
     for (usize j = 0; j < L2_SIZE; ++j) {
         for (usize i = 0; i < L1_SIZE / 2; ++i) {
-            l2[j] += l1_activated[i] * network->l1_weights[j][i] * dequantisation_constant;
+            l2[j] += l1[i] * network->l1_weights[j][i] * dequantisation_constant;
         }
     }
 
