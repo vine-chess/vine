@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstring>
-#include <iostream>
 
 namespace network::value {
 
@@ -39,6 +38,7 @@ f64 evaluate(const BoardState &state) {
                 accumulator[i] += feat[i];
             }
         }
+
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
             const auto feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
@@ -48,18 +48,51 @@ f64 evaluate(const BoardState &state) {
         }
     }
 
-    util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
-    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
-    const auto one = util::set1_epi16<VECTOR_SIZE>(QA);
+    const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
 
-    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-        const auto clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(accumulator[i], zero), one);
-        sum += util::madd_epi16(clamped, clamped * network->l1_weights_vec[i]);
+    std::array<i16, L1_SIZE> l1;
+    std::memcpy(l1.data(), accumulator.data(), sizeof(l1));
+
+    // activate l1
+    std::array<i32, L1_SIZE / 2> l1_activated;
+    for (usize i = 0; i < L1_SIZE / 2; ++i) {
+        l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
+    }
+    // l1 -> l2 matmul
+    std::array<f32, L2_SIZE> l2;
+    std::memcpy(l2.data(), &network->l1_biases, sizeof(l2));
+    for (usize j = 0; j < L2_SIZE; ++j) {
+        for (usize i = 0; i < L1_SIZE / 2; ++i) {
+            l2[j] += l1_activated[i] * network->l1_weights[j][i] * dequantisation_constant;
+        }
     }
 
-    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
-    const i32 bias = network->l1_biases[0];
-    return (dot / static_cast<f64>(QA) + bias) / static_cast<f64>(QA * QB);
+    // activate l2
+    for (usize i = 0; i < L2_SIZE; ++i) {
+        l2[i] = std::clamp<f32>(l2[i], 0, 1);
+        l2[i] *= l2[i];
+    }
+    // l2 -> l3 matmul
+    std::array<f32, L3_SIZE> l3;
+    std::memcpy(l3.data(), &network->l2_biases, sizeof(l3));
+    for (usize j = 0; j < L3_SIZE; ++j) {
+        for (usize i = 0; i < L2_SIZE; ++i) {
+            l3[j] += l2[i] * network->l2_weights[j][i];
+        }
+    }
+
+    // activate l3
+    for (usize i = 0; i < L3_SIZE; ++i) {
+        l3[i] = std::clamp<f32>(l3[i], 0, 1);
+        l3[i] *= l3[i];
+    }
+    // l3 -> out matmul
+    f32 res = network->l3_biases[0];
+    for (usize i = 0; i < L3_SIZE; ++i) {
+        res += l3[i] * network->l3_weights[i];
+    }
+
+    return res;
 }
 
 } // namespace network::value

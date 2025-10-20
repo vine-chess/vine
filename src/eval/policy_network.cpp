@@ -110,8 +110,8 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
 
     util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
-    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
-    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
+    const auto zero = util::set1<i16, VECTOR_SIZE>(0);
+    const auto one = util::set1<i16, VECTOR_SIZE>(Q);
 
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
         const auto first_clamped =

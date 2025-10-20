@@ -58,18 +58,23 @@ inline SimdVector<i16, N> min_epi16(SimdVector<i16, N> a, SimdVector<i16, N> b) 
     return __builtin_elementwise_min(a, b);
 }
 
-template <usize N = NATIVE_SIZE<i16>>
-inline SimdVector<i16, N> loadu_epi16(const i16 *ptr) {
-    SimdVector<i16, N> res;
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> loadu(const T *ptr) {
+    SimdVector<T, N> res;
     std::memcpy(&res, ptr, sizeof(res));
     return res;
 }
 
-template <usize N = NATIVE_SIZE<i16>>
-inline SimdVector<i16, N> set1_epi16(i16 val) {
-    std::array<i16, N> vals;
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline void storeu(T *ptr, SimdVector<T, N> v) {
+    std::memcpy(ptr, &v, sizeof(v));
+}
+
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> set1(T val) {
+    std::array<T, N> vals;
     vals.fill(val);
-    SimdVector<i16, N> res;
+    SimdVector<T, N> res;
     std::memcpy(&res, vals.data(), sizeof(res));
     return res;
 }
