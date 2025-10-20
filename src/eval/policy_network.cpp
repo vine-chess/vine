@@ -115,9 +115,9 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
 
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
         const auto first_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        const auto second_clamped = util::min_epi16<VECTOR_SIZE>(
-            util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
+            util::min<i16, VECTOR_SIZE>(util::max<i16, VECTOR_SIZE>(feature_accumulator_[i], zero), one);
+        const auto second_clamped = util::min<i16, VECTOR_SIZE>(
+            util::max<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
         sum += util::madd_epi16(first_clamped * second_clamped,
                                 util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
     }

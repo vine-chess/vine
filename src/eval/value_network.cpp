@@ -1,5 +1,6 @@
 #include "value_network.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -50,68 +51,51 @@ f64 evaluate(const BoardState &state) {
 
     const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
 
-    std::array<i32, L1_SIZE / 2> l1;
+    std::array<i16, L1_SIZE> l1;
+    std::memcpy(l1.data(), accumulator.data(), sizeof(l1));
 
-    const auto accumulator_vec_i32 = reinterpret_cast<util::SimdVector<i32, VECTOR_SIZE / 2> *>(accumulator.data());
-    const auto zero = util::set1<i16, VECTOR_SIZE>(0);
-    const auto one = util::set1<i16, VECTOR_SIZE>(QA);
-    for (usize i = 0, half = L1_SIZE / 2 / VECTOR_SIZE; i < half; ++i) {
-        const auto a = accumulator[i];
-        const auto b = accumulator[i + half];
-
-        const auto a_clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(a, zero), one);
-        const auto b_clamped = util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(b, zero), one);
-
-        const auto a_lo =
-            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::lower_half<i16, VECTOR_SIZE>(a_clamped));
-        const auto a_hi =
-            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::upper_half<i16, VECTOR_SIZE>(a_clamped));
-        const auto b_lo =
-            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::lower_half<i16, VECTOR_SIZE>(b_clamped));
-        const auto b_hi =
-            util::convert_vector<i32, i16, VECTOR_SIZE / 2>(util::upper_half<i16, VECTOR_SIZE>(b_clamped));
-
-        const auto prod_lo = a_lo * b_lo;
-        const auto prod_hi = a_hi * b_hi;
-
-        util::storeu(&l1[(2 * i + 0) * VECTOR_SIZE / 2], prod_lo);
-        util::storeu(&l1[(2 * i + 1) * VECTOR_SIZE / 2], prod_hi);
+    // activate l1
+    std::array<i32, L1_SIZE / 2> l1_activated;
+    for (usize i = 0; i < L1_SIZE / 2; ++i) {
+        l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
     }
-
-    // // activate l1
-    // std::array<i32, L1_SIZE / 2> l1_activated;
-    // for (usize i = 0; i < L1_SIZE / 2; ++i) {
-    //     l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
-    // }
 
     // l1 -> l2 matmul
     std::array<f32, L2_SIZE> l2;
     std::memcpy(l2.data(), &network->l1_biases, sizeof(l2));
     for (usize j = 0; j < L2_SIZE; ++j) {
         for (usize i = 0; i < L1_SIZE / 2; ++i) {
-            l2[j] += l1[i] * network->l1_weights[j][i] * dequantisation_constant;
+            l2[j] += l1_activated[i] * network->l1_weights[j][i] * dequantisation_constant;
         }
     }
 
     // activate l2
-    for (usize i = 0; i < L2_SIZE; ++i) {
-        l2[i] = std::clamp<f32>(l2[i], 0, 1);
-        l2[i] *= l2[i];
-    }
-    // l2 -> l3 matmul
-    std::array<f32, L3_SIZE> l3;
-    std::memcpy(l3.data(), &network->l2_biases, sizeof(l3));
-    for (usize j = 0; j < L3_SIZE; ++j) {
-        for (usize i = 0; i < L2_SIZE; ++i) {
-            l3[j] += l2[i] * network->l2_weights[j][i];
-        }
+    for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
+        auto reg = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
+        reg = util::max<f32, L2_REG_SIZE>(reg, util::set1<f32, L2_REG_SIZE>(0));
+        reg = util::min<f32, L2_REG_SIZE>(reg, util::set1<f32, L2_REG_SIZE>(1));
+        reg *= reg;
+        util::storeu(l2.data() + L2_REG_SIZE * i, reg);
     }
 
-    // activate l3
-    for (usize i = 0; i < L3_SIZE; ++i) {
-        l3[i] = std::clamp<f32>(l3[i], 0, 1);
-        l3[i] *= l3[i];
+    std::array<f32, L3_SIZE> l3;
+    for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
+        auto reg = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
+
+        // l2 -> l3 matmul
+        for (usize j = 0; j < L2_SIZE; ++j) {
+            const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
+            const auto w = network->l2_weights_vec[j][i];
+            reg = util::fmadd_ps(l2_val, w, reg);
+        }
+
+        // activate l3
+        reg = util::max<f32, L3_REG_SIZE>(reg, util::set1<f32, L3_REG_SIZE>(0));
+        reg = util::min<f32, L3_REG_SIZE>(reg, util::set1<f32, L3_REG_SIZE>(1));
+        reg *= reg;
+        util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i, reg);
     }
+
     // l3 -> out matmul
     f32 res = network->l3_biases[0];
     for (usize i = 0; i < L3_SIZE; ++i) {

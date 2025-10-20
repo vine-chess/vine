@@ -48,13 +48,13 @@ constexpr auto NATIVE_SIZE = NATIVE_VECTOR_BYTES / sizeof(T);
 template <class T>
 using NativeVector = SimdVector<T, NATIVE_SIZE<T>>;
 
-template <usize N = NATIVE_SIZE<i16>>
-inline SimdVector<i16, N> max_epi16(SimdVector<i16, N> a, SimdVector<i16, N> b) {
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> max(SimdVector<T, N> a, SimdVector<T, N> b) {
     return __builtin_elementwise_max(a, b);
 }
 
-template <usize N = NATIVE_SIZE<i16>>
-inline SimdVector<i16, N> min_epi16(SimdVector<i16, N> a, SimdVector<i16, N> b) {
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> min(SimdVector<T, N> a, SimdVector<T, N> b) {
     return __builtin_elementwise_min(a, b);
 }
 
@@ -117,15 +117,43 @@ namespace util {
 inline SimdVector<i32, 16> madd_epi16(SimdVector<i16, 32> a, SimdVector<i16, 32> b) {
     return _mm512_madd_epi16(a, b);
 }
+inline SimdVector<f32, 16> fmadd_ps(SimdVector<f32, 16> a, SimdVector<f32, 16> b, SimdVector<f32, 16> c) {
+    return _mm512_fmadd_ps(a, b, c);
+}
+inline f32 reduce_ps(SimdVector<f32, 16> v) {
+    return _mm512_reduce_add_ps(v);
+}
 #endif
 #if defined(__AVX2__)
 inline SimdVector<i32, 8> madd_epi16(SimdVector<i16, 16> a, SimdVector<i16, 16> b) {
     return _mm256_madd_epi16(a, b);
 }
+inline SimdVector<f32, 8> fmadd_ps(SimdVector<f32, 8> a, SimdVector<f32, 8> b, SimdVector<f32, 8> c) {
+    return _mm256_fmadd_ps(a, b, c);
+}
+inline f32 reduce_ps(SimdVector<f32, 8> v) {
+    __m128 hi = _mm256_extractf128_ps(v, 1);
+    __m128 sum = _mm_add_ps(_mm256_castps256_ps128(v), hi);
+    __m128 shuf1 = _mm_castpd_ps(_mm_shuffle_pd(_mm_castps_pd(sum), _mm_castps_pd(sum), 1));
+    sum = _mm_add_ps(sum, shuf1);
+    __m128 shuf2 = _mm_movehdup_ps(sum);
+    sum = _mm_add_ss(sum, shuf2);
+    return _mm_cvtss_f32(sum);
+}
 #endif
 #if defined(__SSE__)
 inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
     return _mm_madd_epi16(a, b);
+}
+inline SimdVector<f32, 4> fmadd_ps(SimdVector<f32, 4> a, SimdVector<f32, 4> b, SimdVector<f32, 4> c) {
+    return _mm_fmadd_ps(a, b, c);
+}
+inline f32 reduce_ps(SimdVector<f32, 4> v) {
+    __m128 shuf1 = _mm_castpd_ps(_mm_shuffle_pd(_mm_castps_pd(v), _mm_castps_pd(v), 1));
+    __m128 sum = _mm_add_ps(v, shuf1);
+    __m128 shuf2 = _mm_movehdup_ps(sum);
+    sum = _mm_add_ss(sum, shuf2);
+    return _mm_cvtss_f32(sum);
 }
 #endif
 
