@@ -68,10 +68,7 @@ f64 evaluate(const BoardState &state) {
         for (usize i = 0; i < L1_SIZE / 2; ++i) {
             s += l1_activated[i] * network->l1_weights[j][i];
         }
-        l2[j] = s;
-    }
-    for (auto &i : l2) {
-        i *= dequantisation_constant;
+        l2[j] += s * dequantisation_constant;
     }
 
     // activate l2
