@@ -51,8 +51,7 @@ f64 evaluate(const BoardState &state) {
 
     const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
 
-    std::array<i16, L1_SIZE> l1;
-    std::memcpy(l1.data(), accumulator.data(), sizeof(l1));
+    const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
 
     // activate l1
     std::array<i32, L1_SIZE / 2> l1_activated;
@@ -60,21 +59,22 @@ f64 evaluate(const BoardState &state) {
         l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
     }
 
+    std::array<i32, L2_SIZE> l2i{};
     // l1 -> l2 matmul
-    std::array<f32, L2_SIZE> l2;
-    std::memcpy(l2.data(), &network->l1_biases, sizeof(l2));
-    for (usize j = 0; j < L2_SIZE; ++j) {
-        i32 s = 0;
-        for (usize i = 0; i < L1_SIZE / 2; ++i) {
-            s += l1_activated[i] * network->l1_weights[j][i];
+    for (usize i = 0; i < L2_SIZE; ++i) {
+        for (usize j = 0; j < L1_SIZE / 2; ++j) {
+            l2i[i] += l1_activated[j] * network->l1_weights[i][j];
         }
-        l2[j] += s * dequantisation_constant;
+    }
+    std::array<f32, L2_SIZE> l2;
+    for (usize i = 0; i < L2_SIZE; ++i) {
+        l2[i] = l2i[i] * dequantisation_constant + network->l1_biases[i];
     }
 
     // activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        v = util::clampScalar<f32, L2_REG_SIZE>(v, 0, 1);
+        v = util::clamp_scalar<f32, L2_REG_SIZE>(v, 0, 1);
         v *= v;
         util::storeu(l2.data() + L2_REG_SIZE * i, v);
     }
@@ -91,7 +91,7 @@ f64 evaluate(const BoardState &state) {
         }
 
         // activate l3
-        v = util::clampScalar<f32, L3_REG_SIZE>(v, 0, 1);
+        v = util::clamp_scalar<f32, L3_REG_SIZE>(v, 0, 1);
         v *= v;
 
         // l3 -> out matmul

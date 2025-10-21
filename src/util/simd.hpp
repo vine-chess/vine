@@ -68,7 +68,7 @@ inline SimdVector<T, N> set1(T val) {
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
-inline SimdVector<T, N> clampScalar(SimdVector<T, N> a, T lo, T hi) {
+inline SimdVector<T, N> clamp_scalar(SimdVector<T, N> a, T lo, T hi) {
     return min<T, N>(set1<T, N>(hi), max<T, N>(set1<T, N>(lo), a));
 }
 
