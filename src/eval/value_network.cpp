@@ -53,19 +53,26 @@ f64 evaluate(const BoardState &state) {
 
     const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
 
-    // activate l1
-    std::array<i32, L1_SIZE / 2> l1_activated;
-    for (usize i = 0; i < L1_SIZE / 2; ++i) {
-        l1_activated[i] = std::clamp<i32>(l1[i], 0, QA) * std::clamp<i32>(l1[i + L1_SIZE / 2], 0, QA);
-    }
-
     std::array<i32, L2_SIZE> l2i{};
-    // l1 -> l2 matmul
-    for (usize i = 0; i < L2_SIZE; ++i) {
-        for (usize j = 0; j < L1_SIZE / 2; ++j) {
-            l2i[i] += l1_activated[j] * network->l1_weights[i][j];
+    for (usize i = 0; i < L1_SIZE / 2 / L2_REG_SIZE; ++i) {
+        // activate l1
+        auto left = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i);
+        auto right = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i + L1_SIZE / 2);
+        left = util::clamp_scalar<i16, L2_REG_SIZE>(left, 0, QA);
+        right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
+        const auto left_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(left);
+        const auto right_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(right);
+        const auto activated = left_widened * right_widened;
+
+        // l1 -> l2 matmul
+        for (usize j = 0; j < L2_REG_SIZE; ++j) {
+            const auto idx = i * L2_REG_SIZE + j;
+            for (usize k = 0; k < L2_SIZE; ++k) {
+                l2i[k] += activated[j] * network->l1_weights[idx][k];
+            }
         }
     }
+
     std::array<f32, L2_SIZE> l2;
     for (usize i = 0; i < L2_SIZE; ++i) {
         l2[i] = l2i[i] * dequantisation_constant + network->l1_biases[i];

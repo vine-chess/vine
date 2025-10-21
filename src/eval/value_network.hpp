@@ -31,8 +31,8 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     util::MultiArray<i16, L1_SIZE> ft_biases;
 
     union {
-        util::MultiArray<util::SimdVector<i8, L2_REG_SIZE>, L2_SIZE, L1_SIZE / 2 / L2_REG_SIZE> l1_weights_vec;
-        util::MultiArray<i8, L2_SIZE, L1_SIZE / 2> l1_weights;
+        util::MultiArray<util::SimdVector<i8, L2_REG_SIZE>, L1_SIZE / 2, L2_SIZE / L2_REG_SIZE> l1_weights_vec;
+        util::MultiArray<i8, L1_SIZE / 2, L2_SIZE> l1_weights;
     };
     util::MultiArray<f32, L2_SIZE> l1_biases;
 
