@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <immintrin.h>
 
 namespace network::value {
 
@@ -68,14 +69,14 @@ f64 evaluate(const BoardState &state) {
         for (usize j = 0; j < L2_REG_SIZE; ++j) {
             const auto idx = i * L2_REG_SIZE + j;
             for (usize k = 0; k < L2_SIZE; ++k) {
-                l2i[k] += activated[j] * network->l1_weights[idx][k];
+                l2i[k] += (activated[j] >> 7) * network->l1_weights[idx][k];
             }
         }
     }
 
     std::array<f32, L2_SIZE> l2;
     for (usize i = 0; i < L2_SIZE; ++i) {
-        l2[i] = l2i[i] * dequantisation_constant + network->l1_biases[i];
+        l2[i] = (l2i[i] << 7) * dequantisation_constant + network->l1_biases[i];
     }
 
     // activate l2

@@ -128,6 +128,10 @@ inline SimdVector<f32, 16> fmadd_ps(SimdVector<f32, 16> a, SimdVector<f32, 16> b
 inline f32 reduce_ps(SimdVector<f32, 16> v) {
     return _mm512_reduce_add_ps(v);
 }
+template<int shift>
+inline SimdVector<i16, 32> srli_epi16(SimdVector<i16, 32> v) {
+    return _mm512_srli_epi16(v, shift);
+}
 #endif
 #if defined(__AVX2__)
 inline SimdVector<i32, 8> madd_epi16(SimdVector<i16, 16> a, SimdVector<i16, 16> b) {
@@ -145,6 +149,10 @@ inline f32 reduce_ps(SimdVector<f32, 8> v) {
     sum = _mm_add_ss(sum, shuf2);
     return _mm_cvtss_f32(sum);
 }
+template<int shift>
+inline SimdVector<i16, 16> srli_epi16(SimdVector<i16, 16> v) {
+    return _mm256_srli_epi16(v, shift);
+}
 #endif
 #if defined(__SSE__)
 inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
@@ -159,6 +167,10 @@ inline f32 reduce_ps(SimdVector<f32, 4> v) {
     __m128 shuf2 = _mm_movehdup_ps(sum);
     sum = _mm_add_ss(sum, shuf2);
     return _mm_cvtss_f32(sum);
+}
+template<int shift>
+inline SimdVector<i16, 8> srli_epi16(SimdVector<i16, 8> v) {
+    return _mm_srli_epi16(v, shift);
 }
 #endif
 
