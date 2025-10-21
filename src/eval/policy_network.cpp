@@ -62,16 +62,13 @@ constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
         const i32 promo_id = 2 * from.file() + to.file();
         const i32 kind = promo_kind_id(move.promo_type());
         return OFFSETS[5][64] + static_cast<usize>(kind * PROMO_STRIDE + promo_id);
-    }
-    else if (move.is_castling()) {
+    } else if (move.is_castling()) {
         const bool is_kingside = move.from() < move.to();
         const bool is_hm = king_sq.file() >= File::E;
         return OFFSETS[5][64] + PROMO_STRIDE * 4 + (is_kingside ^ is_hm);
-    }
-    else if (moving_piece == PieceType::PAWN && (move.from() ^ move.to()) == 16) {
+    } else if (moving_piece == PieceType::PAWN && (move.from() ^ move.to()) == 16) {
         return OFFSETS[5][64] + PROMO_STRIDE * 4 + 2 + from.file();
-    }
-    else {
+    } else {
         const u64 all = static_cast<u64>(DESTINATIONS[from][moving_piece - 1]);
         const u64 below = all & (to.to_bb() - 1);
         return OFFSETS[moving_piece - 1][from] + static_cast<usize>(std::popcount(below));
@@ -82,6 +79,8 @@ constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
 
 PolicyContext::PolicyContext(const BoardState &state)
     : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {
+
+    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_;
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
@@ -104,21 +103,24 @@ PolicyContext::PolicyContext(const BoardState &state)
             }
         }
     }
+    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
+    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
+    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
+        const auto first_clamped =
+            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
+        const auto second_clamped = util::min_epi16<VECTOR_SIZE>(
+            util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
+        activated_acc_[i] = first_clamped * second_clamped;
+    }
 }
 
 f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
 
     util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
-    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
-    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
 
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
-        const auto first_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        const auto second_clamped = util::min_epi16<VECTOR_SIZE>(
-            util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
-        sum += util::madd_epi16(first_clamped * second_clamped,
+        sum += util::madd_epi16(activated_acc_[i],
                                 util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
     }
 
