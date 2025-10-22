@@ -5,6 +5,7 @@
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
 #include <array>
+#include <span>
 
 namespace network::policy {
 
@@ -43,7 +44,7 @@ class PolicyContext {
   private:
     Color stm_;
     Square king_sq_;
-    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_{};
+    std::array<util::SimdVector<i16, VECTOR_SIZE>, L1_SIZE / 2 / VECTOR_SIZE> activated_acc_{};
 };
 
 } // namespace network::policy
