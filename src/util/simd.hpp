@@ -169,7 +169,8 @@ inline f32 reduce_ps(SimdVector<f32, 4> v) {
 #include <arm_neon.h>
 
 inline SimdVector<f32, 4> fmadd_ps(SimdVector<f32, 4> a, SimdVector<f32, 4> b, SimdVector<f32, 4> c) {
-    return vfmaq_f32(a, b, c);
+    return a * b + c;
+    // return vfmaq_f32(a, b, c);
 }
 
 inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
