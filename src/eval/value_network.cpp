@@ -83,10 +83,10 @@ f64 evaluate(const BoardState &state) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
         v = util::clamp_scalar<f32, L2_REG_SIZE>(v, 0, 1);
         v *= v;
-        util::storeu(l2.data() + L2_REG_SIZE * i, v);
+        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
-    auto res = util::set1<f32, L3_REG_SIZE>(0);
+    std::array<f32, L3_SIZE> l3{};
     for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
 
@@ -102,10 +102,17 @@ f64 evaluate(const BoardState &state) {
         v *= v;
 
         // l3 -> out matmul
-        res = util::fmadd_ps(v, network->l3_weights_vec[i], res);
+        const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
+
+        util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i,
+                                       util::fmadd_ps(v, network->l3_weights_vec[i], l3_val));
     }
 
-    return util::reduce_ps(res) + network->l3_biases[0];
+    f32 final_sum = network->l3_biases[0];
+    for (usize i = 0; i < L3_SIZE; ++i) {
+        final_sum += l3[i];
+    }
+    return final_sum;
 }
 
 } // namespace network::value
