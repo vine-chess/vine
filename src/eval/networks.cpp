@@ -1,9 +1,6 @@
 #include "../third_party/incbin.h"
-#include "../util/assert.hpp"
-#include "../util/simd.hpp"
 #include "policy_network.hpp"
 #include "value_network.hpp"
-#include <iostream>
 
 namespace network {
 
