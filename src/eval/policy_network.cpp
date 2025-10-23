@@ -13,10 +13,10 @@ const extern PolicyNetwork *const network;
 
 namespace detail {
 
-[[nodiscard]] const util::MultiArray<i8Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
-                                                                            Color piece_color, Color perspective,
-                                                                            Bitboard threats, Bitboard defences,
-                                                                            Square king_sq) {
+[[nodiscard]] const util::MultiArray<i8Vec, L1_0_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
+                                                                              Color piece_color, Color perspective,
+                                                                              Bitboard threats, Bitboard defences,
+                                                                              Square king_sq) {
     const usize flip = (0b111000 * perspective) ^ (king_sq.file() >= File::E ? 0b000111 : 0);
     return network
         ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
@@ -79,9 +79,8 @@ constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
 
 PolicyContext::PolicyContext(const BoardState &state)
     : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {
-
-    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_;
-    for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+    std::array<i16Vec, L1_0_SIZE / VECTOR_SIZE> feature_accumulator_;
+    for (usize i = 0; i < L1_0_SIZE / VECTOR_SIZE; ++i) {
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
 
@@ -90,23 +89,23 @@ PolicyContext::PolicyContext(const BoardState &state)
         // Our pieces
         const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            for (usize i = 0; i < L1_0_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
                     detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_], king_sq_)[i]);
             }
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            for (usize i = 0; i < L1_0_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
                     detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_], king_sq_)[i]);
             }
         }
     }
-    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
+    for (usize i = 0; i < L1_0_SIZE / 2 / VECTOR_SIZE; ++i) {
         const auto first_clamped = util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i], 0, Q);
         const auto second_clamped =
-            util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], 0, Q);
+            util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_0_SIZE / 2 / VECTOR_SIZE], 0, Q);
         activated_acc_[i] = first_clamped * second_clamped;
     }
 }
@@ -114,17 +113,43 @@ PolicyContext::PolicyContext(const BoardState &state)
 f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
 
-    util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
-
-    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
-        sum += util::madd_epi16(activated_acc_[i],
-                                util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
+    // HL -> Output
+    util::SimdVector<i32, VECTOR_SIZE / 2> hl_sum{};
+    for (usize i = 0; i < L1_0_SIZE / 2 / VECTOR_SIZE; ++i) {
+        hl_sum += util::madd_epi16(activated_acc_[i],
+                                   util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_0_weights_vec[idx][i]));
     }
 
-    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
-    const i32 bias = network->l1_biases[idx];
+    const i32 hl_dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(hl_sum);
+    const i32 hl_bias = network->l1_0_biases[idx];
+    const f32 hl_out =
+        ((static_cast<f32>(hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(hl_bias)) / static_cast<f32>(Q);
 
-    return ((static_cast<f32>(dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(bias)) / static_cast<f32>(Q);
+    // HL -> Sub HL
+    std::array<util::SimdVector<i32, VECTOR_SIZE / 2>, L1_1_SIZE> sub_hl_sum{};
+    for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
+        for (usize j = 0; j < L1_0_SIZE / 2 / VECTOR_SIZE; ++j) {
+            sub_hl_sum[i] += util::madd_epi16(
+                activated_acc_[j], util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]));
+        }
+        sub_hl_sum[i] += network->l1_1_biases[i];
+        // sub_hl_sum[i] /= Q; // is this right? we did i16 * i16
+        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE / 2>(sub_hl_sum[i], 0, Q);
+    }
+
+    // Sub HL -> Output
+    util::SimdVector<i32, VECTOR_SIZE / 2> sub_hl_output{};
+    for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
+        sub_hl_output += util::madd_epi16(sub_hl_sum[i],
+                                          util::convert_vector<i16, i8, VECTOR_SIZE>(network->l2_weights_vec[idx][i]));
+    }
+
+    const i32 sub_hl_dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sub_hl_output);
+    const i32 sub_hl_bias = network->l2_biases[idx];
+    const f32 sub_hl_out = ((static_cast<f32>(sub_hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(sub_hl_bias)) /
+                           static_cast<f32>(Q);
+
+    return hl_out + sub_hl_out;
 }
 
 } // namespace network::policy
