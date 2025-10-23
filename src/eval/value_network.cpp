@@ -71,7 +71,7 @@ f64 evaluate(const BoardState &state) {
         // Pairwise multiply the clamped values
         const auto activated = left_widened * right_widened;
 
-        // l1 -> l2 matmul
+        //  Matrix multiply l1 -> l2
         for (usize j = 0; j < L2_REG_SIZE; ++j) {
             const auto idx = i * L2_REG_SIZE + j;
             for (usize k = 0; k < L2_SIZE; ++k) {
@@ -97,7 +97,7 @@ f64 evaluate(const BoardState &state) {
     for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
 
-        // l2 -> l3 matmul
+        // Matrix multiply l2 -> l3
         for (usize j = 0; j < L2_SIZE; ++j) {
             const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
             const auto w = network->l2_weights_vec[j][i];
@@ -108,7 +108,7 @@ f64 evaluate(const BoardState &state) {
         v = util::clamp_scalar<f32, L3_REG_SIZE>(v, 0, 1);
         v *= v;
 
-        // l3 -> out matmul
+        // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
         util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i,
                                        util::fmadd_ps(v, network->l3_weights_vec[i], l3_val));
