@@ -133,8 +133,13 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
                              util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]);
         }
 
-        sub_hl_sum[i] += network->l1_1_biases_vec[i];
-        //sub_hl_sum[i] /= Q; // is this right? we did i16 * i16
+        // dot product (i16 * i8) → i32 ≈ Q² scale
+        sub_hl_sum[i] += network->l1_1_biases_vec[i] * Q;
+
+        // bring back to Q scale
+        sub_hl_sum[i] = sub_hl_sum[i] / Q;
+
+        // now apply ReLU clamp
         sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE>(sub_hl_sum[i], 0, Q);
     }
 
