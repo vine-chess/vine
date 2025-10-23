@@ -53,32 +53,39 @@ f64 evaluate(const BoardState &state) {
 
     const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
 
-    std::array<i32, L2_SIZE> l2i{};
+    std::array<i32, L2_SIZE> l2_int{};
     for (usize i = 0; i < L1_SIZE / 2 / L2_REG_SIZE; ++i) {
-        // activate l1
+        // Load register values for pairwise
         auto left = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i);
         auto right = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i + L1_SIZE / 2);
+
+        // Clamp to [0, 1] (quantized)
         left = util::clamp_scalar<i16, L2_REG_SIZE>(left, 0, QA);
         right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
+
+        // Widen so pairwise doesnt overflow the i16s
+        // using u16s here is neutral
         const auto left_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(left);
         const auto right_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(right);
+
+        // Pairwise multiply the clamped values
         const auto activated = left_widened * right_widened;
 
         // l1 -> l2 matmul
         for (usize j = 0; j < L2_REG_SIZE; ++j) {
             const auto idx = i * L2_REG_SIZE + j;
             for (usize k = 0; k < L2_SIZE; ++k) {
-                l2i[k] += activated[j] * network->l1_weights[idx][k];
+                l2_int[k] += activated[j] * network->l1_weights[idx][k];
             }
         }
     }
 
     std::array<f32, L2_SIZE> l2;
     for (usize i = 0; i < L2_SIZE; ++i) {
-        l2[i] = l2i[i] * dequantisation_constant + network->l1_biases[i];
+        l2[i] = l2_int[i] * dequantisation_constant + network->l1_biases[i];
     }
 
-    // activate l2
+    // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
         v = util::clamp_scalar<f32, L2_REG_SIZE>(v, 0, 1);
@@ -97,13 +104,12 @@ f64 evaluate(const BoardState &state) {
             v = util::fmadd_ps(l2_val, w, v);
         }
 
-        // activate l3
+        // Activate l3
         v = util::clamp_scalar<f32, L3_REG_SIZE>(v, 0, 1);
         v *= v;
 
         // l3 -> out matmul
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
-
         util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i,
                                        util::fmadd_ps(v, network->l3_weights_vec[i], l3_val));
     }
