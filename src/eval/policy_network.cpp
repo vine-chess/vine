@@ -103,13 +103,10 @@ PolicyContext::PolicyContext(const BoardState &state)
             }
         }
     }
-    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
-    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
-        const auto first_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        const auto second_clamped = util::min_epi16<VECTOR_SIZE>(
-            util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
+        const auto first_clamped = util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i], 0, Q);
+        const auto second_clamped =
+            util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], 0, Q);
         activated_acc_[i] = first_clamped * second_clamped;
     }
 }
