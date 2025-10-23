@@ -126,25 +126,25 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
         ((static_cast<f32>(hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(hl_bias)) / static_cast<f32>(Q);
 
     // HL -> Sub HL
-    std::array<util::SimdVector<i32, VECTOR_SIZE / 2>, L1_1_SIZE> sub_hl_sum{};
+    std::array<util::SimdVector<i32, VECTOR_SIZE>, L1_1_SIZE / VECTOR_SIZE> sub_hl_sum{};
     for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
         for (usize j = 0; j < L1_0_SIZE / 2 / VECTOR_SIZE; ++j) {
-            sub_hl_sum[i] += util::madd_epi16(
-                activated_acc_[j], util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]));
+            sub_hl_sum[i] += util::convert_vector<i32, i16, VECTOR_SIZE>(activated_acc_[j]) *
+                             util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]);
         }
-        sub_hl_sum[i] += network->l1_1_biases[i];
-        // sub_hl_sum[i] /= Q; // is this right? we did i16 * i16
-        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE / 2>(sub_hl_sum[i], 0, Q);
+
+        sub_hl_sum[i] += network->l1_1_biases_vec[i];
+        //sub_hl_sum[i] /= Q; // is this right? we did i16 * i16
+        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE>(sub_hl_sum[i], 0, Q);
     }
 
     // Sub HL -> Output
-    util::SimdVector<i32, VECTOR_SIZE / 2> sub_hl_output{};
+    util::SimdVector<i32, VECTOR_SIZE> sub_hl_output{};
     for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
-        sub_hl_output += util::madd_epi16(sub_hl_sum[i],
-                                          util::convert_vector<i16, i8, VECTOR_SIZE>(network->l2_weights_vec[idx][i]));
+        sub_hl_output += sub_hl_sum[i] * util::convert_vector<i32, i8, VECTOR_SIZE>(network->l2_weights_vec[idx][i]);
     }
 
-    const i32 sub_hl_dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sub_hl_output);
+    const i32 sub_hl_dot = util::reduce_vector<i32, VECTOR_SIZE>(sub_hl_output);
     const i32 sub_hl_bias = network->l2_biases[idx];
     const f32 sub_hl_out = ((static_cast<f32>(sub_hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(sub_hl_bias)) /
                            static_cast<f32>(Q);
