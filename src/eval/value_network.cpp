@@ -63,8 +63,7 @@ f64 evaluate(const BoardState &state) {
         left = util::clamp_scalar<i16, L2_REG_SIZE>(left, 0, QA);
         right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
 
-        // Widen so pairwise doesnt overflow the i16s
-        // using u16s here is neutral
+        // Widen so pairwise doesnt overflow the i16s, using u16s here is neutral
         const auto left_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(left);
         const auto right_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(right);
 
