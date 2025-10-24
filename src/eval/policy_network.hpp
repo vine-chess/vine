@@ -5,7 +5,6 @@
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
 #include <array>
-#include <span>
 
 namespace network::policy {
 
@@ -16,6 +15,7 @@ constexpr usize OUTPUT_SIZE = 3920;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_1_SIZE, util::NATIVE_SIZE<i16>);
 
 using i8Vec = util::SimdVector<i8, VECTOR_SIZE>;
+using f32Vec = util::SimdVector<f32, VECTOR_SIZE>;
 using i16Vec = util::SimdVector<i16, VECTOR_SIZE>;
 
 struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
@@ -24,23 +24,23 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
         util::MultiArray<i8, 2, 2, 2, 6, 64, L1_0_SIZE> ft_weights;
     };
     union {
-        std::array<i8, L1_0_SIZE> ft_biases;
-        std::array<i8Vec, L1_0_SIZE / VECTOR_SIZE> ft_biases_vec;
+        util::MultiArray<i8Vec, L1_0_SIZE / VECTOR_SIZE> ft_biases_vec;
+        util::MultiArray<i8, L1_0_SIZE> ft_biases;
     };
 
     union {
         util::MultiArray<i8Vec, OUTPUT_SIZE, L1_0_SIZE / 2 / VECTOR_SIZE> l1_0_weights_vec;
         util::MultiArray<i8, OUTPUT_SIZE, L1_0_SIZE / 2> l1_0_weights;
     };
-    std::array<i8, OUTPUT_SIZE> l1_0_biases;
+    util::MultiArray<i8, OUTPUT_SIZE> l1_0_biases;
 
     union {
-        util::MultiArray<i8Vec, L1_1_SIZE / VECTOR_SIZE, L1_0_SIZE / 2 / VECTOR_SIZE> l1_1_weights_vec;
+        util::MultiArray<i8Vec, L1_1_SIZE, L1_0_SIZE / 2 / VECTOR_SIZE> l1_1_weights_vec;
         util::MultiArray<i8, L1_1_SIZE, L1_0_SIZE / 2> l1_1_weights;
     };
     union {
-        std::array<i8, L1_1_SIZE> l1_1_biases;
-        std::array<i8, L1_1_SIZE / VECTOR_SIZE> l1_1_biases_vec;
+        util::MultiArray<i8Vec, L1_1_SIZE / VECTOR_SIZE> l1_1_biases_vec;
+        util::MultiArray<i8, L1_1_SIZE> l1_1_biases;
     };
 
     union {

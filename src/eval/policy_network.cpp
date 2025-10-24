@@ -133,15 +133,16 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
                              util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]);
         }
 
-        // dot product (i16 * i8) → i32 ≈ Q² scale
-        sub_hl_sum[i] += network->l1_1_biases_vec[i] * Q;
-
-        // bring back to Q scale
-        sub_hl_sum[i] = sub_hl_sum[i] / Q;
-
-        // now apply ReLU clamp
-        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE>(sub_hl_sum[i], 0, Q);
+        sub_hl_sum[i] /= Q;
+        sub_hl_sum[i] +=
+            util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_biases_vec[i]) * util::set1<i32, VECTOR_SIZE>(Q);
+        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE>(sub_hl_sum[i], 0, Q * Q);
     }
+
+    //                               std::round is not constexpr
+    //                               std::round(0.99f * 128)
+    constexpr i64 MAX_WEIGHT_VALUE = 127;
+    static_assert((Q * Q * MAX_WEIGHT_VALUE * (L1_0_SIZE / 2)) < INT32_MAX, "i32 accumulator may overflow");
 
     // Sub HL -> Output
     util::SimdVector<i32, VECTOR_SIZE> sub_hl_output{};
