@@ -133,6 +133,7 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
                              util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]);
         }
 
+        // sub_hl_sum[i] is now in Q³ so we have to divide by Q to get back to Q²
         sub_hl_sum[i] /= Q;
         sub_hl_sum[i] +=
             util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_biases_vec[i]) * util::set1<i32, VECTOR_SIZE>(Q);
