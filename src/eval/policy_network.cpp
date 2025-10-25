@@ -125,36 +125,28 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const f32 hl_out =
         ((static_cast<f32>(hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(hl_bias)) / static_cast<f32>(Q);
 
+
+    const f32Vec dequantize_vector = util::set1<f32, VECTOR_SIZE>(1.0 / (Q * Q));
     // HL -> Sub HL
-    std::array<util::SimdVector<i32, VECTOR_SIZE>, L1_1_SIZE / VECTOR_SIZE> sub_hl_sum{};
+    std::array<util::SimdVector<f32, VECTOR_SIZE>, L1_1_SIZE / VECTOR_SIZE> sub_hl_sum{};
     for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
         for (usize j = 0; j < L1_0_SIZE / 2 / VECTOR_SIZE; ++j) {
-            sub_hl_sum[i] += util::convert_vector<i32, i16, VECTOR_SIZE>(activated_acc_[j]) *
-                             util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_weights_vec[i][j]);
+            sub_hl_sum[i] +=
+                util::convert_vector<f32, i16, VECTOR_SIZE>(activated_acc_[j]) * dequantize_vector * network->l1_1_weights_vec[i][j];
         }
-
-        // sub_hl_sum[i] is now in Q³ so we have to divide by Q to get back to Q²
-        sub_hl_sum[i] /= Q;
-        sub_hl_sum[i] +=
-            util::convert_vector<i32, i8, VECTOR_SIZE>(network->l1_1_biases_vec[i]) * util::set1<i32, VECTOR_SIZE>(Q);
-        sub_hl_sum[i] = util::clamp_scalar<i32, VECTOR_SIZE>(sub_hl_sum[i], 0, Q * Q);
+        sub_hl_sum[i] += network->l1_1_biases_vec[i];
+        sub_hl_sum[i] = util::clamp_scalar<f32, VECTOR_SIZE>(sub_hl_sum[i], 0.f, 1.f);
     }
-
-    //                               std::round is not constexpr
-    //                               std::round(0.99f * 128)
-    constexpr i64 MAX_WEIGHT_VALUE = 127;
-    static_assert((Q * Q * MAX_WEIGHT_VALUE * (L1_0_SIZE / 2)) < INT32_MAX, "i32 accumulator may overflow");
 
     // Sub HL -> Output
-    util::SimdVector<i32, VECTOR_SIZE> sub_hl_output{};
+    util::SimdVector<f32, VECTOR_SIZE> sub_hl_output{};
     for (usize i = 0; i < L1_1_SIZE / VECTOR_SIZE; ++i) {
-        sub_hl_output += sub_hl_sum[i] * util::convert_vector<i32, i8, VECTOR_SIZE>(network->l2_weights_vec[idx][i]);
+        sub_hl_output += sub_hl_sum[i] * network->l2_weights_vec[idx][i];
     }
 
-    const i32 sub_hl_dot = util::reduce_vector<i32, VECTOR_SIZE>(sub_hl_output);
-    const i32 sub_hl_bias = network->l2_biases[idx];
-    const f32 sub_hl_out = ((static_cast<f32>(sub_hl_dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(sub_hl_bias)) /
-                           static_cast<f32>(Q);
+    const f32 sub_hl_dot = util::reduce_vector<f32, VECTOR_SIZE>(sub_hl_output);
+    const f32 sub_hl_bias = network->l2_biases[idx];
+    const f32 sub_hl_out = sub_hl_dot + sub_hl_bias;
 
     return hl_out + sub_hl_out;
 }

@@ -35,19 +35,19 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) PolicyNetwork {
     util::MultiArray<i8, OUTPUT_SIZE> l1_0_biases;
 
     union {
-        util::MultiArray<i8Vec, L1_1_SIZE, L1_0_SIZE / 2 / VECTOR_SIZE> l1_1_weights_vec;
-        util::MultiArray<i8, L1_1_SIZE, L1_0_SIZE / 2> l1_1_weights;
+        util::MultiArray<f32Vec, L1_1_SIZE, L1_0_SIZE / 2 / VECTOR_SIZE> l1_1_weights_vec;
+        util::MultiArray<f32, L1_1_SIZE, L1_0_SIZE / 2> l1_1_weights;
     };
     union {
-        util::MultiArray<i8Vec, L1_1_SIZE / VECTOR_SIZE> l1_1_biases_vec;
-        util::MultiArray<i8, L1_1_SIZE> l1_1_biases;
+        util::MultiArray<f32Vec, L1_1_SIZE / VECTOR_SIZE> l1_1_biases_vec;
+        util::MultiArray<f32, L1_1_SIZE> l1_1_biases;
     };
 
     union {
-        util::MultiArray<i8Vec, OUTPUT_SIZE, L1_1_SIZE / VECTOR_SIZE> l2_weights_vec;
-        util::MultiArray<i8, OUTPUT_SIZE, L1_1_SIZE> l2_weights;
+        util::MultiArray<f32Vec, OUTPUT_SIZE, L1_1_SIZE / VECTOR_SIZE> l2_weights_vec;
+        util::MultiArray<f32, OUTPUT_SIZE, L1_1_SIZE> l2_weights;
     };
-    std::array<i8, OUTPUT_SIZE> l2_biases;
+    std::array<f32, OUTPUT_SIZE> l2_biases;
 };
 
 class PolicyContext {
