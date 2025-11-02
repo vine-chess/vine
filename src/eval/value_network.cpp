@@ -28,7 +28,8 @@ f64 evaluate(const BoardState &state) {
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
 
-    const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
+    const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
+                                             state.pinned_threats_by(Color::BLACK)};
 
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
