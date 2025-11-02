@@ -131,7 +131,6 @@ Bitboard BoardState::threats_by(Color color) const {
 }
 
 Bitboard BoardState::pinned_threats_by(Color color) const {
-
     const auto our_king = king(color).lsb();
     const auto ortho = rooks(~color) | queens(~color);
     const auto diag = bishops(~color) | queens(~color);
