@@ -32,6 +32,7 @@ struct BoardState {
     [[nodiscard]] Color get_piece_color(Square sq) const;
 
     [[nodiscard]] Bitboard threats_by(Color color) const;
+    [[nodiscard]] Bitboard pinned_threats_by(Color color) const;
 
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};

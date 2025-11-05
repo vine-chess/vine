@@ -218,7 +218,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             std::vector<f64> logits;
             logits.reserve(moves.size());
             for (const auto move : moves) {
-                logits.push_back(ctx.logit(move));
+                logits.push_back(ctx.logit(move, board_.state().get_piece_type(move.from())));
             }
 
             if (!logits.empty()) {

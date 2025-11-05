@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <iostream>
 
 namespace network::policy {
 
@@ -21,22 +22,30 @@ namespace detail {
         ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
-constexpr std::array<Bitboard, 64> ALL_DESTINATIONS = [] {
-    std::array<Bitboard, 64> arr{};
+constexpr static std::array<std::array<Bitboard, 6>, 64> DESTINATIONS = [] {
+    std::array<std::array<Bitboard, 6>, 64> arr{};
     for (i32 sq = 0; sq < 64; ++sq) {
-        arr[sq] = ROOK_RAYS[sq] | BISHOP_RAYS[sq] | KNIGHT_MOVES[sq] | KING_MOVES[sq];
+        const auto sq_bb = Bitboard(Square(sq));
+        arr[sq][0] = sq_bb.shift<UP, 0>() | sq_bb.shift<UP, LEFT>() | sq_bb.shift<UP, RIGHT>();
+        arr[sq][1] = KNIGHT_MOVES[sq];
+        arr[sq][2] = BISHOP_RAYS[sq];
+        arr[sq][3] = ROOK_RAYS[sq];
+        arr[sq][4] = QUEEN_RAYS[sq];
+        arr[sq][5] = KING_MOVES[sq];
     }
     return arr;
 }();
 
-constexpr std::array<usize, 65> OFFSETS = [] {
-    std::array<usize, 65> off{};
+constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
+    std::array<std::array<usize, 65>, 6> off{};
     usize cur = 0;
-    for (i32 sq = 0; sq < 64; ++sq) {
-        off[sq] = cur;
-        cur += static_cast<usize>(ALL_DESTINATIONS[sq].pop_count());
+    for (i32 p = 0; p < 6; ++p) {
+        for (i32 sq = 0; sq < 64; ++sq) {
+            off[p][sq] = cur;
+            cur += static_cast<usize>(DESTINATIONS[sq][p].pop_count());
+        }
+        off[p][64] = cur; // Start of the promotion buckets
     }
-    off[64] = cur; // Start of the promotion buckets
     return off;
 }();
 
@@ -44,19 +53,25 @@ constexpr std::array<usize, 65> OFFSETS = [] {
     return static_cast<i32>(pt) - 2;
 }
 
-[[nodiscard]] usize move_output_idx(Color stm, Move move, Square king_sq) {
+[[nodiscard]] usize move_output_idx(Color stm, Move move, PieceType moving_piece, Square king_sq) {
     const usize flipper = (stm == Color::BLACK ? 0b111000 : 0) ^ (king_sq.file() >= File::E ? 0b000111 : 0);
     const Square from = move.from() ^ flipper;
     const Square to = move.to() ^ flipper;
+    constexpr usize PROMO_STRIDE = 22;
     if (move.is_promo()) {
-        constexpr usize PROMO_STRIDE = 22;
         const i32 promo_id = 2 * from.file() + to.file();
         const i32 kind = promo_kind_id(move.promo_type());
-        return OFFSETS[64] + static_cast<usize>(kind * PROMO_STRIDE + promo_id);
+        return OFFSETS[5][64] + static_cast<usize>(kind * PROMO_STRIDE + promo_id);
+    } else if (move.is_castling()) {
+        const bool is_kingside = move.from() < move.to();
+        const bool is_hm = king_sq.file() >= File::E;
+        return OFFSETS[5][64] + PROMO_STRIDE * 4 + (is_kingside ^ is_hm);
+    } else if (moving_piece == PieceType::PAWN && (move.from() ^ move.to()) == 16) {
+        return OFFSETS[5][64] + PROMO_STRIDE * 4 + 2 + from.file();
     } else {
-        const u64 all = static_cast<u64>(ALL_DESTINATIONS[from]);
-        const u64 below = to == 0 ? 0ull : (all & (to.to_bb() - 1ull));
-        return OFFSETS[from] + static_cast<usize>(std::popcount(below));
+        const u64 all = static_cast<u64>(DESTINATIONS[from][moving_piece - 1]);
+        const u64 below = all & (to.to_bb() - 1);
+        return OFFSETS[moving_piece - 1][from] + static_cast<usize>(std::popcount(below));
     }
 }
 
@@ -64,6 +79,8 @@ constexpr std::array<usize, 65> OFFSETS = [] {
 
 PolicyContext::PolicyContext(const BoardState &state)
     : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {
+
+    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> feature_accumulator_;
     for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
@@ -86,26 +103,27 @@ PolicyContext::PolicyContext(const BoardState &state)
             }
         }
     }
+    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
+        const auto first_clamped = util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i], 0, Q);
+        const auto second_clamped =
+            util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], 0, Q);
+        activated_acc_[i] = first_clamped * second_clamped;
+    }
 }
 
-f32 PolicyContext::logit(Move move) const {
-    const usize idx = detail::move_output_idx(stm_, move, king_sq_);
+f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
+    const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
 
     util::SimdVector<i32, VECTOR_SIZE / 2> sum{};
-    const auto zero = util::set1_epi16<VECTOR_SIZE>(0);
-    const auto one = util::set1_epi16<VECTOR_SIZE>(Q);
 
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
-        const auto first_clamped =
-            util::min_epi16<VECTOR_SIZE>(util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i], zero), one);
-        const auto second_clamped = util::min_epi16<VECTOR_SIZE>(
-            util::max_epi16<VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], zero), one);
-        sum += util::madd_epi16(first_clamped * second_clamped,
+        sum += util::madd_epi16(activated_acc_[i],
                                 util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i]));
     }
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum);
     const i32 bias = network->l1_biases[idx];
+
     return ((static_cast<f32>(dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(bias)) / static_cast<f32>(Q);
 }
 
