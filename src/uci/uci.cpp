@@ -41,6 +41,7 @@ Handler::Handler() {
     options.add(std::make_unique<IntegerOption>("KldMinGain", 0, 0, 100));
     options.add(std::make_unique<IntegerOption>("DirichletNoiseEpsilon", 0, 0, 100));
     options.add(std::make_unique<IntegerOption>("DirichletNoiseAlpha", 0, 0, 100));
+    options.add(std::make_unique<BoolOption>("UseGiniImpurity", true));
     board_ = Board(STARTPOS_FEN);
 }
 
@@ -128,8 +129,8 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
     rng::seed_generator(seed);
 
     for (usize i = 0; i < count; ++i) {
-        out << "info string genfens " << datagen::generate_opening(opening_fens, random_moves, temperature, gamma).to_fen()
-            << std::endl;
+        out << "info string genfens "
+            << datagen::generate_opening(opening_fens, random_moves, temperature, gamma).to_fen() << std::endl;
     }
 }
 
@@ -140,10 +141,22 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     settings.num_threads = 1;
     settings.hash_size = 16;
     settings.time_settings = search::TimeSettings{};
-    settings.time_settings.min_kld_gain = std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
+    settings.time_settings.min_kld_gain =
+        std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
     settings.output_file = "output.bin";
 
-    for (size_t i = 1; i + 1 < parts.size(); i += 2) {
+    if (parts.size() < 2 || parts[1] != "value" && parts[1] != "policy") {
+        std::cout << "Must specify 'value' or 'policy'\n";
+        return;
+    }
+    if (parts[1] == "value") {
+        settings.mode = datagen::DatagenMode::value;
+    }
+    if (parts[1] == "policy") {
+        settings.mode = datagen::DatagenMode::value;
+    }
+
+    for (size_t i = 2; i + 1 < parts.size(); i += 2) {
         const auto key = parts[i];
         const auto value = parts[i + 1];
 

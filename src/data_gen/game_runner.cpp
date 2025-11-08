@@ -1,7 +1,10 @@
 #include "game_runner.hpp"
 #include "../chess/move_gen.hpp"
+#include "../eval/value_network.hpp"
+#include "../util/math.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
+
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
@@ -160,7 +163,10 @@ void run_games(Settings settings, std::ostream &out) {
                 return;
             }
 
-            thread_loop(settings, thread_output, opening_fens);
+            if (settings.mode == DatagenMode::value)
+                thread_loop<true>(settings, thread_output, opening_fens);
+            else
+                thread_loop<false>(settings, thread_output, opening_fens);
 
             thread_output.close();
             if (!thread_output.good()) {

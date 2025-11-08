@@ -6,6 +6,11 @@
 
 namespace datagen {
 
+enum class DatagenMode {
+    policy,
+    value,
+};
+
 struct Settings {
     // Number of random moves to play for the opening
     usize random_moves;
@@ -23,6 +28,8 @@ struct Settings {
     std::string book_path;
     // Opening settings
     f64 temperature, gamma;
+    // Whether to do value or policy datagen
+    DatagenMode mode;
 };
 
 void run_games(Settings settings, std::ostream &out);

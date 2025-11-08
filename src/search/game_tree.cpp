@@ -50,6 +50,7 @@ void GameTree::set_hash_table_capacity(usize capacity) {
 void GameTree::new_search(const Board &root_board) {
     dirichlet_epsilon_ = std::get<i32>(uci::options.get("DirichletNoiseEpsilon")->value_as_variant()) / 100.0;
     dirichlet_alpha_ = std::get<i32>(uci::options.get("DirichletNoiseAlpha")->value_as_variant()) / 100.0;
+    use_gini_ = std::get<bool>(uci::options.get("UseGiniImpurity")->value_as_variant());
 
     if (advance_root_node(board_, root_board, active_half().root_idx())) {
         // Re-compute root policy scores, since the node we advanced to was searched with non-root parameters
@@ -156,8 +157,10 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-            base *=
-                std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
+            if (use_gini_) {
+                base *= std::min<f64>(GINI_MAXIMUM,
+                                      GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
+            }
             return base;
         }();
 
