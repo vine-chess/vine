@@ -141,7 +141,7 @@ bool Board::is_material_draw() const {
         return false;
     }
     const auto white_minors = state().bishops(Color::WHITE) | state().knights(Color::WHITE);
-    const auto black_minors = state().bishops(Color::WHITE) | state().knights(Color::WHITE);
+    const auto black_minors = state().bishops(Color::BLACK) | state().knights(Color::BLACK);
 
     return white_minors.pop_count() <= 1 && black_minors.pop_count() <= 1;
 }
