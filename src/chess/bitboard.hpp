@@ -149,6 +149,7 @@ class Bitboard {
     }
 
     [[nodiscard]] constexpr bool operator==(Bitboard const &other) const = default;
+    [[nodiscard]] constexpr bool operator!=(Bitboard const &other) const = default;
 
     [[nodiscard]] constexpr explicit operator u64() const {
         return raw_;

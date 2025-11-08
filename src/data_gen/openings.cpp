@@ -50,7 +50,7 @@ BoardState generate_opening(std::string_view initial_fen, const usize random_mov
             MoveList moves;
             generate_moves(board.state(), moves);
 
-            if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            if (moves.empty() || board.is_draw()) {
                 success = false;
                 break;
             }
@@ -65,7 +65,7 @@ BoardState generate_opening(std::string_view initial_fen, const usize random_mov
             // Opening ends in a terminal state
             MoveList moves;
             generate_moves(board.state(), moves);
-            if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            if (moves.empty() || board.is_draw()) {
                 return false;
             }
 
