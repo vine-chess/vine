@@ -217,7 +217,7 @@ bool GameTree::expand_node(NodeIndex node_idx) {
     // This is due to the optimization of not expanding nodes whose children we don't know we'll need
     vine_assert(node_idx.index() == 0 || node.num_visits > 0);
 
-    if (board_.is_draw()) {
+    if (board_.is_draw() && node_idx.index() != 0) {
         node.terminal_state = TerminalState::draw();
         return true;
     }
