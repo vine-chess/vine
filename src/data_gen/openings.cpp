@@ -52,7 +52,7 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
             MoveList moves;
             generate_moves(board.state(), moves);
 
-            if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            if (moves.empty() || board.is_draw()) {
                 success = false;
                 break;
             }
@@ -67,7 +67,7 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
             // Opening ends in a terminal state
             MoveList moves;
             generate_moves(board.state(), moves);
-            if (moves.empty() || board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            if (moves.empty() || board.is_draw()) {
                 return false;
             }
 

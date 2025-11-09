@@ -136,6 +136,20 @@ bool Board::is_fifty_move_draw() const {
     return !moves.empty();
 }
 
+bool Board::is_material_draw() const {
+    if ((state().pawns() | state().rooks() | state().queens()) != 0) {
+        return false;
+    }
+    const auto white_minors = state().bishops(Color::WHITE) | state().knights(Color::WHITE);
+    const auto black_minors = state().bishops(Color::BLACK) | state().knights(Color::BLACK);
+
+    return white_minors.pop_count() <= 1 && black_minors.pop_count() <= 1;
+}
+
+bool Board::is_draw() const {
+    return is_fifty_move_draw() || is_material_draw() || has_threefold_repetition();
+}
+
 Move Board::create_move(std::string_view uci_move) const {
     MoveList moves;
     generate_moves(state(), moves);

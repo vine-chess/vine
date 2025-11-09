@@ -74,7 +74,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, std::span<co
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
 
-            if (board.is_fifty_move_draw() || board.has_threefold_repetition()) {
+            if (board.is_draw()) {
                 game_result = 0.5;
                 break;
             }
