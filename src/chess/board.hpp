@@ -20,6 +20,8 @@ class Board {
 
     [[nodiscard]] bool has_threefold_repetition() const;
     [[nodiscard]] bool is_fifty_move_draw() const;
+    [[nodiscard]] bool is_material_draw() const;
+    [[nodiscard]] bool is_draw() const;
 
     [[nodiscard]] Move create_move(std::string_view uci_move) const;
 
