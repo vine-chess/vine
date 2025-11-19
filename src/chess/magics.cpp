@@ -3,6 +3,8 @@
 #include <functional>
 #include <vector>
 
+#define USE_HYPERBOLA_QUINTESSENCE
+
 std::vector<Bitboard> create_blockers(Bitboard moves) {
     std::vector<u8> set_bits;
     set_bits.reserve(moves.pop_count());
