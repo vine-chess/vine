@@ -35,9 +35,11 @@ std::vector<Bitboard> create_blockers(Bitboard moves) {
     return blockers;
 }
 
+#include <immintrin.h>
+#define USE_PEXT
 u32 get_bishop_attack_idx(Square sq, Bitboard occ) {
 #ifdef USE_PEXT
-    return _pext_u64(static_cast<u64>(occupied), BISHOP_MAGICS[square].mask);
+    return _pext_u64(static_cast<u64>(occ), BISHOP_MAGICS[sq].mask);
 #else
     const auto &entry = BISHOP_MAGICS[sq];
     return (static_cast<u64>(occ & entry.mask) * entry.magic) >> entry.shift;
@@ -46,7 +48,7 @@ u32 get_bishop_attack_idx(Square sq, Bitboard occ) {
 
 u32 get_rook_attack_idx(Square sq, Bitboard occ) {
 #ifdef USE_PEXT
-    return _pext_u64(static_cast<u64>(occupied), ROOK_MAGICS[square].mask);
+    return _pext_u64(static_cast<u64>(occ), ROOK_MAGICS[sq].mask);
 #else
     const auto &entry = ROOK_MAGICS[sq];
     return (static_cast<u64>(occ & entry.mask) * entry.magic) >> entry.shift;
