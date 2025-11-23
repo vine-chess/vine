@@ -269,10 +269,10 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_rooks = board_.state().rooks().pop_count();
     const auto num_queens = board_.state().queens().pop_count();
     const auto sum_material = (312 * (num_knights + num_bishops) + 512 * num_rooks + 912 * num_queens);
-    const auto raw_eval = util::math::sigmoid(network::value::evaluate(board_.state()));
+    const auto raw_eval = network::value::evaluate(board_.state());
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
 
-    return scaled;
+    return util::math::sigmoid(scaled);
 }
 
 void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state) {
