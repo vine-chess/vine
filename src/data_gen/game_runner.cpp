@@ -153,6 +153,8 @@ void run_games(Settings settings, std::ostream &out) {
     };
 
     std::ofstream final_output(settings.output_file, std::ios::binary);
+    std::vector<char> big_buf(1 << 20); 
+    final_output.rdbuf()->pubsetbuf(big_buf.data(), big_buf.size());
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
 
         threads.emplace_back([settings, &final_output, &out, &opening_fens]() {
