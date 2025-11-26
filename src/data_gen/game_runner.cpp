@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <syncstream>
 #include <type_traits>
 
 namespace datagen {
@@ -24,7 +25,7 @@ std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
 template <bool value = true>
-void thread_loop(const Settings &settings, std::ofstream &out_file, std::span<const std::string> opening_fens) {
+void thread_loop(const Settings &settings, std::ostream &out_file, std::span<const std::string> opening_fens) {
     using DataWriter = std::conditional_t<value, ViriformatWriter, MontyFormatWriter>;
     auto writer = std::make_unique<DataWriter>(out_file);
 
@@ -90,7 +91,6 @@ void run_games(Settings settings, std::ostream &out) {
 
     std::signal(SIGINT, signal_handler);
 
-    std::vector<std::string> thread_files;
     std::vector<std::thread> threads;
 
     // Progress monitoring thread
@@ -152,26 +152,16 @@ void run_games(Settings settings, std::ostream &out) {
         }
     };
 
+    std::ofstream final_output(settings.output_file, std::ios::binary);
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-        const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
-        thread_files.push_back(thread_file_path);
 
-        threads.emplace_back([settings, thread_file_path, &out, &opening_fens]() {
-            std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
-            if (!thread_output) {
-                out << "failed to open thread output file " << thread_file_path << std::endl;
-                return;
-            }
+        threads.emplace_back([settings, &final_output, &out, &opening_fens]() {
+            std::osyncstream thread_output(final_output);
 
             if (settings.mode == DatagenMode::value)
                 thread_loop<true>(settings, thread_output, opening_fens);
             else
                 thread_loop<false>(settings, thread_output, opening_fens);
-
-            thread_output.close();
-            if (!thread_output.good()) {
-                out << "failed to close thread output file " << thread_file_path << std::endl;
-            }
         });
     }
 
@@ -185,28 +175,6 @@ void run_games(Settings settings, std::ostream &out) {
     out << "\ndatagen complete:\n";
     out << "  total games played      : " << games_played.load() << '\n';
     out << "  total positions written : " << positions_written.load() << '\n';
-
-    out << "\ncombining output files...\n";
-
-    std::ofstream final_output(settings.output_file, std::ios::binary);
-    if (!final_output) {
-        out << "error: failed to open final output file " << settings.output_file << '\n';
-        return;
-    }
-
-    for (const auto &temp_file : thread_files) {
-        std::ifstream in(temp_file, std::ios::binary);
-        if (!in) {
-            out << "warning: failed to open temp file " << temp_file << '\n';
-            continue;
-        }
-
-        final_output << in.rdbuf();
-        in.close();
-
-        std::remove(temp_file.c_str());
-    }
-
     out << "output written to: " << settings.output_file << "\n";
 }
 
