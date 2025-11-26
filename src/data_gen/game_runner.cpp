@@ -117,6 +117,8 @@ void run_games(Settings settings, std::ostream &out) {
             f64 eta_sec = games_per_sec > 0.0 ? remaining_games / games_per_sec : 0.0;
 
             usize eta_min = static_cast<usize>(eta_sec) / 60;
+            usize eta_hour = eta_min / 60;
+            usize eta_rem_min = eta_min % 60;
             usize eta_rem_sec = static_cast<usize>(eta_sec) % 60;
 
             if (printed) {
@@ -128,7 +130,7 @@ void run_games(Settings settings, std::ostream &out) {
             out << "  games played      : " << current_games << " / " << total_games << '\n';
             out << "  positions written : " << current_positions << '\n';
             out << "  throughput        : " << games_per_sec << " games/s, " << positions_per_sec << " pos/s\n";
-            out << "  eta               : " << eta_min << "m " << eta_rem_sec << "s\n";
+            out << "  eta               : " << eta_hour << "h " << eta_min << "m " << eta_rem_sec << "s\n";
 
             last_games = current_games;
             last_positions = current_positions;
