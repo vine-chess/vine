@@ -2,14 +2,12 @@
 #define RANDOM_HPP
 
 #include "types.hpp"
-#include <mutex>
 #include <random>
-#include <vector>
 
 namespace rng {
 
 constexpr int DEFAULT_SEED = 0x1337;
-inline thread_local std::mt19937_64 generator(DEFAULT_SEED);
+extern thread_local std::mt19937_64 generator;
 
 template <typename... Args>
 static void seed_generator(Args... args) {
