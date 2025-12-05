@@ -153,7 +153,7 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
         settings.mode = datagen::DatagenMode::value;
     }
     if (parts[1] == "policy") {
-        settings.mode = datagen::DatagenMode::value;
+        settings.mode = datagen::DatagenMode::policy;
     }
 
     for (size_t i = 2; i + 1 < parts.size(); i += 2) {
