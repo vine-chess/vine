@@ -42,6 +42,17 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
 
         f64 game_result;
         while (true) {
+            search::TimeSettings time_settings = settings.time_settings;
+            if constexpr (!value) {
+                const auto num_pawns = board_.state().pawns().pop_count();
+                const auto num_knights = board_.state().knights().pop_count();
+                const auto num_bishops = board_.state().bishops().pop_count();
+                const auto num_rooks = board_.state().rooks().pop_count();
+                const auto num_queens = board_.state().queens().pop_count();
+                const auto sum_material = num_pawns + 3 * (num_knights + num_bishops) + 5 * num_rooks + 9 * num_queens;
+                time_settings.max_iters = time_settings.max_iters * (195 - sum_material) / 78);
+            }
+
             searcher.go(board, settings.time_settings);
 
             const auto &game_tree = searcher.game_tree();
