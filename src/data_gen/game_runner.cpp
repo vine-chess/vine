@@ -5,8 +5,10 @@
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
+#include <array>
 #include <atomic>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -24,6 +26,8 @@ void signal_handler([[maybe_unused]] i32 signum) {
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
+// std::array<std::atomic_uint64_t, 33> node_counts, node_sums;
+
 template <bool value = true>
 void thread_loop(const Settings &settings, std::ostream &out_file, std::span<const std::string> opening_fens) {
     using DataWriter = std::conditional_t<value, ViriformatWriter, MontyFormatWriter>;
@@ -35,6 +39,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
 
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
+    search::TimeSettings time_settings = settings.time_settings;
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
         Board board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
@@ -42,7 +47,16 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
 
         f64 game_result;
         while (true) {
-            searcher.go(board, settings.time_settings);
+            const auto num_pieces = board.state().occupancy().pop_count();
+            time_settings.min_kld_gain = settings.time_settings.min_kld_gain / std::clamp<f64>(16.0 / num_pieces, 1, 3);
+            searcher.go(board, time_settings);
+            // node_counts[num_pieces]++;
+            // node_sums[num_pieces] += searcher.iterations();
+            // if (node_counts[num_pieces] % 1024 == 1) {
+            //     for (int i = 0; i <= 32; ++i) {
+            //         std::cout << node_sums[i] / std::max<u64>(1, node_counts[i]) << '\n';
+            //     }
+            // }
 
             const auto &game_tree = searcher.game_tree();
             const auto &root_node = game_tree.root();
