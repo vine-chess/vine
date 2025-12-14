@@ -99,7 +99,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
     constexpr auto UNROLL = 8;
     using f32Vec = util::SimdVector<f32, UNROLL>;
     using f64Vec = util::SimdVector<f64, UNROLL>;
-    using u64Vec = util::SimdVector<u64, UNROLL>;
+    using u16Vec = util::SimdVector<u16, UNROLL>;
 
     const auto iters = (node.num_children + UNROLL - 1) / UNROLL;
     for (u16 i = 0; i < UNROLL; ++i) {
@@ -121,15 +121,14 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
         q_arr[i] = child.num_visits > 0 ? 1.0 - child.q() : node.q();
     }
 
-
     const auto sqrt_parent_visits = std::sqrt(static_cast<f32>(node.num_visits));
     const auto policy_scale = exploration_constant * sqrt_parent_visits;
 
     f64Vec best_puct = util::set1(-std::numeric_limits<f64>::max());
-    util::SimdVector<u64, UNROLL> best_indices{};
+    util::SimdVector<u16, UNROLL> best_indices{};
 
-    util::SimdVector<u64, UNROLL> indices;
-    for (u64 i = 0; i < UNROLL; ++i) {
+    util::SimdVector<u16, UNROLL> indices;
+    for (u16 i = 0; i < UNROLL; ++i) {
         indices[i] = i;
     }
 
@@ -140,7 +139,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
         f64Vec q = util::loadu(&q_arr[i * UNROLL]);
         f64Vec puct = q + util::convert_vector<f64, f32, UNROLL>(u);
 
-        u64Vec better_mask = puct > best_puct;
+        u16Vec better_mask = util::convert_vector<u16, u64, UNROLL>(puct > best_puct);
         best_puct = util::max<f64, UNROLL>(best_puct, puct);
         best_indices = best_indices & ~better_mask | indices & better_mask;
         // for (int j = 0; j < UNROLL; ++j) {
@@ -152,7 +151,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
     }
     // std::cout << '\n';
 
-    u64 picked_index = best_indices[0];
+    u16 picked_index = best_indices[0];
     f64 picked_puct = best_puct[0];
     for (usize i = 1; i < UNROLL; ++i) {
         if (best_puct[i] > picked_puct) {
