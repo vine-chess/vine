@@ -185,7 +185,7 @@ struct Node {
     // What kind of state this (terminal) node is
     TerminalState terminal_state = TerminalState::none();
     // A measure of the entropy of the policy distribution
-    u8 gini_impurity = 0;
+    u16 gini_impurity = 0;
 
     [[nodiscard]] bool visited() const;
     [[nodiscard]] bool terminal() const;

@@ -145,9 +145,9 @@ NodeIndex GameTree::select_and_expand_node() {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-
-            base *=
-                std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
+            // Scale the exploration constant logarithmically with the gini impurity (measure of policy score variance)
+            base *= std::min<f64>(GINI_MAXIMUM,
+                                  GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 65535.0 + 0.001));
             return base;
         }();
 
@@ -210,7 +210,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         sum_squares += child.policy_score * child.policy_score;
     }
 
-    node.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
+    node.gini_impurity = static_cast<u16>(65535.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
 }
 
 bool GameTree::expand_node(NodeIndex node_idx) {
