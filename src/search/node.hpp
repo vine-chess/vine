@@ -192,6 +192,7 @@ struct Node {
     [[nodiscard]] bool expanded() const;
     // Average of all scores this node has received
     [[nodiscard]] f64 q() const;
+    [[nodiscard]] f32 q32() const;
 };
 
 } // namespace search

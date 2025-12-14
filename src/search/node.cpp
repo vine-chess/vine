@@ -16,7 +16,11 @@ bool Node::expanded() const {
 }
 
 f64 Node::q() const {
-    return sum_of_scores / static_cast<f64>(num_visits);
+    return sum_of_scores / static_cast<f32>(num_visits);
+}
+
+f32 Node::q32() const {
+    return static_cast<f32>(sum_of_scores) / static_cast<f32>(num_visits);
 }
 
 } // namespace search

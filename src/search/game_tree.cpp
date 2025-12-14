@@ -93,12 +93,10 @@ u64 GameTree::tree_usage() const {
 
 NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant) {
     Node node = node_at(node_idx);
-    alignas(64) std::array<f64, 256> q_arr;
-    alignas(64) std::array<f32, 256> policy_arr, child_visits_arr;
+    alignas(64) std::array<f32, 256> q_arr, policy_arr, child_visits_arr;
 
-    constexpr auto UNROLL = 4;
+    constexpr auto UNROLL = 16;
     using f32Vec = util::SimdVector<f32, UNROLL>;
-    using f64Vec = util::SimdVector<f64, UNROLL>;
     using u16Vec = util::SimdVector<u16, UNROLL>;
 
     const auto iters = (node.num_children + UNROLL - 1) / UNROLL;
@@ -118,13 +116,13 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
     // autovec please save me
     for (u16 i = 0; i < node.num_children; ++i) {
         const Node child = node_at(node.first_child_idx + i);
-        q_arr[i] = child.num_visits > 0 ? 1.0 - child.q() : node.q();
+        q_arr[i] = child.num_visits > 0 ? 1.0 - child.q32() : node.q32();
     }
 
     const auto sqrt_parent_visits = std::sqrt(static_cast<f32>(node.num_visits));
     const auto policy_scale = exploration_constant * sqrt_parent_visits;
 
-    f64Vec best_puct = util::set1<f64, UNROLL>(-std::numeric_limits<f64>::max());
+    f32Vec best_puct = util::set1<f32, UNROLL>(-std::numeric_limits<f32>::max());
     util::SimdVector<u16, UNROLL> best_indices{};
 
     util::SimdVector<u16, UNROLL> indices;
@@ -136,20 +134,13 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
         f32Vec policy = util::loadu<f32, UNROLL>(&policy_arr[i * UNROLL]);
         f32Vec visits = util::loadu<f32, UNROLL>(&child_visits_arr[i * UNROLL]);
         f32Vec u = policy * policy_scale / (visits + 1.0f);
-        f64Vec q = util::loadu<f64, UNROLL>(&q_arr[i * UNROLL]);
-        f64Vec puct = q + util::convert_vector<f64, f32, UNROLL>(u);
+        f32Vec q = util::loadu<f32, UNROLL>(&q_arr[i * UNROLL]);
+        f32Vec puct = q + util::convert_vector<f32, f32, UNROLL>(u);
 
-        u16Vec better_mask = util::convert_vector<u16, u64, UNROLL>(puct > best_puct);
-        best_puct = util::max<f64, UNROLL>(best_puct, puct);
+        u16Vec better_mask = util::convert_vector<u16, u32, UNROLL>(puct > best_puct);
+        best_puct = util::max<f32, UNROLL>(best_puct, puct);
         best_indices = best_indices & ~better_mask | indices & better_mask;
-        // for (int j = 0; j < UNROLL; ++j) {
-        //     if (better_mask[j] && best_puct[j] != puct[j]) {
-        //         std::cout << "MISMATCH:" << j << ' ';
-        //     }
-        //     std::cout << "(" << indices[j] << ", " << puct[j] << ") ";
-        // }
     }
-    // std::cout << '\n';
 
     u16 picked_index = best_indices[0];
     f64 picked_puct = best_puct[0];
@@ -159,7 +150,6 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
             picked_index = best_indices[i];
         }
     }
-    // std::cout << picked_index << ' ' << picked_puct << '\n';
 
     return node.first_child_idx + picked_index;
 }
@@ -227,25 +217,8 @@ NodeIndex GameTree::select_and_expand_node() {
             return base;
         }();
 
-        NodeIndex best_child_idx = puct_pick_node(node_idx, cpuct);
-        // f64 best_child_score = std::numeric_limits<f64>::min();
-        // ;
-        // const Node parent = node;
-        // u16 best_child_idx_raw = 0;
-        // for (u16 i = 0; i < node.num_children; ++i) {
-        //     Node &child_node = node_at(node.first_child_idx + i);
-        //     // Track the child with the highest PUCT score
-        //     const f64 child_score = compute_puct(parent, child_node, cpuct);
-        //     if (child_score > best_child_score) {
-        //         best_child_idx = node.first_child_idx + i; // Store absolute index into nodes
-        //         best_child_score = child_score;
-        //         best_child_idx_raw = i;
-        //     }
-        // }
-        // std::cout << best_child_idx_raw << ' ' << best_child_score << '\n';
-
-        // Keep descending through the game tree until we find a suitable node to expand
-        node_idx = best_child_idx, nodes_in_path_.push_back(node_idx);
+        node_idx = puct_pick_node(node_idx, cpuct);
+        nodes_in_path_.push_back(node_idx);
         board_.make_move(node_at(node_idx).move);
     }
 }

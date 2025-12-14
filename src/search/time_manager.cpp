@@ -26,7 +26,7 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
 
             // Reduce the time we need to search based on what % of visits the best move contributes to
             if (iterations >= 1024) {
-                const auto get_child_score = [&](NodeIndex child_idx) {
+                const auto get_child_score = [&](NodeIndex child_idx) -> f64 {
                     const f64 MATE_SCORE = 1000.0;
                     const Node &child = tree.node_at(child_idx);
                     switch (child.terminal_state.flag()) {
