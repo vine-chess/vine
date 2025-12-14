@@ -93,16 +93,18 @@ NodeIndex GameTree::select_and_expand_node() {
     // - child: the candidate child node being scored
     // - policy_score: the probability for this child being the best move
     // - exploration_constant: hyperparameter controlling exploration vs. exploitation
-    const auto compute_puct = [&](const Node &parent, const Node &child, f32 exploration_constant) -> f64 {
+    const auto compute_puct = [&](const Node &parent, const Node &child, f64 exploration_constant) -> f64 {
         // Average value of the child from previous visits (Q value), flipped to match current node's perspective
         // If the node hasn't been visited, use the parent node's Q value
         const f64 q_value = child.num_visits > 0 ? 1.0 - child.q() : parent.q();
         // Uncertainty/exploration term (U value), scaled by the prior and parent visits
-        const f32 u_value = exploration_constant * static_cast<f32>(child.policy_score) *
-                            std::sqrt(static_cast<f32>(parent.num_visits)) /
-                            (1.0f + static_cast<f32>(child.num_visits));
+        const f64 u_scale = exploration_constant * std::sqrt(static_cast<f64>(parent.num_visits));
+        const f64 u_base = child.policy_score / (1.0 + static_cast<f64>(child.num_visits));
+
+        // u = u_base * u_scale
+
         // Final PUCT score is exploitation (Q) + exploration (U)
-        return q_value + u_value;
+        return std::fma(u_base, u_scale, q_value);
     };
 
     NodeIndex node_idx = active_half().root_idx();
