@@ -96,7 +96,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
     alignas(64) std::array<f64, 256> q_arr;
     alignas(64) std::array<f32, 256> policy_arr, child_visits_arr;
 
-    constexpr auto UNROLL = 8;
+    constexpr auto UNROLL = 4;
     using f32Vec = util::SimdVector<f32, UNROLL>;
     using f64Vec = util::SimdVector<f64, UNROLL>;
     using u16Vec = util::SimdVector<u16, UNROLL>;
@@ -124,7 +124,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
     const auto sqrt_parent_visits = std::sqrt(static_cast<f32>(node.num_visits));
     const auto policy_scale = exploration_constant * sqrt_parent_visits;
 
-    f64Vec best_puct = util::set1(-std::numeric_limits<f64>::max());
+    f64Vec best_puct = util::set1<f64, UNROLL>(-std::numeric_limits<f64>::max());
     util::SimdVector<u16, UNROLL> best_indices{};
 
     util::SimdVector<u16, UNROLL> indices;
@@ -136,7 +136,7 @@ NodeIndex GameTree::puct_pick_node(NodeIndex node_idx, f32 exploration_constant)
         f32Vec policy = util::loadu<f32, UNROLL>(&policy_arr[i * UNROLL]);
         f32Vec visits = util::loadu<f32, UNROLL>(&child_visits_arr[i * UNROLL]);
         f32Vec u = policy * policy_scale / (visits + 1.0f);
-        f64Vec q = util::loadu(&q_arr[i * UNROLL]);
+        f64Vec q = util::loadu<f64, UNROLL>(&q_arr[i * UNROLL]);
         f64Vec puct = q + util::convert_vector<f64, f32, UNROLL>(u);
 
         u16Vec better_mask = util::convert_vector<u16, u64, UNROLL>(puct > best_puct);
