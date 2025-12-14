@@ -56,6 +56,8 @@ class GameTree {
 
     [[nodiscard]] bool fetch_children(NodeIndex node_idx);
 
+    [[nodiscard]] NodeIndex puct_pick_node(NodeIndex node_idx, f32 exploration_constant);
+
     [[nodiscard]] TreeHalf &active_half();
     [[nodiscard]] const TreeHalf &active_half() const;
 

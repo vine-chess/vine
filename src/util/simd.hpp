@@ -3,6 +3,7 @@
 
 #include "types.hpp"
 #include <cstring>
+#include <type_traits>
 
 namespace util {
 
@@ -35,6 +36,7 @@ template <class T, usize N>
 struct VectorHelper {
     using Type __attribute__((__vector_size__(N * sizeof(T)))) = T; // get around GCC restriction
 };
+
 } // namespace impl
 
 constexpr auto NATIVE_VECTOR_ALIGNMENT = NATIVE_VECTOR_BYTES;
