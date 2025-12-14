@@ -151,6 +151,8 @@ NodeIndex GameTree::select_and_expand_node() {
 
         NodeIndex best_child_idx = 0;
         f64 best_child_score = std::numeric_limits<f64>::min();
+
+        // Copy the node to make sure the compiler can optimize assuming the node hasnt been modified
         const Node parent = node;
         for (u16 i = 0; i < node.num_children; ++i) {
             Node &child_node = node_at(node.first_child_idx + i);
