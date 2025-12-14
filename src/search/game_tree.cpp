@@ -156,8 +156,9 @@ NodeIndex GameTree::select_and_expand_node() {
 
         // Copy the node to make sure the compiler can optimize assuming the node hasnt been modified
         const Node parent = node;
+        const auto children = get_children(node);
         for (u16 i = 0; i < node.num_children; ++i) {
-            Node &child_node = node_at(node.first_child_idx + i);
+            Node &child_node = children[i];
             // Track the child with the highest PUCT score
             const f64 child_score = compute_puct(parent, child_node, cpuct);
             if (child_score > best_child_score) {
@@ -182,8 +183,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
 
     f32 highest_policy = -std::numeric_limits<f32>::max();
-    for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = node_at(node.first_child_idx + i);
+    for (Node &child : get_children(node)) {
         // Compute policy output for this move
         const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
         child.policy_score =
@@ -195,8 +195,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
 
     // Softmax the policy logits
     f32 sum_exponents = 0.0f;
-    for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = node_at(node.first_child_idx + i);
+    for (Node &child : get_children(node)) {
         const f32 exp_policy = std::exp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
         child.policy_score = exp_policy;
@@ -204,8 +203,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
 
     f32 sum_squares = 0.0f;
     // Normalize into policy scores
-    for (u16 i = 0; i < node.num_children; ++i) {
-        Node &child = node_at(node.first_child_idx + i);
+    for (Node &child : get_children(node)) {
         child.policy_score /= sum_exponents;
         sum_squares += child.policy_score * child.policy_score;
     }
@@ -294,12 +292,11 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
     }
     case TerminalState::Flag::WIN: { // If a child node is won, it's a loss for us if all of its siblings are also won
         u8 longest_loss = 0;
-        for (i32 i = 0; i < node.num_children; ++i) {
-            const auto sibling_terminal_state = node_at(node.first_child_idx + i).terminal_state;
-            if (sibling_terminal_state.flag() != TerminalState::Flag::WIN) {
+        for (const Node &sibling : get_children(node)) {
+            if (sibling.terminal_state.flag() != TerminalState::Flag::WIN) {
                 return;
             }
-            longest_loss = std::max(longest_loss, sibling_terminal_state.distance_to_terminal());
+            longest_loss = std::max(longest_loss, sibling.terminal_state.distance_to_terminal());
         }
         node.terminal_state = TerminalState::loss(longest_loss + 1);
         break;
@@ -348,8 +345,12 @@ void GameTree::backpropagate_score(f64 score) {
     }
 }
 
+std::span<Node> GameTree::get_children(Node node) {
+    return {&node_at(node.first_child_idx), node.num_children};
+}
+
 bool GameTree::fetch_children(NodeIndex node_idx) {
-    auto &node = node_at(node_idx);
+    Node &node = node_at(node_idx);
     // Don't do anything if the node's children already exist in our half
     if (node.first_child_idx.half() == active_half_) {
         return true;
@@ -362,8 +363,8 @@ bool GameTree::fetch_children(NodeIndex node_idx) {
     }
 
     // Copy over the children from the other tree half to this half
-    for (u16 i = 0; i < node.num_children; ++i) {
-        active_half().push_node(node_at(node.first_child_idx + i));
+    for (const Node &child : get_children(node)) {
+        active_half().push_node(child);
     }
     node.first_child_idx = active_half().construct_idx(active_half().filled_size() - node.num_children);
 
@@ -396,8 +397,9 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
         return false;
     }
 
+    const auto children = get_children(node);
     for (u16 i = 0; i < node.num_children; ++i) {
-        const auto child_node = node_at(node.first_child_idx + i);
+        const auto child_node = children[i];
         // Ensure this move leads to the same resulting position
         old_board.make_move(child_node.move);
         if (old_board.state() == new_board.state()) {
