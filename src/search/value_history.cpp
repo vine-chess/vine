@@ -21,8 +21,8 @@ void ValueHistory::Entry::update(f64 q, f64 score, u16 num_visits) {
     constexpr i32 max_div = 16;
     constexpr u16 max_visits = 1000;
 
-    const i32 divisor = min_div
-                  + (max_div - min_div) * std::min(num_visits, max_visits) / max_visits;
+    const i32 divisor = max_div
+                        - (max_div - min_div) * std::min(num_visits, max_visits) / max_visits;
 
     const i32 bonus = std::clamp((q_cp - score_cp) / divisor, -256, 256);
     value += scale_bonus(value, bonus);
