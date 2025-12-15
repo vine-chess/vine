@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <iostream>
 
 namespace search {
 
@@ -185,7 +186,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (Node &child : get_children(node)) {
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        const auto history_score = policy_history_.entry(board_.state(), child.move).value / 16384.0;
         child.policy_score =
             (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
@@ -274,9 +275,10 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_queens = board_.state().queens().pop_count();
     const auto sum_material = (312 * (num_knights + num_bishops) + 512 * num_rooks + 912 * num_queens);
     const auto raw_eval = network::value::evaluate(board_.state());
-    const auto scaled = raw_eval * (sum_material + 8192) / 16384;
+    const auto scaled = std::round(network::value::EVAL_SCALE * raw_eval * (sum_material + 8192) / 16384);
+    const auto corrected = value_history_.correct_cp(board_.state(), scaled);
 
-    return util::math::sigmoid(scaled);
+    return util::math::sigmoid(corrected / static_cast<f64>(network::value::EVAL_SCALE));
 }
 
 void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state) {
@@ -322,6 +324,8 @@ void GameTree::backpropagate_score(f64 score) {
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
             backpropagate_terminal_state(node_idx, child_terminal_state);
+        } else {
+            value_history_.entry(board_.state()).update(node.q(), score, node.num_visits);
         }
 
         // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
@@ -339,7 +343,7 @@ void GameTree::backpropagate_score(f64 score) {
 
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
-                history_.entry(board_.state(), node.move).update(score);
+                policy_history_.entry(board_.state(), node.move).update(score);
             }
         }
     }
@@ -431,7 +435,8 @@ void GameTree::clear() {
     board_ = {};
     sum_depths_ = 0;
     nodes_in_path_.clear();
-    history_.clear();
+    policy_history_.clear();
+    value_history_.clear();
 }
 
 } // namespace search

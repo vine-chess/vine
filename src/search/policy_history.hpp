@@ -1,5 +1,5 @@
-#ifndef HISTORY_HPP
-#define HISTORY_HPP
+#ifndef POLICY_HISTORY_HPP
+#define POLICY_HISTORY_HPP
 
 #include "../chess/board.hpp"
 #include "../util/multi_array.hpp"
@@ -7,7 +7,7 @@
 
 namespace search {
 
-class History {
+class PolicyHistory {
   public:
     struct Entry {
         i16 value;
@@ -25,4 +25,4 @@ class History {
 
 } // namespace search
 
-#endif // HISTORY_HPP
+#endif // POLICY_HISTORY_HPP

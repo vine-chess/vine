@@ -3,8 +3,9 @@
 
 #include "../chess/board.hpp"
 #include "hash_table.hpp"
-#include "history.hpp"
 #include "node.hpp"
+#include "policy_history.hpp"
+#include "value_history.hpp"
 #include "tree_half.hpp"
 #include <span>
 
@@ -71,7 +72,8 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
-    History history_;
+    PolicyHistory policy_history_;
+    ValueHistory value_history_;
 };
 
 } // namespace search

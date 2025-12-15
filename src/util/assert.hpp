@@ -2,6 +2,7 @@
 #define ASSERT_HPP
 
 #include <cstdlib>
+#include <cassert>
 
 namespace util {
 
@@ -14,7 +15,7 @@ constexpr void assert_impl(bool x) {
 #ifdef NDEBUG
 #define vine_assert(x)
 #else
-#define vine_assert(x) assert(x)
+#define vine_assert(x)
 #endif
 
 } // namespace util

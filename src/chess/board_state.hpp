@@ -41,7 +41,7 @@ struct BoardState {
     Square en_passant_sq{};
     CastleRights castle_rights{};
     u8 fifty_moves_clock = 0;
-    HashKey hash_key{};
+    HashKey hash_key{}, pawn_hash_key{};
     Bitboard ortho_pins{};
     Bitboard diag_pins{};
     Bitboard checkers{};

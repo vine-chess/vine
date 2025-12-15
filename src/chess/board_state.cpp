@@ -10,14 +10,22 @@ void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
     piece_type_on_sq[sq] = piece_type;
     piece_bbs[piece_type - 1].set(sq);
     side_bbs[color].set(sq);
+
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
+    if (piece_type == PieceType::PAWN) {
+        pawn_hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
+    }
 }
 
 void BoardState::remove_piece(PieceType piece_type, Square sq, Color color) {
     piece_type_on_sq[sq] = PieceType::NONE;
     piece_bbs[piece_type - 1].unset(sq);
     side_bbs[color].unset(sq);
+
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
+    if (piece_type == PieceType::PAWN) {
+        pawn_hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
+    }
 }
 
 Bitboard BoardState::occupancy() const {
