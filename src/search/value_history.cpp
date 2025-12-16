@@ -17,8 +17,8 @@ void ValueHistory::Entry::update(f64 q, f64 score, u16 num_visits) {
     const i32 q_cp = static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(q));
     const i32 score_cp = static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(score));
 
-    constexpr i32 min_div = 8;
-    constexpr i32 max_div = 32;
+    constexpr i32 min_div = 1;
+    constexpr i32 max_div = 8;
     constexpr u16 max_visits = 1000;
 
     const i32 divisor = min_div
@@ -34,6 +34,7 @@ void ValueHistory::clear() {
 
 [[nodiscard]] i32 ValueHistory::correct_cp(const BoardState &state, i32 score_cp) const {
     const auto history_entry = entry(state);
+    std::cout << history_entry.value / 16 << std::endl;
     return score_cp + history_entry.value / 16;
 }
 
