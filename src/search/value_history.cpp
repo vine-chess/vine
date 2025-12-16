@@ -34,7 +34,6 @@ void ValueHistory::clear() {
 
 [[nodiscard]] i32 ValueHistory::correct_cp(const BoardState &state, i32 score_cp) const {
     const auto history_entry = entry(state);
-    std::cout << history_entry.value / 16 << std::endl;
     return score_cp + history_entry.value / 16;
 }
 
