@@ -324,8 +324,6 @@ void GameTree::backpropagate_score(f64 score) {
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
             backpropagate_terminal_state(node_idx, child_terminal_state);
-        } else {
-            value_history_.entry(board_.state()).update(node.q(), score, node.num_visits);
         }
 
         // If this node has a terminal state (either from backpropagation or it is terminal), we save it for the parent
@@ -344,6 +342,7 @@ void GameTree::backpropagate_score(f64 score) {
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
                 policy_history_.entry(board_.state(), node.move).update(score);
+                value_history_.entry(board_.state()).update(node.q(), 1.0 - score, node.num_visits);
             }
         }
     }
