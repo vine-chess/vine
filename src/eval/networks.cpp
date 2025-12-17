@@ -1,6 +1,7 @@
 #include "../third_party/incbin.h"
 #include "policy_network.hpp"
 #include "value_network.hpp"
+#include <iostream>
 
 namespace network {
 

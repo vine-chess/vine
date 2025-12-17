@@ -130,7 +130,7 @@ Bitboard BoardState::threats_by(Color color) const {
     return threats;
 }
 
-Bitboard BoardState::pinned_threats_by(Color color) const {
+std::pair<Bitboard, Bitboard> BoardState::pinned_threats_by(Color color) const {
     const auto our_king = king(color).lsb();
     const auto ortho = rooks(~color) | queens(~color);
     const auto diag = bishops(~color) | queens(~color);
@@ -170,7 +170,7 @@ Bitboard BoardState::pinned_threats_by(Color color) const {
         threats |= cur_threats;
     }
 
-    return threats;
+    return {threats, pinned};
 }
 
 std::string BoardState::to_fen() const {
