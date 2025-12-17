@@ -330,6 +330,8 @@ void GameTree::backpropagate_score(f64 score) {
         // node to try to use it
         if (!node.terminal_state.is_none()) {
             child_terminal_state = node.terminal_state;
+        } else {
+            value_history_.entry(board_.state()).update(node.q(), score, node.num_visits);
         }
 
         // Negate the score to match the perspective of the node
@@ -342,7 +344,6 @@ void GameTree::backpropagate_score(f64 score) {
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
                 policy_history_.entry(board_.state(), node.move).update(score);
-                value_history_.entry(board_.state()).update(node.q(), 1.0 - score, node.num_visits);
             }
         }
     }
