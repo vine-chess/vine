@@ -1,9 +1,7 @@
 #include "value_network.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstring>
-#include <iostream>
 
 namespace network::value {
 
