@@ -330,7 +330,9 @@ void GameTree::backpropagate_score(f64 score) {
         // node to try to use it
         if (!node.terminal_state.is_none()) {
             child_terminal_state = node.terminal_state;
-        } else if (child_terminal_state.is_none()) {
+        }
+
+        if (!nodes_in_path_.empty() && child_terminal_state.is_none()) {
             value_history_.entry(board_.state()).update(node.q(), score, node.num_visits);
         }
 
