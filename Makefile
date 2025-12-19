@@ -5,7 +5,7 @@ OBJS = $(FILES:.cpp=.o)
 
 OPTIMIZE ?= -O3 -flto
 
-FLAGS = -std=c++20 -fconstexpr-steps=100000000
+FLAGS = -std=c++20 -fconstexpr-steps=100000000 -fuse-ld=lld
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 

@@ -23,7 +23,6 @@ namespace detail {
 
 f64 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
-    std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
 
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
@@ -31,27 +30,58 @@ f64 evaluate(const BoardState &state) {
     const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
                                              state.pinned_threats_by(Color::BLACK)};
 
+    const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> *feature_list[256];
+    int count = 0;
+
+    auto push_feature = [&] <typename... Args>(Args&&... args) {
+        feature_list[count++] = &detail::feature(args...);
+    };
+
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
-            const auto feat = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
-            }
+            push_feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
         }
 
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
-            const auto feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
-            }
+            push_feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
         }
     }
 
-    const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
+    constexpr int Regs =
+#ifdef __AVX512F__
+        32;
+#else
+            16;
+#endif
+    constexpr int i16VecLen = util::NATIVE_SIZE<i16>;
 
+    int offset = 0;
+    const auto* ft_biases = network->ft_biases.data();
+    for (int j = 0; offset < L1_SIZE; offset += Regs * i16VecLen, j += Regs) {
+        i16Vec tmp[Regs];
+#pragma clang unroll 32
+        for (int i = 0; i < Regs; ++i) {
+            tmp[i] = util::loadu(ft_biases + offset + i * i16VecLen);
+        }
+        for (int i = 0; i < count; ++i) {
+            const auto* feat = feature_list[i];
+#pragma clang unroll 32
+            for (int k = 0; k < Regs; ++k) {
+                tmp[k] += (*feat)[k + j];
+            }
+        }
+#pragma clang unroll 32
+        for (int i = 0; i < Regs; ++i) {
+            accumulator[j + i] = tmp[i];
+        }
+    }
+
+    assert(offset == L1_SIZE);
+
+    const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
     const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
 
     std::array<i32, L2_SIZE> l2_int{};
