@@ -6,6 +6,7 @@
 #include <array>
 #include <cstring>
 #include <iostream>
+#include <numeric>
 
 namespace network::policy {
 
@@ -114,19 +115,21 @@ PolicyContext::PolicyContext(const BoardState &state)
 f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
 
-    std::array<util::SimdVector<i32, VECTOR_SIZE / 2>, 4> sum{};
+    const auto UNROLL = 4;
+    std::array<util::SimdVector<i32, VECTOR_SIZE / 2>, UNROLL> sum{};
 
-    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; i += 4) {
-        for (usize k = 0; k < 4; ++k) {
-            sum[k] += util::madd_epi16(activated_acc_[i + k],
-                                       util::convert_vector<i16, i8, VECTOR_SIZE>(network->l1_weights_vec[idx][i + k]));
+    const auto &weights = network->l1_weights_vec[idx];
+    for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; i += UNROLL) {
+        for (usize k = 0; k < UNROLL; ++k) {
+            const auto weights_i16 = util::convert_vector<i16, i8, VECTOR_SIZE>(weights[i + k]);
+            sum[k] += util::madd_epi16(activated_acc_[i + k], weights_i16);
         }
     }
 
-    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(sum[0] + sum[1] + sum[2] + sum[3]);
+    const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(std::reduce(std::begin(sum), std::end(sum)));
     const i32 bias = network->l1_biases[idx];
 
-    return ((static_cast<f32>(dot) / static_cast<f32>(Q * Q)) + static_cast<f32>(bias)) / static_cast<f32>(Q);
+    return static_cast<f32>(dot + bias * Q * Q) * (1.0f / static_cast<f32>(Q * Q * Q));
 }
 
 } // namespace network::policy
