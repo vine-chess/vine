@@ -64,7 +64,7 @@ class GameTree {
 
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
-    std::vector<TreeHalf> halves_;
+    std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;
