@@ -67,7 +67,7 @@ class GameTree {
 
     void inject_dirichlet_noise(NodeIndex node_idx);
 
-    std::vector<TreeHalf> halves_;
+    std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;
     TreeHalf::Index active_half_;
