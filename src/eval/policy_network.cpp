@@ -89,7 +89,8 @@ PolicyContext::PolicyContext(const BoardState &state)
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
-        const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
+        const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
+                                                 state.pinned_threats_by(Color::BLACK)};
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
             for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
                 feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
