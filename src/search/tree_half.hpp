@@ -2,6 +2,7 @@
 #define TREE_HALF_H
 
 #include "../util/types.hpp"
+#include "node.hpp"
 #include <vector>
 
 namespace search {
@@ -65,7 +66,14 @@ class TreeHalf {
     [[nodiscard]] NodeIndex construct_idx(u32 idx) const noexcept;
 
   private:
-    std::vector<Node> nodes_;
+    // Sums of all scores that have been propagated back to each node
+    std::vector<f64> score_sums_;
+    // Policy given to each node by its parent node
+    std::vector<f32> policy_scores_;
+    // Number of times each node has been visited
+    std::vector<u32> visit_counts_;
+
+    std::vector<NodeInfo> nodes_;
     usize filled_size_;
     Index our_half_;
 };

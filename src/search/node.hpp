@@ -174,10 +174,10 @@ struct Node {
     f64 sum_of_scores = 0.0;
     // Policy given to us by our parent node
     f32 policy_score = 0.0;
-    // Index of the first child in the node table
-    NodeIndex first_child_idx = NodeIndex::none();
     // Number of times this node has been visited
     u32 num_visits = 0;
+    // Index of the first child in the node table
+    NodeIndex first_child_idx = NodeIndex::none();
     // Move that led into this node
     Move move = Move::null();
     // Number of legal moves this node has
@@ -186,12 +186,49 @@ struct Node {
     TerminalState terminal_state = TerminalState::none();
     // A measure of the entropy of the policy distribution
     u8 gini_impurity = 0;
-
     [[nodiscard]] bool visited() const;
     [[nodiscard]] bool terminal() const;
     [[nodiscard]] bool expanded() const;
     // Average of all scores this node has received
     [[nodiscard]] f64 q() const;
+};
+
+struct NodeInfo {
+    // Index of the first child in the node table
+    NodeIndex first_child_idx = NodeIndex::none();
+    // Move that led into this node
+    Move move = Move::null();
+    // Number of legal moves this node has
+    u16 num_children = 0;
+    // What kind of state this (terminal) node is
+    TerminalState terminal_state = TerminalState::none();
+    // A measure of the entropy of the policy distribution
+    u8 gini_impurity = 0;
+};
+
+struct NodeReference {
+    NodeInfo &info;
+    f64 &sum_of_scores;
+    f32 &policy_score;
+    u32 &num_visits;
+    [[nodiscard]] bool visited() const;
+    [[nodiscard]] bool terminal() const;
+    [[nodiscard]] bool expanded() const;
+    // Average of all scores this node has received
+    [[nodiscard]] f64 q() const;
+
+    operator Node() const {
+        return Node{
+            .sum_of_scores = sum_of_scores,
+            .policy_score = policy_score,
+            .num_visits = num_visits,
+            .first_child_idx = info.first_child_idx,
+            .move = info.move,
+            .num_children = info.num_children,
+            .terminal_state = info.terminal_state,
+            .gini_impurity = info.gini_impurity,
+        };
+    }
 };
 
 } // namespace search

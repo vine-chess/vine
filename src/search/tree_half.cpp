@@ -7,9 +7,15 @@ TreeHalf::TreeHalf(Index our_half) : our_half_(our_half), filled_size_(0) {}
 
 void TreeHalf::set_node_capacity(usize capacity) {
     clear();
-    nodes_.clear();
-    nodes_.shrink_to_fit();
-    nodes_.resize(capacity);
+    auto resize = [=](auto &vector) {
+        vector.clear();
+        vector.shrink_to_fit();
+        vector.resize(capacity);
+    };
+    resize(score_sums_);
+    resize(policy_scores_);
+    resize(visit_counts_);
+    resize(nodes_);
 }
 
 usize TreeHalf::filled_size() const {
@@ -22,14 +28,14 @@ bool TreeHalf::has_room_for(usize n) const {
 
 void TreeHalf::clear_dangling_references() {
     for (auto &node : nodes_) {
-        if (node.first_child_idx.half() != our_half_) {
-            node.num_children = 0;
+        if (node.info.first_child_idx.half() != our_half_) {
+            node.info.num_children = 0;
         }
     }
 }
 
 void TreeHalf::push_node(const Node &node) {
-    nodes_[filled_size_++] = node;
+    nodes_[filled_size_++] = node.info;
 }
 
 NodeIndex TreeHalf::root_idx() const {
