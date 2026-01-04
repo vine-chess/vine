@@ -9,7 +9,7 @@ void TimeManager::start_tracking(const TimeSettings &settings) {
     settings_ = settings;
 }
 
-bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i32 depth) const {
+bool TimeManager::times_up(GameTree &tree, u64 iterations, Color color, i32 depth) const {
     if (iterations % 512 == 0) {
         auto get_elapsed = [&] {
             const auto now = std::chrono::high_resolution_clock::now();
@@ -28,12 +28,12 @@ bool TimeManager::times_up(const GameTree &tree, u64 iterations, Color color, i3
             if (iterations >= 1024) {
                 const auto get_child_score = [&](NodeIndex child_idx) {
                     const f64 MATE_SCORE = 1000.0;
-                    const Node &child = tree.node_at(child_idx);
-                    switch (child.terminal_state.flag()) {
+                    auto child = tree.node_at(child_idx);
+                    switch (child.info.terminal_state.flag()) {
                     case TerminalState::Flag::WIN:
-                        return MATE_SCORE - child.terminal_state.distance_to_terminal();
+                        return MATE_SCORE - child.info.terminal_state.distance_to_terminal();
                     case TerminalState::Flag::LOSS:
-                        return -MATE_SCORE + child.terminal_state.distance_to_terminal();
+                        return -MATE_SCORE + child.info.terminal_state.distance_to_terminal();
                     default:
                         return child.q();
                     }

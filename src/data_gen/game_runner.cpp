@@ -37,8 +37,8 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
         while (true) {
             searcher.go(board, settings.time_settings);
 
-            const auto &game_tree = searcher.game_tree();
-            const auto &root_node = game_tree.root();
+            auto &game_tree = searcher.game_tree();
+            auto root_node = game_tree.root();
             if (root_node.terminal()) {
                 game_result = board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
                 break;
@@ -47,18 +47,18 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             VisitsDistribution visits_dist;
             search::NodeIndex best_child_idx = root_node.first_child_idx;
             for (usize j = 0; j < root_node.num_children; j++) {
-                const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
+                auto child = game_tree.node_at(root_node.first_child_idx + j);
+                visits_dist.emplace_back(writer->to_monty_move(child.info.move, board.state()), child.num_visits);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
                     best_child_idx = root_node.first_child_idx + j;
                 }
             }
 
             const auto &best_child = game_tree.node_at(best_child_idx);
-            vine_assert(!best_child.move.is_null());
+            vine_assert(!best_child.info.move.is_null());
 
-            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
-            board.make_move(best_child.move);
+            writer->push_move(best_child.info.move, 1.0 - best_child.q(), visits_dist, board.state());
+            board.make_move(best_child.info.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
 

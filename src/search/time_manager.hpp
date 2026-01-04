@@ -25,7 +25,7 @@ class TimeManager {
 
     void start_tracking(const TimeSettings &settings);
 
-    [[nodiscard]] bool times_up(const GameTree &tree, u64 iterations, Color color, i32 depth) const;
+    [[nodiscard]] bool times_up(GameTree &tree, u64 iterations, Color color, i32 depth) const;
 
     [[nodiscard]] u64 time_elapsed() const;
 

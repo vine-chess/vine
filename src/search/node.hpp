@@ -2,7 +2,8 @@
 #define NODE_HPP
 
 #include "../chess/move.hpp"
-#include "tree_half.hpp"
+#include "node_index.hpp"
+#include <strings.h>
 
 namespace search {
 
@@ -90,85 +91,6 @@ class TerminalState {
     u16 value_;
 };
 
-class NodeIndex {
-  public:
-    static constexpr u32 INDEX_BITS = 31;
-    static constexpr u32 INDEX_MASK = (1u << INDEX_BITS) - 1u;
-    static constexpr u32 HALF_MASK = 1u << INDEX_BITS;
-    static constexpr u32 NONE_INDEX = INDEX_MASK;
-
-    constexpr NodeIndex(u32 index = NONE_INDEX, TreeHalf::Index half = 0) noexcept : packed_(pack(index, half)) {}
-
-    static constexpr NodeIndex none() noexcept {
-        return NodeIndex(NONE_INDEX, 0);
-    }
-
-    [[nodiscard]] constexpr bool is_none() const noexcept {
-        return index() == NONE_INDEX;
-    }
-    [[nodiscard]] explicit constexpr operator u32() const noexcept {
-        return index();
-    }
-
-    [[nodiscard]] constexpr u32 index() const noexcept {
-        return packed_ & INDEX_MASK;
-    }
-    [[nodiscard]] constexpr TreeHalf::Index half() const noexcept {
-        return {static_cast<u8>((packed_ & HALF_MASK) >> INDEX_BITS)};
-    }
-
-    NodeIndex &operator=(const NodeIndex &) = default;
-
-    NodeIndex &operator+=(i32 delta) noexcept {
-        packed_ = pack(static_cast<u32>(static_cast<i32>(index()) + delta), half());
-        return *this;
-    }
-    NodeIndex &operator-=(i32 delta) noexcept {
-        return (*this += -delta);
-    }
-
-    [[nodiscard]] constexpr bool operator==(const NodeIndex &other) const noexcept {
-        return packed_ == other.packed_;
-    }
-    [[nodiscard]] constexpr bool operator!=(const NodeIndex &other) const noexcept {
-        return !(*this == other);
-    }
-
-    friend constexpr NodeIndex operator+(NodeIndex n, i32 d) noexcept {
-        n += d;
-        return n;
-    }
-    friend constexpr NodeIndex operator+(i32 d, NodeIndex n) noexcept {
-        n += d;
-        return n;
-    }
-    friend constexpr NodeIndex operator-(NodeIndex n, i32 d) noexcept {
-        n -= d;
-        return n;
-    }
-
-    friend constexpr NodeIndex operator+(const NodeIndex &a, const NodeIndex &b) {
-        return NodeIndex(a.index() + b.index(), a.half());
-    }
-    friend constexpr NodeIndex operator-(const NodeIndex &a, const NodeIndex &b) {
-        return NodeIndex(a.index() - b.index(), a.half());
-    }
-
-    [[nodiscard]] static constexpr NodeIndex with_index(const NodeIndex &n, u32 new_index) noexcept {
-        return NodeIndex(new_index, n.half());
-    }
-    [[nodiscard]] static constexpr NodeIndex with_half(const NodeIndex &n, u8 new_half) noexcept {
-        return NodeIndex(n.index(), new_half);
-    }
-
-  private:
-    static constexpr u32 pack(u32 index, TreeHalf::Index half) noexcept {
-        return index | (static_cast<u32>(half) << INDEX_BITS);
-    }
-
-    u32 packed_{pack(NONE_INDEX, 0)};
-};
-
 struct Node {
     // Sum of all scores that have been propagated back to this node
     f64 sum_of_scores = 0.0;
@@ -204,6 +126,12 @@ struct NodeInfo {
     TerminalState terminal_state = TerminalState::none();
     // A measure of the entropy of the policy distribution
     u8 gini_impurity = 0;
+
+    NodeInfo() {}
+
+    NodeInfo(Node x)
+        : first_child_idx(x.first_child_idx), move(x.move), num_children(x.num_children),
+          terminal_state(x.terminal_state), gini_impurity(x.gini_impurity) {}
 };
 
 struct NodeReference {
@@ -217,6 +145,9 @@ struct NodeReference {
     // Average of all scores this node has received
     [[nodiscard]] f64 q() const;
 
+    NodeReference(NodeInfo &info, f64 &sum_of_scores, f32 &policy_score, u32 &num_visits)
+        : info(info), sum_of_scores(sum_of_scores), policy_score(policy_score), num_visits(num_visits) {}
+
     operator Node() const {
         return Node{
             .sum_of_scores = sum_of_scores,
@@ -228,6 +159,57 @@ struct NodeReference {
             .terminal_state = info.terminal_state,
             .gini_impurity = info.gini_impurity,
         };
+    }
+};
+
+struct NodeRangeSentinel {
+    u32 end_idx;
+};
+
+struct NodeIterator {
+    f64 *score_sums_;
+    f32 *policy_scores_;
+    u32 *visit_counts_;
+    NodeInfo *nodes_;
+    u32 index;
+
+    NodeIterator operator++() {
+        index++;
+        return *this;
+    }
+
+    [[nodiscard]] NodeReference operator[](u32 i) {
+        return NodeReference{
+            nodes_[i],
+            score_sums_[i],
+            policy_scores_[i],
+            visit_counts_[i],
+        };
+    }
+
+    [[nodiscard]] NodeReference operator*() {
+        return operator[](index);
+    }
+
+    bool operator==(NodeRangeSentinel sent) const {
+        return index == sent.end_idx;
+    }
+};
+
+struct NodeRange {
+    NodeIterator begin_;
+    NodeRangeSentinel end_;
+
+    NodeIterator begin() const {
+        return begin_;
+    }
+
+    NodeReference operator[](u32 i) {
+        return begin_[i];
+    }
+
+    NodeRangeSentinel end() const {
+        return end_;
     }
 };
 
