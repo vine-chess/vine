@@ -13,6 +13,7 @@
 #include <optional>
 #include <type_traits>
 #include <unordered_set>
+#include <syncstream>
 
 namespace datagen {
 
@@ -192,12 +193,12 @@ void run_games(Settings settings, std::ostream &out) {
     std::vector<char> big_buf(1 << 20);
     final_output.rdbuf()->pubsetbuf(big_buf.data(), big_buf.size());
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-
         threads.emplace_back([settings, &final_output, &out, &opening_fens]() {
+            std::osyncstream thread_output(final_output);
             if (settings.mode == DatagenMode::value)
-                thread_loop<true>(settings, final_output, opening_fens);
+                thread_loop<true>(settings, thread_output, opening_fens);
             else
-                thread_loop<false>(settings, final_output, opening_fens);
+                thread_loop<false>(settings, thread_output, opening_fens);
         });
     }
 
