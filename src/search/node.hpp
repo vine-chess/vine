@@ -180,10 +180,10 @@ struct NodeIterator {
 
     [[nodiscard]] NodeReference operator[](u32 i) {
         return NodeReference{
-            nodes_[i],
-            score_sums_[i],
-            policy_scores_[i],
-            visit_counts_[i],
+            nodes_[index + i],
+            score_sums_[index + i],
+            policy_scores_[index + i],
+            visit_counts_[index + i],
         };
     }
 

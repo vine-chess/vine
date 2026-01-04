@@ -9,6 +9,7 @@
 #include "node_index.hpp"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <limits>
 
 namespace search {

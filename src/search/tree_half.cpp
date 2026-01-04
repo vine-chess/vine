@@ -39,6 +39,7 @@ void TreeHalf::push_node(const Node &node) {
     policy_scores_[filled_size_] = node.policy_score;
     visit_counts_[filled_size_] = node.num_visits;
     nodes_[filled_size_] = node;
+    filled_size_ += 1;
 }
 
 NodeIndex TreeHalf::root_idx() {
