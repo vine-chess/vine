@@ -1,10 +1,10 @@
 #include "board.hpp"
 
+#include "castle_rights.hpp"
 #include "move_gen.hpp"
 #include "zobrist.hpp"
 
 #include <cstdlib>
-#include <iostream>
 #include <sstream>
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
@@ -179,9 +179,11 @@ void Board::make_move(Move move) {
         state().remove_piece(PieceType::ROOK, move.to(), state().side_to_move);
         state().place_piece(PieceType::KING, move.king_castling_to(), state().side_to_move);
         state().place_piece(PieceType::ROOK, move.rook_castling_to(), state().side_to_move);
-        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.clear_kingside_availability(state().side_to_move);
+        state().castle_rights.clear_queenside_availability(state().side_to_move);
         state().side_to_move = ~state().side_to_move;
+        state().hash_key ^= zobrist::castle_rights[old_castle_rights_mask ^ state().castle_rights.to_mask()];
+        state().hash_key ^= zobrist::side_to_move;
         state().compute_masks();
         return;
     }
@@ -198,9 +200,9 @@ void Board::make_move(Move move) {
         }
 
         if (move.to() == state().castle_rights.kingside_rook(~state().side_to_move)) {
-            state().castle_rights.set_kingside_rook_file(~state().side_to_move, File::NO_FILE);
+            state().castle_rights.clear_kingside_availability(~state().side_to_move);
         } else if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
-            state().castle_rights.set_queenside_rook_file(~state().side_to_move, File::NO_FILE);
+            state().castle_rights.clear_queenside_availability(~state().side_to_move);
         }
 
         state().remove_piece(state().get_piece_type(target_square), target_square, ~state().side_to_move);
@@ -220,14 +222,14 @@ void Board::make_move(Move move) {
             state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
         }
     } else if (from_type == PieceType::KING) {
-        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
-        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.clear_kingside_availability(state().side_to_move);
+        state().castle_rights.clear_queenside_availability(state().side_to_move);
     }
 
     if (move.from() == state().castle_rights.kingside_rook(state().side_to_move)) {
-        state().castle_rights.set_kingside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.clear_kingside_availability(state().side_to_move);
     } else if (move.from() == state().castle_rights.queenside_rook(state().side_to_move)) {
-        state().castle_rights.set_queenside_rook_file(state().side_to_move, File::NO_FILE);
+        state().castle_rights.clear_queenside_availability(state().side_to_move);
     }
 
     state().hash_key ^= zobrist::castle_rights[old_castle_rights_mask ^ state().castle_rights.to_mask()];
