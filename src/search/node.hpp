@@ -188,7 +188,7 @@ struct NodeIterator {
     }
 
     [[nodiscard]] NodeReference operator*() {
-        return operator[](index);
+        return operator[](0);
     }
 
     bool operator==(NodeRangeSentinel sent) const {
