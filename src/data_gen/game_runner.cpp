@@ -45,12 +45,12 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             }
 
             VisitsDistribution visits_dist;
-            search::NodeIndex best_child_idx = root_node.first_child_idx;
-            for (usize j = 0; j < root_node.num_children; j++) {
-                auto child = game_tree.node_at(root_node.first_child_idx + j);
+            search::NodeIndex best_child_idx = root_node.info.first_child_idx;
+            for (usize j = 0; j < root_node.info.num_children; j++) {
+                auto child = game_tree.node_at(root_node.info.first_child_idx + j);
                 visits_dist.emplace_back(writer->to_monty_move(child.info.move, board.state()), child.num_visits);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                    best_child_idx = root_node.first_child_idx + j;
+                    best_child_idx = root_node.info.first_child_idx + j;
                 }
             }
 

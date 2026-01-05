@@ -11,26 +11,26 @@ namespace datagen {
 Move pick_move_temperature(search::GameTree &tree, f64 temperature) {
     const auto root = tree.root();
 
-    std::vector<f64> distr(root.num_children, 0.0);
+    std::vector<f64> distr(root.info.num_children, 0.0);
 
     f64 total = 0;
-    for (usize i = 0; i < root.num_children; ++i) {
-        const auto child = tree.node_at(root.first_child_idx + i);
+    for (usize i = 0; i < root.info.num_children; ++i) {
+        const auto child = tree.node_at(root.info.first_child_idx + i);
         distr[i] = std::pow<f64>(child.num_visits, 1.0 / temperature);
         total += distr[i];
     }
 
     f64 random_choice = rng::next_double();
     f64 sum = 0;
-    for (usize i = 0; i < root.num_children; ++i) {
-        auto child = tree.node_at(root.first_child_idx + i);
+    for (usize i = 0; i < root.info.num_children; ++i) {
+        auto child = tree.node_at(root.info.first_child_idx + i);
         sum += distr[i];
 
         if (sum / total > random_choice) {
             return child.info.move;
         }
     }
-    return tree.node_at(root.first_child_idx + root.num_children - 1).info.move;
+    return tree.node_at(root.info.first_child_idx + root.info.num_children - 1).info.move;
 }
 
 BoardState generate_opening(std::string_view initial_fen, const usize random_moves, const f64 initial_temperature,

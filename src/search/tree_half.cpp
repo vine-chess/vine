@@ -46,7 +46,7 @@ NodeIndex TreeHalf::root_idx() {
     return {0, our_half_};
 }
 
-Node TreeHalf::root_node() {
+NodeReference TreeHalf::root_node() {
     return (*this)[root_idx()];
 }
 

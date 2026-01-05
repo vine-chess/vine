@@ -64,7 +64,7 @@ void GameTree::new_search(const Board &root_board) {
     }
 }
 
-Node GameTree::root() {
+NodeReference GameTree::root() {
     return active_half().root_node();
 }
 

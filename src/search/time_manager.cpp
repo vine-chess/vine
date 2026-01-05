@@ -39,10 +39,10 @@ bool TimeManager::times_up(GameTree &tree, u64 iterations, Color color, i32 dept
                     }
                 };
 
-                NodeIndex best_child_idx = tree.root().first_child_idx;
-                for (u16 i = 0; i < tree.root().num_children; ++i) {
-                    if (get_child_score(tree.root().first_child_idx + i) < get_child_score(best_child_idx)) {
-                        best_child_idx = tree.root().first_child_idx + i;
+                NodeIndex best_child_idx = tree.root().info.first_child_idx;
+                for (u16 i = 0; i < tree.root().info.num_children; ++i) {
+                    if (get_child_score(tree.root().info.first_child_idx + i) < get_child_score(best_child_idx)) {
+                        best_child_idx = tree.root().info.first_child_idx + i;
                     }
                 }
 

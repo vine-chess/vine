@@ -22,7 +22,7 @@ class GameTree {
     void new_search(const Board &root_board);
 
     [[nodiscard]] NodeReference node_at(NodeIndex idx);
-    [[nodiscard]] Node root();
+    [[nodiscard]] NodeReference root();
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;

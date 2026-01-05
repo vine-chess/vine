@@ -148,6 +148,22 @@ struct NodeReference {
     NodeReference(NodeInfo &info, f64 &sum_of_scores, f32 &policy_score, u32 &num_visits)
         : info(info), sum_of_scores(sum_of_scores), policy_score(policy_score), num_visits(num_visits) {}
 
+    NodeReference &operator=(const Node &other) {
+        sum_of_scores = other.sum_of_scores;
+        policy_score = other.policy_score;
+        num_visits = other.num_visits;
+        info = NodeInfo(other);
+        return *this;
+    }
+
+    NodeReference &operator=(const NodeReference &other) {
+        sum_of_scores = other.sum_of_scores;
+        policy_score = other.policy_score;
+        num_visits = other.num_visits;
+        info = other.info;
+        return *this;
+    }
+
     operator Node() const {
         return Node{
             .sum_of_scores = sum_of_scores,

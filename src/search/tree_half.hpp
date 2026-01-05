@@ -23,7 +23,7 @@ class TreeHalf {
     void push_node(const Node &node);
 
     [[nodiscard]] NodeIndex root_idx();
-    [[nodiscard]] Node root_node();
+    [[nodiscard]] NodeReference root_node();
     [[nodiscard]] NodeReference operator[](NodeIndex idx);
     [[nodiscard]] NodeIndex construct_idx(u32 idx) const noexcept;
 
