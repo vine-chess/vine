@@ -63,6 +63,8 @@ class GameTree {
 
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
+    [[nodiscard]] NodeIndex pick_highest_puct(NodeReference parent, f64 exploration_constant);
+
     std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;

@@ -3,10 +3,12 @@
 
 #include "types.hpp"
 #include <cstring>
+#include <smmintrin.h>
 
 namespace util {
 
 #if __x86_64__
+#include <immintrin.h>
 #if defined(__AVX512F__)
 constexpr auto NATIVE_VECTOR_BYTES = 64;
 #elif defined(__AVX2__)
@@ -87,6 +89,62 @@ inline void storeu(T *ptr, SimdVector<T, N> v) {
 template <class To, class From, usize N>
 inline SimdVector<To, N> convert_vector(SimdVector<From, N> v) {
     return __builtin_convertvector(v, SimdVector<To, N>);
+}
+
+template <class T, usize N>
+inline SimdVector<T, N> select_vector64(SimdVector<T, N> a, SimdVector<T, N> b, auto m) {
+    static_assert(sizeof(T) == 8, "T has to be a 64 bit type");
+
+    const auto mask = __builtin_convertvector(m, SimdVector<i64, N>);
+
+#if defined(__AVX512F__)
+    if constexpr (N == 16) {
+        return _mm512_mask_blend_pd(_mm512_cmpneq_epi64_mask(mask, _mm512_set1_epi64(0)), a, b);
+    }
+#endif
+#if defined(__AVX2__)
+    if constexpr (N == 8) {
+        return _mm256_blendv_pd(a, b, mask);
+    }
+#endif
+#if defined(__SSE2__)
+    if constexpr (N == 4) {
+        return _mm_blendv_pd(a, b, mask);
+    }
+#endif
+
+    const auto ai = std::bit_cast<SimdVector<i64, N>>(a);
+    const auto bi = std::bit_cast<SimdVector<i64, N>>(b);
+
+    return std::bit_cast<SimdVector<T, N>>(ai & ~mask | bi & mask);
+}
+
+template <class T, usize N>
+inline SimdVector<T, N> select_vector32(SimdVector<T, N> a, SimdVector<T, N> b, auto m) {
+    static_assert(sizeof(T) == 4, "T has to be a 32 bit type");
+
+    const auto mask = __builtin_convertvector(m, SimdVector<i32, N>);
+
+#if defined(__AVX512F__)
+    if constexpr (N == 16) {
+        return _mm512_mask_blend_ps(_mm512_cmpneq_epi32_mask(mask, _mm512_set1_epi32(0)), a, b);
+    }
+#endif
+#if defined(__AVX2__)
+    if constexpr (N == 8) {
+        return _mm256_blendv_ps(a, b, mask);
+    }
+#endif
+#if defined(__SSE2__)
+    if constexpr (N == 4) {
+        return _mm_blendv_ps(a, b, mask);
+    }
+#endif
+
+    const auto ai = std::bit_cast<SimdVector<i32, N>>(a);
+    const auto bi = std::bit_cast<SimdVector<i32, N>>(b);
+
+    return std::bit_cast<SimdVector<T, N>>(ai & ~mask | bi & mask);
 }
 
 template <class T, usize N>
