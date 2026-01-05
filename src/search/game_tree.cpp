@@ -97,11 +97,13 @@ u64 GameTree::tree_usage() const {
 // };
 
 [[clang::noinline]] NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
-    const auto VECTOR_SIZE = 8;
+    const auto VECTOR_SIZE = util::NATIVE_SIZE<f32>;
     const auto first_child = parent.info.first_child_idx;
     const auto num_children = parent.info.num_children;
-    const f32 u_scale = exploration_constant * std::sqrt(parent.num_visits);
+    const f64 u_scale = exploration_constant * std::sqrt(parent.num_visits);
+    const auto u_scale_vector = util::set1<f32, VECTOR_SIZE>(u_scale);
     const f64 parent_q = parent.q();
+    const auto parent_q_vector = util::set1<f32, VECTOR_SIZE>(parent_q);
 
     using f64Vec = util::SimdVector<f64, VECTOR_SIZE>;
     using f32Vec = util::SimdVector<f32, VECTOR_SIZE>;
@@ -109,49 +111,54 @@ u64 GameTree::tree_usage() const {
     usize i = 0;
     auto children = get_children(parent);
 
-    const auto LOWEST_POLICY = -std::numeric_limits<f64>::max();
-    util::SimdVector<f64, VECTOR_SIZE> best_puct = util::set1<f64, VECTOR_SIZE>(LOWEST_POLICY);
-    util::SimdVector<u64, VECTOR_SIZE> best_indices = util::set1<u64, VECTOR_SIZE>(0);
-    util::SimdVector<u64, VECTOR_SIZE> indices;
+    const auto LOWEST_POLICY = -std::numeric_limits<f32>::max();
+    const auto LOWEST_POLICY_VECTOR = util::set1<f32, VECTOR_SIZE>(LOWEST_POLICY);
+    util::SimdVector<f32, VECTOR_SIZE> best_puct = LOWEST_POLICY_VECTOR;
+    util::SimdVector<u32, VECTOR_SIZE> best_indices = util::set1<u32, VECTOR_SIZE>(0);
+    util::SimdVector<u32, VECTOR_SIZE> indices;
     for (usize i = 0; i < VECTOR_SIZE; ++i) {
         indices[i] = i;
     }
 
-    auto iteration = [&] [[clang::always_inline]] (usize i) {
+    auto iteration = [&](usize i) {
         auto child = children[i];
 
-        const auto scores = util::loadu<f64, VECTOR_SIZE>(&child.sum_of_scores);
+        const auto scores =
+            util::convert_vector<f32, f64, VECTOR_SIZE>(util::loadu<f64, VECTOR_SIZE>(&child.sum_of_scores));
         const auto visits = util::loadu<u32, VECTOR_SIZE>(&child.num_visits);
         const auto policies = util::loadu<f32, VECTOR_SIZE>(&child.policy_score);
 
-        const auto u = u_scale * policies / util::convert_vector<f32, u32, VECTOR_SIZE>(1 + visits);
+        const auto visitsf = util::convert_vector<f32, u32, VECTOR_SIZE>(visits);
 
-        const auto child_q = scores / util::convert_vector<f64, u32, VECTOR_SIZE>(
-                                          util::max<u32, VECTOR_SIZE>(visits, util::set1<u32, VECTOR_SIZE>(1)));
+        const auto u_base = policies / (visitsf + 1.0f);
 
-        const auto q =
-            util::select_vector64<f64, VECTOR_SIZE>(util::set1<f64, VECTOR_SIZE>(parent_q), 1.0 - child_q, visits != 0);
+        const auto child_q = scores / visitsf;
 
-        auto puct = q + util::convert_vector<f64, f32, VECTOR_SIZE>(u);
+        const auto q = util::select_vector32<f32, VECTOR_SIZE>(parent_q_vector, 1.0 - child_q, visits != 0);
+
+        const auto puct = util::fmadd_ps(u_base, u_scale_vector, q);
 
         return puct;
     };
 
     for (; i + VECTOR_SIZE <= num_children; i += VECTOR_SIZE, indices += VECTOR_SIZE) {
         const auto puct = iteration(i);
-        best_indices = util::select_vector64<f64, VECTOR_SIZE>(best_indices, indices, puct > best_puct);
-        best_puct = util::max<f64, VECTOR_SIZE>(best_puct, puct);
+        best_indices = util::select_vector32<f32, VECTOR_SIZE>(best_indices, indices, puct > best_puct);
+        best_puct = util::max<f32, VECTOR_SIZE>(best_puct, puct);
     }
     if (i < num_children) {
-        const auto puct = util::select_vector64<f64, VECTOR_SIZE>(util::set1<f64, VECTOR_SIZE>(LOWEST_POLICY), iteration(i), indices < num_children);
-        best_indices = util::select_vector64<f64, VECTOR_SIZE>(best_indices, indices, puct > best_puct);
-        best_puct = util::max<f64, VECTOR_SIZE>(best_puct, puct);
+        const auto puct = iteration(i);
+        const auto mask = (indices < num_children) & (puct > best_puct);
+        best_indices = util::select_vector32<f32, VECTOR_SIZE>(best_indices, indices, mask);
+        best_puct = util::select_vector32<f32, VECTOR_SIZE>(best_puct, puct, mask);
     }
 
-    usize best = 0;
-    for (usize i = 0; i < VECTOR_SIZE; ++i) {
-        if (best_puct[i] > best_puct[best]) {
+    f64 best_score = best_puct[0];
+    usize best = best_indices[0];
+    for (usize i = 1; i < VECTOR_SIZE; ++i) {
+        if (best_puct[i] > best_score) {
             best = i;
+            best_score = best_puct[i];
         }
     }
 
