@@ -13,8 +13,9 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
-#include <syncstream>
 #include <type_traits>
+#include <unordered_set>
+#include <syncstream>
 
 namespace datagen {
 
@@ -46,6 +47,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
         writer->push_board_state(board.state());
 
         f64 game_result;
+        u16 white_win_plies = 0, white_loss_plies = 0, draw_plies = 0;
         while (true) {
             const auto num_pieces = board.state().occupancy().pop_count();
             time_settings.min_kld_gain = settings.time_settings.min_kld_gain / std::clamp<f64>(16.0 / num_pieces, 1, 3);
@@ -75,15 +77,47 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
             auto best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.info.move.is_null());
 
+            const f64 score = 1.0 - best_child.q();
+
+            // Adjudicate immediately if our move has a mate score
+            if (best_child.info.terminal_state.is_win()) {
+                game_result = static_cast<f64>(board.state().side_to_move == Color::BLACK);
+            } else if (best_child.info.terminal_state.is_loss()) {
+                game_result = static_cast<f64>(board.state().side_to_move == Color::WHITE);
+            }
+            // Otherwise adjudicate based on score agreement to a certain ply
+            else {
+                const f64 white_relative_cp =
+                    400 * util::math::inverse_sigmoid(board.state().side_to_move == Color::WHITE ? score : 1.0 - score);
+                if (white_relative_cp >= 2000) {
+                    ++white_win_plies, white_loss_plies = draw_plies = 0;
+                } else if (white_relative_cp <= -2000) {
+                    ++white_loss_plies, white_win_plies = draw_plies = 0;
+                } else if (std::abs(white_relative_cp) <= 30) {
+                    ++draw_plies, white_win_plies = white_loss_plies = 0;
+                }
+
+                if (white_win_plies >= 5) {
+                    game_result = 1.0;
+                    break;
+                } else if (white_loss_plies >= 5) {
+                    game_result = 0.0;
+                    break;
+                } else if (draw_plies >= 10) {
+                    game_result = 0.5;
+                    break;
+                }
+            }
+
             if constexpr (value) {
-                writer->push_move(best_child.info.move, 1.0 - best_child.q(), board.state());
+                writer->push_move(best_child.info.move, score, board.state());
             } else {
                 VisitsDistribution visits_dist;
                 for (usize j = 0; j < root_node.num_children; j++) {
                     const auto &child = game_tree.node_at(root_node.first_child_idx + j);
                     visits_dist.emplace_back(writer->to_monty_move(child.info.move, board.state()), child.num_visits);
                 }
-                writer->push_move(best_child.info.move, 1.0 - best_child.q(), visits_dist, board.state());
+                writer->push_move(best_child.info.move, score, visits_dist, board.state());
             }
             board.make_move(best_child.info.move);
 
@@ -172,10 +206,8 @@ void run_games(Settings settings, std::ostream &out) {
     std::vector<char> big_buf(1 << 20);
     final_output.rdbuf()->pubsetbuf(big_buf.data(), big_buf.size());
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-
         threads.emplace_back([settings, &final_output, &out, &opening_fens]() {
             std::osyncstream thread_output(final_output);
-
             if (settings.mode == DatagenMode::value)
                 thread_loop<true>(settings, thread_output, opening_fens);
             else
