@@ -399,7 +399,10 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
+    auto cp_score =
+        static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
     auto child_terminal_state = TerminalState::none();
+
     while (!nodes_in_path_.empty()) {
         const auto node_idx = nodes_in_path_.pop_back();
 
@@ -422,6 +425,7 @@ void GameTree::backpropagate_score(f64 score) {
 
         // Negate the score to match the perspective of the node
         score = 1.0 - score;
+        cp_score = -cp_score;
 
         // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
@@ -429,7 +433,7 @@ void GameTree::backpropagate_score(f64 score) {
 
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
-                history_.entry(board_.state(), node.info.move).update(score);
+                history_.entry(board_.state(), node.info.move).update(cp_score);
             }
         }
     }
