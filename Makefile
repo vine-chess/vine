@@ -55,9 +55,9 @@ endif
 
 .DEFAULT_GOAL := all 
 
-ifeq ($(MAKECMDGOALS),datagen)
+# ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
-endif
+# endif
 
 .PHONY: nets
 nets:
