@@ -179,27 +179,32 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (auto child : get_children(node)) {
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.info.move).value / 16384.0;
         const auto move = child.info.move;
-        child.policy_score = (ctx.logit(move, state.get_piece_type(move.from())) + history_score) / temperature;
+        const auto history_score = history_.entry(board_.state(), move).value / 16384.0;
+        const auto policy_score = child.policy_score =
+            (ctx.logit(move, state.get_piece_type(move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
-        highest_policy = std::max(highest_policy, child.policy_score);
+        highest_policy = std::max(highest_policy, policy_score);
     }
 
     // Softmax the policy logits
-    f32 sum_exponents = 0.0f;
+    f32 sum_exponents{};
+
     for (auto child : get_children(node)) {
-        const f32 exp_policy = std::exp(child.policy_score - highest_policy);
+        // fast_exp is more accurate for positive values so use 1 / e^-x instead
+        auto fast_exp = [](f32 x) { return 1.0f / util::math::fast_exp(-x); };
+        const f32 exp_policy = fast_exp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
         child.policy_score = exp_policy;
     }
 
+    const f32 sum_exponents_inv = 1.0f / sum_exponents;
     f32 sum_squares = 0.0f;
     // Normalize into policy scores
     for (auto child : get_children(node)) {
-        child.policy_score /= sum_exponents;
-        sum_squares += child.policy_score * child.policy_score;
+        const f32 policy_score = child.policy_score *= sum_exponents_inv;
+        sum_squares += policy_score * policy_score;
     }
 
     node.info.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
