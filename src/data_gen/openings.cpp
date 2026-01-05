@@ -10,29 +10,29 @@
 namespace datagen {
 
 // https://github.com/official-monty/Monty/blob/0ae41b52509a04519e3cc0d8837323efa56803e7/src/tree.rs#L400-L437
-Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
+Move pick_move_temperature(search::GameTree &tree, f64 temperature) {
     const auto root = tree.root();
 
-    std::vector<f64> distr(root.num_children, 0.0);
+    std::vector<f64> distr(root.info.num_children, 0.0);
 
     f64 total = 0;
-    for (usize i = 0; i < root.num_children; ++i) {
-        const auto child = tree.node_at(root.first_child_idx + i);
+    for (usize i = 0; i < root.info.num_children; ++i) {
+        const auto child = tree.node_at(root.info.first_child_idx + i);
         distr[i] = std::pow<f64>(child.num_visits, 1.0 / temperature);
         total += distr[i];
     }
 
     f64 random_choice = rng::next_f64();
     f64 sum = 0;
-    for (usize i = 0; i < root.num_children; ++i) {
-        const auto child = tree.node_at(root.first_child_idx + i);
+    for (usize i = 0; i < root.info.num_children; ++i) {
+        auto child = tree.node_at(root.info.first_child_idx + i);
         sum += distr[i];
 
         if (sum / total > random_choice) {
-            return child.move;
+            return child.info.move;
         }
     }
-    return tree.node_at(root.first_child_idx + root.num_children - 1).move;
+    return tree.node_at(root.info.first_child_idx + root.info.num_children - 1).info.move;
 }
 
 BoardState generate_opening(std::span<const std::string> opening_fens, const usize random_moves, const f64 initial_temperature,

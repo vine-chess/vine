@@ -5,6 +5,7 @@
 #include "hash_table.hpp"
 #include "history.hpp"
 #include "node.hpp"
+#include "node_index.hpp"
 #include "tree_half.hpp"
 #include <span>
 
@@ -21,10 +22,8 @@ class GameTree {
 
     void new_search(const Board &root_board);
 
-    [[nodiscard]] Node &node_at(NodeIndex idx);
-    [[nodiscard]] const Node &node_at(NodeIndex idx) const;
-    [[nodiscard]] const Node &root() const;
-    [[nodiscard]] Node &root();
+    [[nodiscard]] NodeReference node_at(NodeIndex idx);
+    [[nodiscard]] NodeReference root();
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;
@@ -54,7 +53,7 @@ class GameTree {
   private:
     void backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state);
 
-    [[nodiscard]] std::span<Node> get_children(Node node);
+    [[nodiscard]] NodeRange get_children(NodeReference node);
 
     [[nodiscard]] bool expand_node(NodeIndex node_idx);
 
@@ -67,10 +66,12 @@ class GameTree {
 
     void inject_dirichlet_noise(NodeIndex node_idx);
 
-    std::vector<TreeHalf> halves_;
+    [[nodiscard]] NodeIndex pick_highest_puct(NodeReference parent, f64 exploration_constant);
+
+    std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;
-    TreeHalf::Index active_half_;
+    search::HalfIndex active_half_;
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;

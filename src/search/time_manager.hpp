@@ -28,7 +28,7 @@ class TimeManager {
 
     void start_tracking(const TimeSettings &settings);
 
-    [[nodiscard]] bool times_up(const GameTree &tree, u64 iterations, Color color, i32 depth,
+    [[nodiscard]] bool times_up(GameTree &tree, u64 iterations, Color color, i32 depth,
                                 const util::StaticVector<u32, MAX_MOVES> &old_visit_dist,
                                 const util::StaticVector<u32, MAX_MOVES> &new_visit_dist) const;
 

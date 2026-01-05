@@ -58,8 +58,8 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
             //     }
             // }
 
-            const auto &game_tree = searcher.game_tree();
-            const auto &root_node = game_tree.root();
+            auto &game_tree = searcher.game_tree();
+            search::Node root_node = game_tree.root();
             if (root_node.terminal()) {
                 game_result = board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
                 break;
@@ -72,20 +72,20 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
                     best_child_idx = root_node.first_child_idx + j;
                 }
             }
-            const auto &best_child = game_tree.node_at(best_child_idx);
-            vine_assert(!best_child.move.is_null());
+            auto best_child = game_tree.node_at(best_child_idx);
+            vine_assert(!best_child.info.move.is_null());
 
             if constexpr (value) {
-                writer->push_move(best_child.move, 1.0 - best_child.q(), board.state());
+                writer->push_move(best_child.info.move, 1.0 - best_child.q(), board.state());
             } else {
                 VisitsDistribution visits_dist;
                 for (usize j = 0; j < root_node.num_children; j++) {
                     const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                    visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
+                    visits_dist.emplace_back(writer->to_monty_move(child.info.move, board.state()), child.num_visits);
                 }
-                writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
+                writer->push_move(best_child.info.move, 1.0 - best_child.q(), visits_dist, board.state());
             }
-            board.make_move(best_child.move);
+            board.make_move(best_child.info.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
 
@@ -169,7 +169,7 @@ void run_games(Settings settings, std::ostream &out) {
     };
 
     std::ofstream final_output(settings.output_file, std::ios::binary);
-    std::vector<char> big_buf(1 << 20); 
+    std::vector<char> big_buf(1 << 20);
     final_output.rdbuf()->pubsetbuf(big_buf.data(), big_buf.size());
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
 

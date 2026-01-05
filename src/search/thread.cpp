@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <concepts>
 #include <iostream>
 #include <limits>
 
@@ -42,8 +41,8 @@ void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &tim
         }
 
         util::StaticVector<u32, MAX_MOVES> new_visit_dist;
-        for (u16 i = 0; i < tree.root().num_children; ++i) {
-            new_visit_dist.push_back(tree.node_at(tree.root().first_child_idx + i).num_visits);
+        for (u16 i = 0; i < tree.root().info.num_children; ++i) {
+            new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
         }
 
         if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth, old_visit_dist,
@@ -94,7 +93,7 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
         }
     }
 
-    pv.push_back(tree.node_at(best_child_idx).move);
+    pv.push_back(tree.node_at(best_child_idx).info.move);
     extract_pv_internal(pv, tree.node_at(best_child_idx), tree);
 }
 
@@ -113,10 +112,10 @@ f64 highest_child_q(GameTree &tree) {
         return child.visited() ? 1.0 - child.q() : -std::numeric_limits<f64>::max();
     };
 
-    NodeIndex best_child_idx = node.first_child_idx;
-    for (u16 i = 0; i < node.num_children; ++i) {
-        if (get_child_score(node.first_child_idx + i) > get_child_score(best_child_idx)) {
-            best_child_idx = node.first_child_idx + i;
+    NodeIndex best_child_idx = node.info.first_child_idx;
+    for (u16 i = 0; i < node.info.num_children; ++i) {
+        if (get_child_score(node.info.first_child_idx + i) > get_child_score(best_child_idx)) {
+            best_child_idx = node.info.first_child_idx + i;
         }
     }
     return has_visited_child ? get_child_score(best_child_idx) : node.q();

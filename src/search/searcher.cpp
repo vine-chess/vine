@@ -32,6 +32,10 @@ void Searcher::go(Board &board, const TimeSettings &time_settings) {
     }
 }
 
+GameTree &Searcher::game_tree() {
+    return game_tree_;
+}
+
 const GameTree &Searcher::game_tree() const {
     return game_tree_;
 }
