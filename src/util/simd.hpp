@@ -90,6 +90,17 @@ inline SimdVector<To, N> convert_vector(SimdVector<From, N> v) {
 }
 
 template <class T, usize N>
+inline SimdVector<T, N> select_vector64(SimdVector<T, N> a, SimdVector<T, N> b, auto m) {
+    static_assert(sizeof(T) == 8, "T has to be a 64 bit type");
+    const auto mask = __builtin_convertvector(m, SimdVector<i64, N>);
+
+    const auto ai = std::bit_cast<SimdVector<i64, N>>(a);
+    const auto bi = std::bit_cast<SimdVector<i64, N>>(b);
+
+    return std::bit_cast<SimdVector<T, N>>(ai & ~mask | bi & mask);
+}
+
+template <class T, usize N>
 inline SimdVector<T, N / 2> lower_half(SimdVector<T, N> v) {
     SimdVector<T, N / 2> res;
     std::memcpy(&res, &v, sizeof(res));
