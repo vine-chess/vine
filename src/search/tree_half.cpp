@@ -1,5 +1,6 @@
 #include "tree_half.hpp"
 #include "node.hpp"
+#include "../util/simd.hpp"
 
 namespace search {
 
@@ -23,7 +24,8 @@ usize TreeHalf::filled_size() const {
 }
 
 bool TreeHalf::has_room_for(usize n) const {
-    return filled_size() + n <= nodes_.size();
+    // safety margin to allow SIMD code to read past end of children and mask off invalid entries
+    return filled_size() + n + util::NATIVE_VECTOR_BYTES <= nodes_.size();
 }
 
 void TreeHalf::clear_dangling_references() {
