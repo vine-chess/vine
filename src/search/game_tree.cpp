@@ -151,7 +151,7 @@ u64 GameTree::tree_usage() const {
     }
 
     f64 best_score = best_puct[0];
-    usize best = best_indices[0];
+    usize best = 0;
     for (usize i = 1; i < VECTOR_SIZE; ++i) {
         if (best_puct[i] > best_score) {
             best = i;
