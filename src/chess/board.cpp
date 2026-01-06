@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <sstream>
+#include <iostream>
 
 [[nodiscard]] char get_piece_ch(const BoardState &state, Square sq) {
     if (!state.occupancy().is_set(sq))
@@ -81,7 +82,7 @@ Board::Board(std::string_view fen) {
     std::string hmc;
     stream >> hmc;
 
-    if (hmc != "-") {
+    if (hmc != "-" && !hmc.empty()) {
         state().fifty_moves_clock = static_cast<u8>(std::stoi(hmc));
     }
 
