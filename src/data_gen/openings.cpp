@@ -79,7 +79,7 @@ BoardState generate_opening(const std::unique_ptr<OpeningBook>& book, const usiz
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
             const auto cp_score = static_cast<i32>(
                 std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(searcher.game_tree().root().q())));
-            if (std::abs(cp_score) >= 10000) {
+            if (std::abs(cp_score) >= 300) {
                 return false;
             }
 
