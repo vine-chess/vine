@@ -90,7 +90,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
                 } else if (white_loss_plies >= 5) {
                     game_result = 0.0;
                     break;
-                } else if (draw_plies >= 10) {
+                } else if (draw_plies >= 10 && board.state().fifty_moves_clock >= 20) {
                     game_result = 0.5;
                     break;
                 }
