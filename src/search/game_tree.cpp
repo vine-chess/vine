@@ -52,13 +52,8 @@ void GameTree::new_search(const Board &root_board) {
     dirichlet_alpha_ = std::get<i32>(uci::options.get("DirichletNoiseAlpha")->value_as_variant()) / 100.0;
     use_gini_ = std::get<bool>(uci::options.get("UseGiniImpurity")->value_as_variant());
 
-    if (advance_root_node(board_, root_board, active_half().root_idx())) {
-        // Re-compute root policy scores, since the node we advanced to was searched with non-root parameters
-        compute_policy(root_board.state(), active_half().root_idx());
-    } else {
-        active_half().clear();
-        active_half().push_node(Node{});
-    }
+    active_half().clear();
+    active_half().push_node(Node{});
 
     board_ = root_board;
     sum_depths_ = 0;
