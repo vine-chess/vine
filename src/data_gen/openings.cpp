@@ -45,8 +45,7 @@ BoardState generate_opening(const std::unique_ptr<OpeningBook>& book, const usiz
     bool success;
     do {
         if (book) {
-            auto idx = 0;
-            board = Board(book->get(idx));
+            board = Board(book->get(rng::next_u64(0, book->size() - 1)));
         } else {
             board = Board(STARTPOS_FEN);
         }
@@ -80,7 +79,7 @@ BoardState generate_opening(const std::unique_ptr<OpeningBook>& book, const usiz
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
             const auto cp_score = static_cast<i32>(
                 std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(searcher.game_tree().root().q())));
-            if (std::abs(cp_score) >= 300) {
+            if (std::abs(cp_score) >= 10000) {
                 return false;
             }
 
