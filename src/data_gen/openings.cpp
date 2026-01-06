@@ -35,7 +35,7 @@ Move pick_move_temperature(search::GameTree &tree, f64 temperature) {
     return tree.node_at(root.info.first_child_idx + root.info.num_children - 1).info.move;
 }
 
-BoardState generate_opening(std::span<const std::string> opening_fens, const usize random_moves, const f64 initial_temperature,
+BoardState generate_opening(const std::unique_ptr<OpeningBook>& book, const usize random_moves, const f64 initial_temperature,
                             const f64 gamma) {
     thread_local search::Searcher searcher;
     searcher.set_hash_size(4);
@@ -44,7 +44,12 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
     Board board;
     bool success;
     do {
-        board = Board(opening_fens[rng::next_u64(0, opening_fens.size() - 1)]);
+        if (book) {
+            auto idx = 0;
+            board = Board(book->get(idx));
+        } else {
+            board = Board(STARTPOS_FEN);
+        }
         success = true;
 
         f64 temperature = initial_temperature;

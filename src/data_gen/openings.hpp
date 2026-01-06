@@ -3,12 +3,13 @@
 
 #include "../chess/board.hpp"
 #include "../util/random.hpp"
+#include "opening_book.hpp"
 #include <span>
 #include <string>
 
 namespace datagen {
 
-BoardState generate_opening(std::span<const std::string> opening_fens, usize random_moves, f64 initial_temperature = 1.25,
+BoardState generate_opening(const std::unique_ptr<OpeningBook>& book, usize random_moves, f64 initial_temperature = 1.25,
                             f64 gamma = 0.9);
 
 }

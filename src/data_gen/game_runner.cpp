@@ -2,6 +2,7 @@
 #include "../chess/move_gen.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/math.hpp"
+#include "opening_book.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
@@ -13,9 +14,9 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <syncstream>
 #include <type_traits>
 #include <unordered_set>
-#include <syncstream>
 
 namespace datagen {
 
@@ -30,7 +31,7 @@ std::atomic_size_t positions_written = 0;
 // std::array<std::atomic_uint64_t, 33> node_counts, node_sums;
 
 template <bool value = true>
-void thread_loop(const Settings &settings, std::ostream &out_file, std::span<const std::string> opening_fens) {
+void thread_loop(const Settings &settings, std::ostream &out_file, const std::unique_ptr<OpeningBook>& book) {
     using DataWriter = std::conditional_t<value, ViriformatWriter, MontyFormatWriter>;
     auto writer = std::make_unique<DataWriter>(out_file);
 
@@ -43,7 +44,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
     search::TimeSettings time_settings = settings.time_settings;
     const usize games_per_thread = settings.num_games / settings.num_threads;
     for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
-        Board board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
+        Board board(generate_opening(book, settings.random_moves, settings.temperature, settings.gamma));
         writer->push_board_state(board.state());
 
         f64 game_result;
@@ -192,26 +193,23 @@ void run_games(Settings settings, std::ostream &out) {
         }
     });
 
-    std::vector<std::string> opening_fens;
+    std::unique_ptr<OpeningBook> opening_book;
     if (settings.book_path.empty()) {
-        opening_fens.push_back(std::string(STARTPOS_FEN));
+        opening_book = nullptr;
     } else {
-        std::ifstream book{std::string(settings.book_path)};
-        for (std::string opening; std::getline(book, opening);) {
-            opening_fens.push_back(opening);
-        }
-    };
+        opening_book = std::make_unique<OpeningBook>(settings.book_path);
+    }
 
     std::ofstream final_output(settings.output_file, std::ios::binary);
     std::vector<char> big_buf(1 << 20);
     final_output.rdbuf()->pubsetbuf(big_buf.data(), big_buf.size());
     for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-        threads.emplace_back([settings, &final_output, &out, &opening_fens]() {
+        threads.emplace_back([settings, &final_output, &out, &opening_book]() {
             std::osyncstream thread_output(final_output);
             if (settings.mode == DatagenMode::value)
-                thread_loop<true>(settings, thread_output, opening_fens);
+                thread_loop<true>(settings, thread_output, opening_book);
             else
-                thread_loop<false>(settings, thread_output, opening_fens);
+                thread_loop<false>(settings, thread_output, opening_book);
         });
     }
 
