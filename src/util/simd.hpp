@@ -3,7 +3,6 @@
 
 #include "types.hpp"
 #include <cstring>
-#include <smmintrin.h>
 
 namespace util {
 

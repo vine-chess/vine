@@ -1,6 +1,5 @@
 #include "time_manager.hpp"
 #include <chrono>
-#include <iostream>
 
 namespace search {
 

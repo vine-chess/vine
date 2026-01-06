@@ -1,17 +1,14 @@
 #include "game_tree.hpp"
+#include "node.hpp"
+#include "node_index.hpp"
 #include "../chess/move_gen.hpp"
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 
-#include "node.hpp"
-#include "node_index.hpp"
 #include <algorithm>
-#include <bit>
 #include <cmath>
-#include <immintrin.h>
-#include <iostream>
 #include <limits>
 
 namespace search {
@@ -97,7 +94,7 @@ u64 GameTree::tree_usage() const {
 // };
 
 [[clang::noinline]] NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
-    const auto VECTOR_SIZE = util::NATIVE_SIZE<f32>;
+    const auto VECTOR_SIZE = 16;
     const auto first_child = parent.info.first_child_idx;
     const auto num_children = parent.info.num_children;
     const f64 u_scale = exploration_constant * std::sqrt(parent.num_visits);
@@ -136,7 +133,7 @@ u64 GameTree::tree_usage() const {
 
         const auto q = util::select_vector32<f32, VECTOR_SIZE>(parent_q_vector, 1.0 - child_q, visits != 0);
 
-        const auto puct = util::fmadd_ps(u_base, u_scale_vector, q);
+        const auto puct = u_base * u_scale_vector + q;
 
         return puct;
     };
