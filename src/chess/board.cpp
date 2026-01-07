@@ -201,7 +201,8 @@ void Board::make_move(Move move) {
 
         if (move.to() == state().castle_rights.kingside_rook(~state().side_to_move)) {
             state().castle_rights.clear_kingside_availability(~state().side_to_move);
-        } else if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
+        }
+        if (move.to() == state().castle_rights.queenside_rook(~state().side_to_move)) {
             state().castle_rights.clear_queenside_availability(~state().side_to_move);
         }
 
