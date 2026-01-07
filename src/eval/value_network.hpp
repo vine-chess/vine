@@ -11,7 +11,7 @@ namespace network::value {
 constexpr i16 QA = 255;
 constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 3072;
-constexpr usize L2_SIZE = 16;
+constexpr usize L2_SIZE = 32;
 constexpr usize L3_SIZE = 128;
 constexpr usize VECTOR_SIZE = util::NATIVE_SIZE<i16>;
 constexpr usize L2_REG_SIZE = std::min(util::NATIVE_SIZE<f32>, L2_SIZE);
