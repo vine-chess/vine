@@ -80,17 +80,21 @@ f64 evaluate(const BoardState &state) {
         }
     }
 
-    std::array<f32, L2_SIZE> l2;
+    std::array<f32, L2_SIZE * 2> l2;
     for (usize i = 0; i < L2_SIZE; ++i) {
         l2[i] = l2_int[i] * dequantisation_constant + network->l1_biases[i];
     }
 
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
-        auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        v = util::clamp_scalar<f32, L2_REG_SIZE>(v, 0, 1);
-        v *= v;
-        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
+        auto v1 = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
+        auto v2 = v1;
+        v1 = util::clamp_scalar<f32, L2_REG_SIZE>(v1, 0, 1);
+        v1 *= v1;
+        v2 *= v2;
+        v2 = util::clamp_scalar<f32, L2_REG_SIZE>(v2, 0, 1);
+        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v1);
+        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i + L2_SIZE, v2);
     }
 
     std::array<f32, L3_SIZE> l3{};
@@ -98,7 +102,7 @@ f64 evaluate(const BoardState &state) {
         auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
 
         // Matrix multiply l2 -> l3
-        for (usize j = 0; j < L2_SIZE; ++j) {
+        for (usize j = 0; j < L2_SIZE * 2; ++j) {
             const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
             const auto w = network->l2_weights_vec[j][i];
             v = util::fmadd_ps(l2_val, w, v);
