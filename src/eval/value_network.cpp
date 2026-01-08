@@ -65,8 +65,8 @@ f64 evaluate(const BoardState &state) {
         right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
 
         // Widen so pairwise doesnt overflow the i16s, using u16s here is neutral
-        const auto left_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(left);
-        const auto right_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(right);
+        const auto left_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(left);
+        const auto right_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(right);
 
         // Pairwise multiply the clamped values
         const auto activated = left_widened * right_widened;
@@ -105,7 +105,7 @@ f64 evaluate(const BoardState &state) {
         for (usize j = 0; j < L2_SIZE * 2; ++j) {
             const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
             const auto w = network->l2_weights_vec[j][i];
-            v = util::fmadd_ps(l2_val, w, v);
+            v = util::fma<f32, L3_REG_SIZE>(l2_val, w, v);
         }
 
         // Activate l3
@@ -115,7 +115,7 @@ f64 evaluate(const BoardState &state) {
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
         util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i,
-                                       util::fmadd_ps(v, network->l3_weights_vec[i], l3_val));
+                                       util::fma<f32, L3_REG_SIZE>(v, network->l3_weights_vec[i], l3_val));
     }
 
     f32 final_sum = network->l3_biases[0];
