@@ -1,7 +1,6 @@
 #ifndef CASTLE_RIGHTS_HPP
 #define CASTLE_RIGHTS_HPP
 
-#include "../util/multi_array.hpp"
 #include "../util/types.hpp"
 
 constexpr i32 KINGSIDE = 0;
@@ -23,6 +22,8 @@ class CastleRights {
     [[nodiscard]] Square kingside_king_dest(Color color) const;
     [[nodiscard]] Square queenside_king_dest(Color color) const;
 
+    void clear_kingside_availability(Color color);
+    void clear_queenside_availability(Color color);
     void set_kingside_rook_file(Color color, File file);
     void set_queenside_rook_file(Color color, File file);
 
@@ -30,11 +31,7 @@ class CastleRights {
     [[nodiscard]] u8 to_monty_mask() const;
 
   private:
-    util::MultiArray<File, 2, 2> rook_files_ = []() {
-        util::MultiArray<File, 2, 2> res;
-        res.fill(File::NO_FILE);
-        return res;
-    }();
+    u16 raw_ = 0;
 };
 
 #endif // CASTLE_RIGHTS_HPP
