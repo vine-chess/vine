@@ -93,7 +93,7 @@ u64 GameTree::tree_usage() const {
 //     return std::fma(u_base, u_scale, q_value);
 // };
 
-[[clang::noinline]] NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
+NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
     const auto VECTOR_SIZE = 16;
     const auto first_child = parent.info.first_child_idx;
     const auto num_children = parent.info.num_children;
