@@ -2,11 +2,13 @@
 #define SIMD_HPP
 
 #include "types.hpp"
+#include <cmath>
 #include <cstring>
 
 namespace util {
 
 #if __x86_64__
+#include <immintrin.h>
 #if defined(__AVX512F__)
 constexpr auto NATIVE_VECTOR_BYTES = 64;
 #elif defined(__AVX2__)
@@ -18,6 +20,7 @@ constexpr auto NATIVE_VECTOR_BYTES = 0;
 #endif
 #elif defined(__arm__) || defined(__aarch64__)
 #if defined(__ARM_NEON)
+#include <arm_neon.h>
 constexpr auto NATIVE_VECTOR_BYTES = 16;
 #else
 constexpr auto NATIVE_VECTOR_BYTES = 0;
@@ -114,72 +117,43 @@ inline T reduce_vector(SimdVector<T, N> v) {
     return res;
 }
 
-#ifdef __x86_64__
+template <class T, usize N>
+inline SimdVector<T, N> fma(SimdVector<T, N> a, SimdVector<T, N> b, SimdVector<T, N> c) {
+    for (usize i = 0; i < N; ++i)
+        a[i] = std::fma(a[i], b[i], c[i]);
+    return a;
 }
-#include <immintrin.h>
-namespace util {
+
+#ifdef __x86_64__
 #if defined(__AVX512F__)
 inline SimdVector<i32, 16> madd_epi16(SimdVector<i16, 32> a, SimdVector<i16, 32> b) {
     return _mm512_madd_epi16(a, b);
-}
-inline SimdVector<f32, 16> fmadd_ps(SimdVector<f32, 16> a, SimdVector<f32, 16> b, SimdVector<f32, 16> c) {
-    return _mm512_fmadd_ps(a, b, c);
-}
-inline f32 reduce_ps(SimdVector<f32, 16> v) {
-    return _mm512_reduce_add_ps(v);
 }
 #endif
 #if defined(__AVX2__)
 inline SimdVector<i32, 8> madd_epi16(SimdVector<i16, 16> a, SimdVector<i16, 16> b) {
     return _mm256_madd_epi16(a, b);
 }
-inline SimdVector<f32, 8> fmadd_ps(SimdVector<f32, 8> a, SimdVector<f32, 8> b, SimdVector<f32, 8> c) {
-    return _mm256_fmadd_ps(a, b, c);
-}
-inline f32 reduce_ps(SimdVector<f32, 8> v) {
-    __m128 hi = _mm256_extractf128_ps(v, 1);
-    __m128 sum = _mm_add_ps(_mm256_castps256_ps128(v), hi);
-    __m128 shuf1 = _mm_castpd_ps(_mm_shuffle_pd(_mm_castps_pd(sum), _mm_castps_pd(sum), 1));
-    sum = _mm_add_ps(sum, shuf1);
-    __m128 shuf2 = _mm_movehdup_ps(sum);
-    sum = _mm_add_ss(sum, shuf2);
-    return _mm_cvtss_f32(sum);
-}
 #endif
 #if defined(__SSE__)
 inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
     return _mm_madd_epi16(a, b);
-}
-inline SimdVector<f32, 4> fmadd_ps(SimdVector<f32, 4> a, SimdVector<f32, 4> b, SimdVector<f32, 4> c) {
-    return _mm_fmadd_ps(a, b, c);
-}
-inline f32 reduce_ps(SimdVector<f32, 4> v) {
-    __m128 shuf1 = _mm_castpd_ps(_mm_shuffle_pd(_mm_castps_pd(v), _mm_castps_pd(v), 1));
-    __m128 sum = _mm_add_ps(v, shuf1);
-    __m128 shuf2 = _mm_movehdup_ps(sum);
-    sum = _mm_add_ss(sum, shuf2);
-    return _mm_cvtss_f32(sum);
 }
 #endif
 
 #endif
 
 #if defined(__arm__) || defined(__aarch64__)
+
 #if defined(__ARM_NEON)
-#include <arm_neon.h>
-
-inline SimdVector<f32, 4> fmadd_ps(SimdVector<f32, 4> a, SimdVector<f32, 4> b, SimdVector<f32, 4> c) {
-    return vfmaq_f32(c, b, a); // thanks to @kelseyde for helping me debug this, was the wrong order
-}
-
 inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b) {
     int32x4_t mul_low = vmull_s16(vget_low_s16(a), vget_low_s16(b));
     int32x4_t mul_high = vmull_s16(vget_high_s16(a), vget_high_s16(b));
 
     return vaddq_s32(mul_low, mul_high);
 }
-
 #endif
+
 #endif
 
 } // namespace util
