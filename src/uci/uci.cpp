@@ -70,7 +70,7 @@ void Handler::handle_setoption(std::ostream &out, const std::vector<std::string_
 
 void Handler::handle_go(std::ostream &out, const std::vector<std::string_view> &parts) {
     search::TimeSettings time_settings{};
-    time_settings.min_kld_gain = std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
+    time_settings.min_kld_gain = std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) * 1e-8;
     for (i32 i = 1; i < parts.size(); ++i) {
         if (parts[i] == "wtime") {
             time_settings.time_left_per_side[Color::WHITE] = *util::parse_number<i64>(parts[i + 1].data());
