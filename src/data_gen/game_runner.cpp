@@ -11,9 +11,9 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <syncstream>
 #include <type_traits>
 #include <unordered_set>
-#include <syncstream>
 
 namespace datagen {
 
@@ -155,8 +155,7 @@ void run_games(Settings settings, std::ostream &out) {
 
             f64 avg_iters_per_position =
                 (current_positions > last_positions)
-                    ? f64(current_iterations - last_iterations) /
-                          f64(current_positions - last_positions)
+                    ? f64(current_iterations - last_iterations) / f64(current_positions - last_positions)
                     : 0.0;
 
             f64 remaining_games = total_games > current_games ? total_games - current_games : 0;
@@ -168,16 +167,20 @@ void run_games(Settings settings, std::ostream &out) {
             usize eta_rem_sec = static_cast<usize>(eta_sec) % 60;
 
             if (printed) {
-                // Clear previous lines (5 lines)
-                out << "\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K";
+                // Clear previous lines
+                out << "\033[F\033[K"
+                       "\033[F\033[K"
+                       "\033[F\033[K"
+                       "\033[F\033[K"
+                       "\033[F\033[K"
+                       "\033[F\033[K";
             }
 
             out << "progress update:\n";
             out << "  games played      : " << current_games << " / " << total_games << '\n';
             out << "  positions written : " << current_positions << '\n';
             out << "  throughput        : " << games_per_sec << " games/s, " << positions_per_sec << " pos/s\n";
-            out << "  avg iters/pos     : "
-                << avg_iters_per_position << '\n';
+            out << "  avg iters/pos     : " << avg_iters_per_position << '\n';
             out << "  eta               : " << eta_hour << "h " << eta_rem_min << "m " << eta_rem_sec << "s\n";
 
             last_games = current_games;
