@@ -142,7 +142,7 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     settings.hash_size = 16;
     settings.time_settings = search::TimeSettings{};
     settings.time_settings.min_kld_gain =
-        std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;
+        std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) * 1e-8;
     settings.output_file = "output.bin";
 
     if (parts.size() < 2 || parts[1] != "value" && parts[1] != "policy") {
