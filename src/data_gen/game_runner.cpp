@@ -24,6 +24,7 @@ void signal_handler([[maybe_unused]] i32 signum) {
 
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
+std::atomic_size_t iterations_performed = 0;
 
 template <bool value = true>
 void thread_loop(const Settings &settings, std::ostream &out_file, std::span<const std::string> opening_fens) {
@@ -109,6 +110,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
             board.make_move(best_child.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
+            iterations_performed.fetch_add(searcher.iterations(), std::memory_order_relaxed);
 
             if (board.is_draw()) {
                 game_result = 0.5;
@@ -132,6 +134,7 @@ void run_games(Settings settings, std::ostream &out) {
     std::thread monitor([&out, &settings]() {
         usize last_games = 0;
         usize last_positions = 0;
+        usize last_iterations = 0;
         auto last_time = std::chrono::steady_clock::now();
         bool printed = false;
 
@@ -143,10 +146,18 @@ void run_games(Settings settings, std::ostream &out) {
 
             usize current_games = games_played.load();
             usize current_positions = positions_written.load();
+            usize current_iterations = iterations_performed.load();
 
             usize total_games = settings.num_games;
             f64 games_per_sec = (current_games - last_games) / elapsed_sec;
             f64 positions_per_sec = (current_positions - last_positions) / elapsed_sec;
+            f64 iterations_per_sec = (current_iterations - last_iterations) / elapsed_sec;
+
+            f64 avg_iters_per_position =
+                (current_positions > last_positions)
+                    ? f64(current_iterations - last_iterations) /
+                          f64(current_positions - last_positions)
+                    : 0.0;
 
             f64 remaining_games = total_games > current_games ? total_games - current_games : 0;
             f64 eta_sec = games_per_sec > 0.0 ? remaining_games / games_per_sec : 0.0;
@@ -165,11 +176,14 @@ void run_games(Settings settings, std::ostream &out) {
             out << "  games played      : " << current_games << " / " << total_games << '\n';
             out << "  positions written : " << current_positions << '\n';
             out << "  throughput        : " << games_per_sec << " games/s, " << positions_per_sec << " pos/s\n";
+            out << "  avg iters/pos     : "
+                << avg_iters_per_position << '\n';
             out << "  eta               : " << eta_hour << "h " << eta_rem_min << "m " << eta_rem_sec << "s\n";
 
             last_games = current_games;
             last_positions = current_positions;
             last_time = current_time;
+            last_iterations = current_iterations;
 
             if (stop_flag.load()) {
                 break;
