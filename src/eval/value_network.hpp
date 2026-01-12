@@ -13,6 +13,7 @@ constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 3072;
 constexpr usize L2_SIZE = 16;
 constexpr usize L3_SIZE = 128;
+constexpr usize OUTPUTS = 3;
 constexpr usize VECTOR_SIZE = util::NATIVE_SIZE<i16>;
 constexpr usize L2_REG_SIZE = std::min(util::NATIVE_SIZE<i16>, L2_SIZE);
 constexpr usize L3_REG_SIZE = std::min(util::NATIVE_SIZE<f32>, L3_SIZE);
@@ -41,14 +42,12 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     };
     util::MultiArray<f32, L3_SIZE> l2_biases;
 
-    union {
-        util::MultiArray<util::SimdVector<f32, L3_REG_SIZE>, L3_SIZE / L3_REG_SIZE> l3_weights_vec;
-        util::MultiArray<f32, L3_SIZE> l3_weights;
-    };
-    util::MultiArray<f32, 1> l3_biases;
+    util::MultiArray<f32, L3_SIZE, OUTPUTS> l3_weights;
+    util::MultiArray<f32, OUTPUTS> l3_biases;
 };
 
 f64 evaluate(const BoardState &state);
+
 
 } // namespace network::value
 
