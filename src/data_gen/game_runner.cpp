@@ -2,6 +2,7 @@
 #include "../chess/move_gen.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/math.hpp"
+#include "../util/random.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
@@ -13,9 +14,9 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <syncstream>
 #include <type_traits>
 #include <unordered_set>
-#include <syncstream>
 
 namespace datagen {
 
@@ -45,6 +46,7 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
 
         f64 game_result;
         u16 white_win_plies = 0, white_loss_plies = 0, draw_plies = 0;
+        const bool white_gets_temp = rng::next_u64() & 1;
         while (true) {
             searcher.go(board, settings.time_settings);
 
@@ -55,15 +57,20 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
                 break;
             }
 
-            // std::cout << board.state().to_fen() << " "; 
-            search::NodeIndex best_child_idx = pick_node_temperature(game_tree, 0.4, false, 100, 0.5);
-            // std::cout << '\n';
-            // for (usize j = 0; j < root_node.num_children; j++) {
-            //     const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-            //     if (child.q() < game_tree.node_at(best_child_idx).q()) {
-            //         best_child_idx = root_node.first_child_idx + j;
-            //     }
-            // }
+            // std::cout << board.state().to_fen() << " ";
+            const auto temperature = std::min(1.0, 16 / std::pow(board.history().size(), 1.5));
+            search::NodeIndex best_child_idx = root_node.first_child_idx;
+
+            if (white_gets_temp == (board.state().side_to_move == Color::WHITE)) {
+                best_child_idx = pick_node_temperature(game_tree, 1.0, false, 30, 0.25);
+            } else {
+                for (usize j = 0; j < root_node.num_children; j++) {
+                    const auto &child = game_tree.node_at(root_node.first_child_idx + j);
+                    if (child.q() < game_tree.node_at(best_child_idx).q()) {
+                        best_child_idx = root_node.first_child_idx + j;
+                    }
+                }
+            }
 
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
