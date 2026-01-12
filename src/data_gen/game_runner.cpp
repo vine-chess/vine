@@ -5,6 +5,8 @@
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
+#include "openings.hpp"
+
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
@@ -53,13 +55,15 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
                 break;
             }
 
-            search::NodeIndex best_child_idx = root_node.first_child_idx;
-            for (usize j = 0; j < root_node.num_children; j++) {
-                const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                    best_child_idx = root_node.first_child_idx + j;
-                }
-            }
+            // std::cout << board.state().to_fen() << " "; 
+            search::NodeIndex best_child_idx = pick_node_temperature(game_tree, 0.4, false, 100, 0.5);
+            // std::cout << '\n';
+            // for (usize j = 0; j < root_node.num_children; j++) {
+            //     const auto &child = game_tree.node_at(root_node.first_child_idx + j);
+            //     if (child.q() < game_tree.node_at(best_child_idx).q()) {
+            //         best_child_idx = root_node.first_child_idx + j;
+            //     }
+            // }
 
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());

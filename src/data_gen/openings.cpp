@@ -4,22 +4,45 @@
 #include "../search/searcher.hpp"
 #include "../util/math.hpp"
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string_view>
 
 namespace datagen {
 
 // https://github.com/official-monty/Monty/blob/0ae41b52509a04519e3cc0d8837323efa56803e7/src/tree.rs#L400-L437
-Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
+search::NodeIndex pick_node_temperature(search::GameTree const &tree, f64 temperature, bool downsample_captures,
+                           std::optional<i32> score_limit, std::optional<f64> visits_limit) {
     const auto root = tree.root();
 
     std::vector<f64> distr(root.num_children, 0.0);
+    std::vector<i32> scores(root.num_children, 0);
 
-    f64 total = 0;
+    i32 highest_score = std::numeric_limits<i32>::min();
+    u32 highest_visits = 0;
     for (usize i = 0; i < root.num_children; ++i) {
         const auto child = tree.node_at(root.first_child_idx + i);
+        const auto score = -util::math::inverse_sigmoid(child.q()) * network::value::EVAL_SCALE;
+        scores[i] = score;
+        if (score > highest_score) {
+            highest_score = score;
+            highest_visits = child.num_visits;
+        }
+    }
+
+    f64 total = 0;
+
+    for (usize i = 0; i < root.num_children; ++i) {
+        const auto child = tree.node_at(root.first_child_idx + i);
+        if (score_limit.has_value() && scores[i] + *score_limit < highest_score) {
+            continue;
+        }
+        if (visits_limit.has_value() && child.num_visits < highest_visits * *visits_limit) {
+            continue;
+        }
+        // std::cout << child.move.to_string() << ' ';
         distr[i] = std::pow<f64>(child.num_visits, 1.0 / temperature);
-        if (child.move.is_capture()) {
+        if (downsample_captures && child.move.is_capture()) {
             distr[i] /= 8;
         }
         total += distr[i];
@@ -32,10 +55,10 @@ Move pick_move_temperature(search::GameTree const &tree, f64 temperature) {
         sum += distr[i];
 
         if (sum / total > random_choice) {
-            return child.move;
+            return root.first_child_idx + i;
         }
     }
-    return tree.node_at(root.first_child_idx + root.num_children - 1).move;
+    return root.first_child_idx + root.num_children - 1;
 }
 
 BoardState generate_opening(std::span<const std::string> opening_fens, const usize random_moves,
@@ -63,7 +86,8 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
 
             temperature *= gamma;
-            board.make_move(pick_move_temperature(searcher.game_tree(), temperature));
+            const auto picked_node_idx = pick_node_temperature(searcher.game_tree(), temperature, true);
+            board.make_move(searcher.game_tree().node_at(picked_node_idx).move);
         }
 
         const auto is_opening_valid = [&]() {
