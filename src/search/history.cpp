@@ -9,9 +9,8 @@ namespace search {
     return bonus - score * std::abs(bonus) / 8192;
 }
 
-void History::Entry::update(f64 score) {
-    score = std::clamp(score, 0.001, 0.999);
-    value += scale_bonus(value, static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(score)));
+void History::Entry::update(i32 cp_score) {
+    value += scale_bonus(value, cp_score);
 }
 
 void History::clear() {

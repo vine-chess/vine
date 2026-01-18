@@ -21,12 +21,12 @@ class HashTable {
 
     void clear();
 
-    [[nodiscard]] const HashEntry *probe(const HashKey &hash_key) const;
+    [[nodiscard]] const HashEntry *probe(HashKey hash_key) const;
 
-    void update(const HashKey &hash_key, f64 q, u16 num_visits);
+    void update(HashKey hash_key, f64 q, u16 num_visits);
 
   private:
-    [[nodiscard]] usize index(const HashKey &hash_key) const;
+    [[nodiscard]] usize index(HashKey hash_key) const;
 
     std::vector<HashEntry> table_;
 };

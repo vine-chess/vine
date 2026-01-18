@@ -130,6 +130,49 @@ Bitboard BoardState::threats_by(Color color) const {
     return threats;
 }
 
+Bitboard BoardState::pinned_threats_by(Color color) const {
+    const auto our_king = king(color).lsb();
+    const auto ortho = rooks(~color) | queens(~color);
+    const auto diag = bishops(~color) | queens(~color);
+
+    Bitboard pinned = 0;
+    const auto occ = occupancy();
+    for (auto potential_pinner : (BISHOP_RAYS[our_king] & diag) | (ROOK_RAYS[our_king] & ortho)) {
+        const auto ray = RAY_BETWEEN[our_king][potential_pinner];
+        const auto blockers = occ & ray;
+        pinned |= blockers.pop_count() == 1 ? ray | potential_pinner.to_bb() : 0;
+    }
+
+    Bitboard threats = KING_MOVES[king(color).lsb()];
+
+    for (const auto sq : pawns(color)) {
+        auto cur_threats = PAWN_ATTACKS[sq][color];
+        if (pinned.is_set(sq)) {
+            cur_threats &= RAY_BETWEEN[our_king][sq];
+        }
+        threats |= cur_threats;
+    }
+    for (const auto sq : knights(color) & ~pinned) {
+        threats |= KNIGHT_MOVES[sq];
+    }
+    for (const auto sq : bishops(color) | queens(color)) {
+        auto cur_threats = get_bishop_attacks(sq, occ);
+        if (pinned.is_set(sq)) {
+            cur_threats &= RAY_BETWEEN[our_king][sq];
+        }
+        threats |= cur_threats;
+    }
+    for (const auto sq : rooks(color) | queens(color)) {
+        auto cur_threats = get_rook_attacks(sq, occ);
+        if (pinned.is_set(sq)) {
+            cur_threats &= RAY_BETWEEN[our_king][sq];
+        }
+        threats |= cur_threats;
+    }
+
+    return threats;
+}
+
 std::string BoardState::to_fen() const {
     std::string res;
 
