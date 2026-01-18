@@ -27,6 +27,7 @@ TUNABLE(CPUCT_VISIT_SCALE_DIVISOR, 8192, 2048, 16384);
 TUNABLE(GINI_BASE, 0.5f, 0.0f, 1.5f);
 TUNABLE(GINI_MULTIPLIER, 1.5f, 0.5f, 3.0f);
 TUNABLE(GINI_MAXIMUM, 2.25f, 1.25f, 3.25f);
+TUNABLE(POLICY_HISTORY_DIVISOR, 16384, 8192, 32768);
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -186,7 +187,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (Node &child : get_children(node)) {
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        const auto history_score =
+            history_.entry(board_.state(), child.move).value / static_cast<f32>(POLICY_HISTORY_DIVISOR);
         child.policy_score =
             (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
