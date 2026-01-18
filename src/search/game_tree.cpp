@@ -17,7 +17,7 @@ namespace search {
 #ifdef DATAGEN
 TUNABLE(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f);
 #else
-TUNABLE(ROOT_SOFTMAX_TEMPERATURE, 1.3f, 0.5f, 3.0f);
+TUNABLE(ROOT_SOFTMAX_TEMPERATURE, 2.0f, 0.5f, 3.0f);
 #endif
 TUNABLE(SOFTMAX_TEMPERATURE, 1.0f, 1.0f, 3.0f);
 TUNABLE(ROOT_EXPLORATION_CONSTANT, 1.3f, 0.5f, 2.5f);
@@ -147,7 +147,7 @@ NodeIndex GameTree::select_and_expand_node() {
         const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
-            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
+            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
@@ -188,7 +188,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     for (Node &child : get_children(node)) {
         // Compute policy output for this move
         const auto history_score =
-            history_.entry(board_.state(), child.move).value / static_cast<f32>(POLICY_HISTORY_DIVISOR);
+            history_.entry(board_.state(), child.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
         child.policy_score =
             (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
