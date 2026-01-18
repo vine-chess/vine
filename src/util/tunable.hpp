@@ -64,6 +64,8 @@ class Tunable {
 
 #define TUNABLE(name, value, min, max)                                                                                 \
     inline util::Tunable<decltype(value)> name(#name, value, min, max, (max - min) / 20)
+#define TUNABLE(name, value, min, max, step)                                                                                 \
+    inline util::Tunable<decltype(value)> name(#name, value, min, max, step)
 
 #else
 #define TUNABLE(name, value, min, max, disabled) static constexpr auto name = value
