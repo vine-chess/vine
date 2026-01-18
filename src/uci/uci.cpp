@@ -39,17 +39,6 @@ Handler::Handler() {
     }));
     options.add(std::make_unique<BoolOption>("UCI_Chess960", false));
 
-    for (const auto &int_tuneable : util::Tunable<i32>::tunables) {
-        options.add(std::make_unique<IntegerOption>(
-            int_tuneable->name(), int_tuneable->value(), int_tuneable->min(), int_tuneable->max(),
-            [&](const Option &option) { int_tuneable->set_value(std::get<i32>(option.value_as_variant())); }));
-    }
-    for (const auto &float_tuneable : util::Tunable<f32>::tunables) {
-        options.add(std::make_unique<FloatOption>(
-            float_tuneable->name(), float_tuneable->value(), float_tuneable->min(), float_tuneable->max(),
-            [&](const Option &option) { float_tuneable->set_value(std::get<f32>(option.value_as_variant())); }));
-    }
-
     board_ = Board(STARTPOS_FEN);
 }
 
@@ -190,6 +179,19 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     }
 
     datagen::run_games(settings, out);
+}
+
+void Handler::initialize_tunables() {
+    for (const auto &int_tuneable : util::Tunable<i32>::tunables) {
+        options.add(std::make_unique<IntegerOption>(
+            int_tuneable->name(), int_tuneable->value(), int_tuneable->min(), int_tuneable->max(),
+            [&](const Option &option) { int_tuneable->set_value(std::get<i32>(option.value_as_variant())); }));
+    }
+    for (const auto &float_tuneable : util::Tunable<f32>::tunables) {
+        options.add(std::make_unique<FloatOption>(
+            float_tuneable->name(), float_tuneable->value(), float_tuneable->min(), float_tuneable->max(),
+            [&](const Option &option) { float_tuneable->set_value(std::get<f32>(option.value_as_variant())); }));
+    }
 }
 
 void Handler::process_input(std::istream &in, std::ostream &out) {
