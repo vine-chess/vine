@@ -45,7 +45,7 @@ Handler::Handler() {
             [&](const Option &option) { int_tuneable->set_value(std::get<i32>(option.value_as_variant())); }));
     }
     for (const auto &float_tuneable : util::Tunable<f32>::tunables) {
-        options.add(std::make_unique<IntegerOption>(
+        options.add(std::make_unique<FloatOption>(
             float_tuneable->name(), float_tuneable->value(), float_tuneable->min(), float_tuneable->max(),
             [&](const Option &option) { float_tuneable->set_value(std::get<f32>(option.value_as_variant())); }));
     }

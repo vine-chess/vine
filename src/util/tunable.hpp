@@ -2,6 +2,7 @@
 #define TUNEABLE_HPP
 
 #include "types.hpp"
+#include <iostream>
 #include <string_view>
 #include <vector>
 
@@ -54,14 +55,15 @@ class Tunable {
         return max_;
     }
 
-    static std::vector<Tunable *> tunables;
+    inline static std::vector<Tunable<T> *> tunables{};
 
   private:
     std::string_view name_;
     T value_, min_, max_;
 };
 
-#define TUNABLE(name, value, min, max) inline util::Tunable<decltype(value)> name(#name, value, min, max, (max - min) / 20)
+#define TUNABLE(name, value, min, max)                                                                                 \
+    inline util::Tunable<decltype(value)> name(#name, value, min, max, (max - min) / 20)
 
 #else
 #define TUNABLE(name, value, min, max, disabled) static constexpr auto name = value

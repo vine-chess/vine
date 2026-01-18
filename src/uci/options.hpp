@@ -17,7 +17,7 @@ class Option {
 
     virtual void set_value(std::string_view str_value) = 0;
     [[nodiscard]] virtual std::string value() const = 0;
-    [[nodiscard]] virtual std::variant<i32, bool, std::string> value_as_variant() const = 0;
+    [[nodiscard]] virtual std::variant<i32, bool, std::string, f32> value_as_variant() const = 0;
     [[nodiscard]] virtual std::string_view type() const = 0;
     [[nodiscard]] std::string name() const;
 
@@ -36,7 +36,7 @@ class IntegerOption : public Option {
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
-    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string, f32> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
@@ -45,13 +45,29 @@ class IntegerOption : public Option {
     i32 value_, min_, max_;
 };
 
+class FloatOption : public Option {
+  public:
+    FloatOption(std::string_view name, f32 value, f32 min, f32 max,
+                  std::function<void(const Option &)> callback = nullptr);
+
+    void set_value(std::string_view str_value) override;
+    [[nodiscard]] std::string value() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string, f32> value_as_variant() const override;
+    [[nodiscard]] std::string_view type() const override;
+
+    void print(std::ostream &os) const override;
+
+  private:
+    f32 value_, min_, max_;
+};
+
 class BoolOption : public Option {
   public:
     BoolOption(std::string_view name, bool value, std::function<void(const Option &)> callback = nullptr);
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
-    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string, f32> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
@@ -66,7 +82,7 @@ class StringOption : public Option {
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;
-    [[nodiscard]] std::variant<i32, bool, std::string> value_as_variant() const override;
+    [[nodiscard]] std::variant<i32, bool, std::string, f32> value_as_variant() const override;
     [[nodiscard]] std::string_view type() const override;
 
     void print(std::ostream &os) const override;
