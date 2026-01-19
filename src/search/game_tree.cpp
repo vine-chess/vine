@@ -17,17 +17,21 @@ namespace search {
 #ifdef DATAGEN
 TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f, 0.1f);
 #else
-TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 2.0f, 0.5f, 3.0f, 0.1f);
+TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 2.004305643645118f, 0.5f, 3.0f, 0.1f);
 #endif
-TUNABLE_STEP(SOFTMAX_TEMPERATURE, 1.0f, 1.0f, 3.0f, 0.08);
-TUNABLE_STEP(ROOT_EXPLORATION_CONSTANT, 1.3f, 0.5f, 2.5f, 0.05f);
-TUNABLE_STEP(EXPLORATION_CONSTANT, 1.0f, 0.5f, 2.5f, 0.05f);
-TUNABLE_STEP(CPUCT_VISIT_SCALE, 8192, 2048, 16384, 256);
-TUNABLE_STEP(CPUCT_VISIT_SCALE_DIVISOR, 8192, 2048, 16384, 256);
-TUNABLE_STEP(GINI_BASE, 0.5f, 0.0f, 1.5f, 0.05f);
-TUNABLE_STEP(GINI_MULTIPLIER, 1.5f, 0.5f, 3.0f, 0.1f);
-TUNABLE_STEP(GINI_MAXIMUM, 2.25f, 1.25f, 3.25f, 0.1f);
-TUNABLE_STEP(POLICY_HISTORY_DIVISOR, 16384, 8192, 32768, 1024);
+TUNABLE_STEP(SOFTMAX_TEMPERATURE, 1.2968787045725279f, 1.0f, 3.0f, 0.08);
+TUNABLE_STEP(ROOT_EXPLORATION_CONSTANT, 1.3184195047861809f, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(EXPLORATION_CONSTANT, 0.85492078866549f, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(CPUCT_VISIT_SCALE, 7956, 2048, 16384, 256);
+TUNABLE_STEP(CPUCT_VISIT_SCALE_DIVISOR, 8541, 2048, 16384, 256);
+TUNABLE_STEP(GINI_BASE, 0.3485851998722381f, 0.0f, 1.5f, 0.05f);
+TUNABLE_STEP(GINI_MULTIPLIER, 1.357116367121012f, 0.5f, 3.0f, 0.1f);
+TUNABLE_STEP(GINI_MAXIMUM, 2.2098613368567475f, 1.25f, 3.25f, 0.1f);
+TUNABLE_STEP(POLICY_HISTORY_DIVISOR, 16453, 8192, 32768, 1024);
+TUNABLE_STEP(KNIGHT_MATERIAL, 312, 100, 600, 30);
+TUNABLE_STEP(BISHOP_MATERIAL, 312, 100, 600, 30);
+TUNABLE_STEP(ROOK_MATERIAL, 512, 300, 800, 40);
+TUNABLE_STEP(QUEEN_MATERIAL, 912, 500, 1500, 50);
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -275,7 +279,8 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_bishops = board_.state().bishops().pop_count();
     const auto num_rooks = board_.state().rooks().pop_count();
     const auto num_queens = board_.state().queens().pop_count();
-    const auto sum_material = (312 * (num_knights + num_bishops) + 512 * num_rooks + 912 * num_queens);
+    const auto sum_material = KNIGHT_MATERIAL * num_knights + BISHOP_MATERIAL * num_bishops +
+                              ROOK_MATERIAL * num_rooks + QUEEN_MATERIAL * num_queens;
     const auto raw_eval = network::value::evaluate(board_.state());
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
 
