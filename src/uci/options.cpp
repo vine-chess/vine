@@ -40,7 +40,7 @@ void IntegerOption::set_value(std::string_view str_value) {
     return std::to_string(value_);
 }
 
-std::variant<i32, bool, std::string> IntegerOption::value_as_variant() const {
+std::variant<i32, bool, std::string, f32> IntegerOption::value_as_variant() const {
     return value_;
 }
 
@@ -50,6 +50,45 @@ std::variant<i32, bool, std::string> IntegerOption::value_as_variant() const {
 
 void IntegerOption::print(std::ostream &os) const {
     os << "option name " << name_ << " type spin"
+       << " default " << value() << " min " << min_ << " max " << max_;
+}
+
+FloatOption::FloatOption(std::string_view name, f32 value, f32 min, f32 max,
+                             std::function<void(const Option &)> callback)
+    : value_(value), min_(min), max_(max) {
+    name_ = name;
+    callback_ = std::move(callback);
+    if (callback_)
+        callback_(*this);
+}
+
+void FloatOption::set_value(std::string_view str_value) {
+    std::istringstream ss((std::string(str_value)));
+    f32 new_value;
+    if (ss >> new_value && new_value >= min_ && new_value <= max_) {
+        value_ = new_value;
+        if (callback_)
+            callback_(*this);
+    } else {
+        std::cerr << "FloatOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to "
+                  << max_ << ")" << std::endl;
+    }
+}
+
+[[nodiscard]] std::string FloatOption::value() const {
+    return std::to_string(value_);
+}
+
+std::variant<i32, bool, std::string, f32> FloatOption::value_as_variant() const {
+    return value_;
+}
+
+[[nodiscard]] std::string_view FloatOption::type() const {
+    return "string";
+}
+
+void FloatOption::print(std::ostream &os) const {
+    os << "option name " << name_ << " type string"
        << " default " << value() << " min " << min_ << " max " << max_;
 }
 
@@ -82,7 +121,7 @@ std::string BoolOption::value() const {
     return value_ ? "True" : "False";
 }
 
-std::variant<i32, bool, std::string> BoolOption::value_as_variant() const {
+std::variant<i32, bool, std::string, f32> BoolOption::value_as_variant() const {
     return value_;
 }
 
@@ -113,7 +152,7 @@ std::string StringOption::value() const {
     return std::string(value_);
 }
 
-std::variant<i32, bool, std::string> StringOption::value_as_variant() const {
+std::variant<i32, bool, std::string, f32> StringOption::value_as_variant() const {
     return value_;
 }
 

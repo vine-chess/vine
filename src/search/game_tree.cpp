@@ -5,7 +5,9 @@
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 
+#include "../util/tunable.hpp"
 #include "node.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -13,18 +15,23 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
+TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f, 0.1f);
 #else
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
+TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 2.010033808133197, 0.5f, 3.0f, 0.1f);
 #endif
-constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
-constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
-constexpr f32 EXPLORATION_CONSTANT = 1.0f;
-constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
-constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
-constexpr f32 GINI_BASE = 0.5;
-constexpr f32 GINI_MULTIPLIER = 1.5;
-constexpr f32 GINI_MAXIMUM = 2.25;
+TUNABLE_STEP(SOFTMAX_TEMPERATURE, 1.288386775295493, 1.0f, 3.0f, 0.08);
+TUNABLE_STEP(ROOT_EXPLORATION_CONSTANT, 1.3847280475167136, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(EXPLORATION_CONSTANT, 0.8481266142929403, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(CPUCT_VISIT_SCALE, 7827, 2048, 16384, 256);
+TUNABLE_STEP(CPUCT_VISIT_SCALE_DIVISOR, 8815, 2048, 16384, 256);
+TUNABLE_STEP(GINI_BASE, 0.4426053054270583, 0.0f, 1.5f, 0.05f);
+TUNABLE_STEP(GINI_MULTIPLIER, 1.4479240539808982, 0.5f, 3.0f, 0.1f);
+TUNABLE_STEP(GINI_MAXIMUM, 2.1158971557968873, 1.25f, 3.25f, 0.1f);
+TUNABLE_STEP(POLICY_HISTORY_DIVISOR, 16333, 8192, 32768, 1024);
+TUNABLE_STEP(KNIGHT_MATERIAL, 298, 100, 600, 30);
+TUNABLE_STEP(BISHOP_MATERIAL, 315, 100, 600, 30);
+TUNABLE_STEP(ROOK_MATERIAL, 473, 300, 800, 40);
+TUNABLE_STEP(QUEEN_MATERIAL, 863, 500, 1500, 50);
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -144,8 +151,7 @@ NodeIndex GameTree::select_and_expand_node() {
         const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             // Scale the exploration constant logarithmically with the number of visits this node has
-            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / CPUCT_VISIT_SCALE_DIVISOR);
-
+            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
             return base;
@@ -185,7 +191,8 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (Node &child : get_children(node)) {
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        const auto history_score =
+            history_.entry(board_.state(), child.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
         child.policy_score =
             (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
@@ -272,7 +279,8 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_bishops = board_.state().bishops().pop_count();
     const auto num_rooks = board_.state().rooks().pop_count();
     const auto num_queens = board_.state().queens().pop_count();
-    const auto sum_material = (312 * (num_knights + num_bishops) + 512 * num_rooks + 912 * num_queens);
+    const auto sum_material = KNIGHT_MATERIAL * num_knights + BISHOP_MATERIAL * num_bishops +
+                              ROOK_MATERIAL * num_rooks + QUEEN_MATERIAL * num_queens;
     const auto raw_eval = network::value::evaluate(board_.state());
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
 
