@@ -8,7 +8,7 @@
 
 namespace util {
 
-#define SPSA
+// #define SPSA
 
 #ifdef SPSA
 constexpr f64 LEARNING_RATE = 0.002;
@@ -68,7 +68,8 @@ class Tunable {
     inline util::Tunable<decltype(value)> name(#name, value, min, max, step)
 
 #else
-#define TUNABLE(name, value, min, max, disabled) static constexpr auto name = value
+#define TUNABLE(name, value, min, max) static constexpr auto name = value
+#define TUNABLE_STEP(name, value, min, max, step) static constexpr auto name = value
 #endif
 
 } // namespace util

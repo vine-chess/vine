@@ -182,6 +182,7 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
 }
 
 void Handler::initialize_tunables() {
+#ifdef SPSA
     for (const auto &int_tuneable : util::Tunable<i32>::tunables) {
         options.add(std::make_unique<IntegerOption>(
             int_tuneable->name(), int_tuneable->value(), int_tuneable->min(), int_tuneable->max(),
@@ -192,6 +193,7 @@ void Handler::initialize_tunables() {
             float_tuneable->name(), float_tuneable->value(), float_tuneable->min(), float_tuneable->max(),
             [&](const Option &option) { float_tuneable->set_value(std::get<f32>(option.value_as_variant())); }));
     }
+#endif
 }
 
 void Handler::process_input(std::istream &in, std::ostream &out) {
