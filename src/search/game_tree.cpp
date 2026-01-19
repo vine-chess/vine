@@ -15,16 +15,16 @@ namespace search {
 #ifdef DATAGEN
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
 #else
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0247825865979787;
 #endif
-constexpr f32 SOFTMAX_TEMPERATURE = 1.0f;
-constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.3f;
-constexpr f32 EXPLORATION_CONSTANT = 1.0f;
-constexpr f32 CPUCT_VISIT_SCALE = 8192.0f;
-constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8192.0f; // Not for tuning
-constexpr f32 GINI_BASE = 0.5;
-constexpr f32 GINI_MULTIPLIER = 1.5;
-constexpr f32 GINI_MAXIMUM = 2.25;
+constexpr f32 SOFTMAX_TEMPERATURE = 1.1775584169861428f;
+constexpr f32 ROOT_EXPLORATION_CONSTANT = 1.2917390220780878f;
+constexpr f32 EXPLORATION_CONSTANT = 0.8870465817602544;
+constexpr f32 CPUCT_VISIT_SCALE = 8225.0f;
+constexpr f32 CPUCT_VISIT_SCALE_DIVISOR = 8424.0f; // Not for tuning
+constexpr f32 GINI_BASE = 0.3471815946660576;
+constexpr f32 GINI_MULTIPLIER = 1.371793728661506;
+constexpr f32 GINI_MAXIMUM = 2.2109525086792052;
 
 GameTree::GameTree()
     : halves_({TreeHalf(TreeHalf::Index::LOWER), TreeHalf(TreeHalf::Index::UPPER)}),
@@ -185,7 +185,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     f32 highest_policy = -std::numeric_limits<f32>::max();
     for (Node &child : get_children(node)) {
         // Compute policy output for this move
-        const auto history_score = history_.entry(board_.state(), child.move).value / 16384.0;
+        const auto history_score = history_.entry(board_.state(), child.move).value / 15933.0;
         child.policy_score =
             (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
