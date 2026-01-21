@@ -4,11 +4,11 @@
 #include "types.hpp"
 #include <cmath>
 #include <cstring>
+#include <immintrin.h>
 
 namespace util {
 
 #if __x86_64__
-#include <immintrin.h>
 #if defined(__AVX512F__)
 constexpr auto NATIVE_VECTOR_BYTES = 64;
 #elif defined(__AVX2__)

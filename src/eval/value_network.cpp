@@ -1,27 +1,27 @@
 #include "value_network.hpp"
 
-#include <algorithm>
+#include "../util/static_vector.hpp"
 #include <array>
 #include <cstring>
+#include <functional>
 #include <iostream>
 
 namespace network::value {
 
 const extern ValueNetwork *const network;
 
+using FeatureReference = std::reference_wrapper<const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE>>;
+
 namespace detail {
 
-[[nodiscard]] const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
-                                                                             Color piece_color, Color perspective,
-                                                                             Square king_sq, Bitboard threats,
-                                                                             Bitboard defences) {
+[[nodiscard]] FeatureReference feature(Square sq, PieceType piece, Color piece_color, Color perspective, Square king_sq,
+                                       Bitboard threats, Bitboard defences) {
     usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network
         ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
 }
 
 } // namespace detail
-
 
 util::MultiArray<f32, L1_SIZE / 2, L2_SIZE> get_l1_f32() {
     util::MultiArray<f32, L1_SIZE / 2, L2_SIZE> result;
@@ -43,12 +43,10 @@ f64 evaluate(const BoardState &state) {
     const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
                                              state.pinned_threats_by(Color::BLACK)};
 
-    const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> *feature_list[256];
+    util::StaticVector<FeatureReference, 32> features;
     int count = 0;
 
-    auto push_feature = [&] <typename... Args>(Args&&... args) {
-        feature_list[count++] = &detail::feature(args...);
-    };
+    auto push_feature = [&]<typename... Args>(Args &&...args) { features.push_back(detail::feature(args...)); };
 
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
@@ -67,32 +65,24 @@ f64 evaluate(const BoardState &state) {
 #ifdef __AVX512F__
         32;
 #else
-            16;
+        16;
 #endif
-    constexpr int i16VecLen = util::NATIVE_SIZE<i16>;
 
-    int offset = 0;
-    const auto* ft_biases = network->ft_biases.data();
-    for (int j = 0; offset < L1_SIZE; offset += Regs * i16VecLen, j += Regs) {
+    const auto *ft_biases = network->ft_biases.data();
+    for (int j = 0, offset = 0; offset < L1_SIZE; offset += Regs * util::NATIVE_SIZE<i16>, j += Regs) {
         i16Vec tmp[Regs];
-#pragma clang unroll 32
         for (int i = 0; i < Regs; ++i) {
-            tmp[i] = util::loadu(ft_biases + offset + i * i16VecLen);
+            tmp[i] = util::loadu(ft_biases + offset + i * util::NATIVE_SIZE<i16>);
         }
-        for (int i = 0; i < count; ++i) {
-            const auto* feat = (feature_list[i])->data() + j;
-#pragma clang unroll 32
-            for (int k = 0; k < Regs; ++k) {
-                tmp[k] += feat[k];
+        for (auto feat : features) {
+            for (int i = 0; i < Regs; ++i) {
+                tmp[i] += feat.get()[i];
             }
         }
-#pragma clang unroll 32
         for (int i = 0; i < Regs; ++i) {
             accumulator[j + i] = tmp[i];
         }
     }
-
-    assert(offset == L1_SIZE);
 
     const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
     const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
@@ -137,15 +127,15 @@ f64 evaluate(const BoardState &state) {
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 #else
-    __m512 accums[4] = { _mm512_setzero_ps(), _mm512_setzero_ps(), _mm512_setzero_ps(), _mm512_setzero_ps() };
-    auto clamp = [&] (__m256i a) {
+    __m512 accums[4] = {_mm512_setzero_ps(), _mm512_setzero_ps(), _mm512_setzero_ps(), _mm512_setzero_ps()};
+    auto clamp = [&](__m256i a) {
         auto clamped = _mm256_max_epi16(_mm256_min_epi16(a, _mm256_set1_epi16(QA)), _mm256_setzero_si256());
         return _mm512_cvtepi16_epi32(clamped);
     };
     for (usize i = 0; i < L1_SIZE / 2 / L2_REG_SIZE; ++i) {
         // Load register values for pairwise
-        auto left = _mm256_loadu_si256((const __m256i*)(l1 + L2_REG_SIZE * i));
-        auto right = _mm256_loadu_si256((const __m256i*)(l1 + L2_REG_SIZE * i + L1_SIZE / 2));
+        auto left = _mm256_loadu_si256((const __m256i *)(l1 + L2_REG_SIZE * i));
+        auto right = _mm256_loadu_si256((const __m256i *)(l1 + L2_REG_SIZE * i + L1_SIZE / 2));
 
         // Clamp to [0, 1] (quantized)
         auto left_wide = clamp(left);
@@ -165,12 +155,9 @@ f64 evaluate(const BoardState &state) {
         }
     }
 
-    __m512 accum =
-        _mm512_add_ps(
-        _mm512_add_ps(accums[3], accums[2]),
-        _mm512_add_ps(accums[0], accums[1]));
+    __m512 accum = _mm512_add_ps(_mm512_add_ps(accums[3], accums[2]), _mm512_add_ps(accums[0], accums[1]));
     accum = _mm512_add_ps(_mm512_mul_ps(accum, _mm512_set1_ps(dequantisation_constant)),
-        _mm512_loadu_ps(&network->l1_biases[0]));
+                          _mm512_loadu_ps(&network->l1_biases[0]));
     accum = _mm512_max_ps(_mm512_min_ps(_mm512_set1_ps(1.0f), accum), _mm512_setzero_ps());
     accum = _mm512_mul_ps(accum, accum);
     _mm512_storeu_ps(&l2[0], accum);
