@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <immintrin.h>
 
 namespace network::value {
 
@@ -106,8 +107,7 @@ f64 evaluate(const BoardState &state) {
                 acc = util::fma<f32, L2R_REG_SIZE>(input, weight, acc);
             }
 
-            acc = util::max<f32, L2R_REG_SIZE>(acc, util::set1<f32, L2_REG_SIZE>(0));
-            acc = acc * acc;
+            acc *= util::_mm512_rsqrt14_ps(1.0f + util::_mm512_abs_ps(acc));
 
             util::storeu<f32, L2R_REG_SIZE>(lr2_out.data() + i * L2R_REG_SIZE, acc);
         }
