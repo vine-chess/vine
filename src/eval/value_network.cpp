@@ -93,6 +93,28 @@ f64 evaluate(const BoardState &state) {
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
+    // RNN BABYY
+    for (usize iter = 0; iter < RECURRENCES; ++iter) {
+        std::array<f32, L2_SIZE> lr2_out;
+
+        for (usize i = 0; i < L2_SIZE / L2R_REG_SIZE; ++i) {
+            auto acc = util::loadu<f32, L2R_REG_SIZE>(network->l2r_biases.data() + i * L2R_REG_SIZE);
+
+            for (usize j = 0; j < L2_SIZE; ++j) {
+                const auto input = util::set1<f32, L2R_REG_SIZE>(l2[j]);
+                const auto weight = network->l2r_weights_vec[j][i];
+                acc = util::fma<f32, L2R_REG_SIZE>(input, weight, acc);
+            }
+
+            acc = util::max<f32, L2R_REG_SIZE>(acc, util::set1<f32, L2_REG_SIZE>(0));
+            acc = acc * acc;
+
+            util::storeu<f32, L2R_REG_SIZE>(lr2_out.data() + i * L2R_REG_SIZE, acc);
+        }
+        for (usize i = 0; i < L2_SIZE; ++i)
+            l2[i] += lr2_out[i];
+    }
+
     std::array<f32, L3_SIZE> l3{};
     for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
