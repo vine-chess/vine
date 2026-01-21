@@ -294,7 +294,6 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_queens = board_.state().queens().pop_count();
     const auto sum_material = KNIGHT_MATERIAL * num_knights + BISHOP_MATERIAL * num_bishops +
                               ROOK_MATERIAL * num_rooks + QUEEN_MATERIAL * num_queens;
-    const auto raw_eval = network::value::evaluate(board_.state());
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
     return util::math::sigmoid(scaled);
 #endif
