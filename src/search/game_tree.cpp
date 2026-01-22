@@ -154,6 +154,10 @@ NodeIndex GameTree::select_and_expand_node() {
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
             base *=
                 std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
+            if (node.num_visits > 1) {
+                const f64 var_frac = std::sqrt(node.q_variance()) * 2.5;
+                base *= 1.0 + 0.2 * (var_frac - 1.0);
+            }
             return base;
         }();
 
@@ -327,6 +331,7 @@ void GameTree::backpropagate_score(f64 score) {
         // A node's score is the average of all of its children's score
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
+        node.sum_of_scores_squared += score * score;
         node.num_visits++;
         hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
 

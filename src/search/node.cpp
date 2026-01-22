@@ -19,4 +19,8 @@ f64 Node::q() const {
     return sum_of_scores / static_cast<f64>(num_visits);
 }
 
+f64 Node::q_variance() const {
+    return std::max(0.0, sum_of_scores_squared / static_cast<f64>(num_visits) - q() * q());
+}
+
 } // namespace search
