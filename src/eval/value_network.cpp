@@ -88,8 +88,8 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        auto clamped = util::clamp_scalar<f32, L2_REG_SIZE>((v + 3.0f) * (1.0f / 6.0f), 0, 1);
-        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v * clamped);
+        v *= util::clamp_scalar<f32, L2_REG_SIZE>((v + 3.0f) * (1.0f / 6.0f), 0, 1);
+        util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v );
     }
 
     std::array<f32, L3_SIZE> l3{};
@@ -104,8 +104,7 @@ f64 evaluate(const BoardState &state) {
         }
 
         // Activate l3
-        v = util::clamp_scalar<f32, L3_REG_SIZE>(v, 0, 1);
-        v *= v;
+        v *= util::clamp_scalar<f32, L2_REG_SIZE>((v + 3.0f) * (1.0f / 6.0f), 0, 1);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
