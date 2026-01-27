@@ -1,8 +1,9 @@
 #include "value_network.hpp"
 
-#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
+#include <immintrin.h>
 
 namespace network::value {
 
@@ -20,6 +21,21 @@ namespace detail {
 }
 
 } // namespace detail
+
+template <usize N>
+util::SimdVector<f32, N> fast_exp(util::SimdVector<f32, N> x) {
+    const auto a = util::set1<f32, N>(12102203.1616);
+    const auto b = util::set1<f32, N>(1065353216); 
+
+    const auto converted = util::convert_vector<i32, f32, N>(util::fma<f32, N>(x, a, b));
+
+    return std::bit_cast<util::SimdVector<f32, N>>(converted);
+}
+
+template <usize N>
+util::SimdVector<f32, N> sigmoid(util::SimdVector<f32, N> x) {
+    return util::_mm512_rcp14_ps(1.0f + fast_exp<N>(-x));
+}
 
 f64 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
@@ -88,7 +104,7 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        v *= util::clamp_scalar<f32, L2_REG_SIZE>((v + 3.0f) * (1.0f / 6.0f), 0, 1);
+        v *= sigmoid<L2_REG_SIZE>(v);
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
@@ -107,7 +123,7 @@ f64 evaluate(const BoardState &state) {
         }
 
         // Activate l3
-        v *= util::clamp_scalar<f32, L3_REG_SIZE>((g + 3.0f) * (1.0f / 6.0f), 0, 1);
+        v *= sigmoid<L3_REG_SIZE>(g);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
