@@ -24,8 +24,14 @@ namespace detail {
 
 template <usize N>
 util::SimdVector<f32, N> fast_exp(util::SimdVector<f32, N> x) {
+    if (true) {
+        for (int i = 0; i < N; ++i)
+            x[i] = std::exp(x[i]);
+        return x;
+    }
+
     const auto a = util::set1<f32, N>(12102203.1616);
-    const auto b = util::set1<f32, N>(1065353216); 
+    const auto b = util::set1<f32, N>(1065353216);
 
     const auto converted = util::convert_vector<i32, f32, N>(util::fma<f32, N>(x, a, b));
 
@@ -34,7 +40,7 @@ util::SimdVector<f32, N> fast_exp(util::SimdVector<f32, N> x) {
 
 template <usize N>
 util::SimdVector<f32, N> sigmoid(util::SimdVector<f32, N> x) {
-    return util::_mm512_rcp14_ps(1.0f + fast_exp<N>(-x));
+    return 1.0f / (1.0f + fast_exp<N>(-x));
 }
 
 f64 evaluate(const BoardState &state) {
