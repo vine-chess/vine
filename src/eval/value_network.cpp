@@ -25,7 +25,7 @@ namespace detail {
 template <usize N>
 util::SimdVector<f32, N> fast_exp(util::SimdVector<f32, N> x) {
     const auto a = util::set1<f32, N>(12102203.1616);
-    const auto b = util::set1<f32, N>(1065353216); 
+    const auto b = util::set1<f32, N>(1065353216);
 
     const auto converted = util::convert_vector<i32, f32, N>(util::fma<f32, N>(x, a, b));
 
@@ -104,7 +104,7 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        v *= sigmoid<L2_REG_SIZE>(v);
+        v *= util::clamp_scalar<f32, L2_REG_SIZE>(v * (1.0f / 6.0f) + 0.5f, 0, 1);
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
@@ -123,7 +123,7 @@ f64 evaluate(const BoardState &state) {
         }
 
         // Activate l3
-        v *= util::clamp_scalar<f32, L3_REG_SIZE>(g * (1.0f / 6.0f) + 0.5f, 0, 1);
+        v *= sigmoid<L3_REG_SIZE>(g);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
