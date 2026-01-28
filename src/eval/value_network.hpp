@@ -13,9 +13,11 @@ constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 1024;
 constexpr usize L2_SIZE = 16;
 constexpr usize L3_SIZE = 128;
+constexpr usize L4_SIZE = 16;
 constexpr usize VECTOR_SIZE = util::NATIVE_SIZE<i16>;
 constexpr usize L2_REG_SIZE = std::min(util::NATIVE_SIZE<i16>, L2_SIZE);
 constexpr usize L3_REG_SIZE = std::min(util::NATIVE_SIZE<f32>, L3_SIZE);
+constexpr usize L4_REG_SIZE = std::min(util::NATIVE_SIZE<f32>, L4_SIZE);
 
 constexpr i16 EVAL_SCALE = 400;
 
@@ -42,10 +44,16 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     util::MultiArray<f32, L3_SIZE * 2> l2_biases;
 
     union {
-        util::MultiArray<util::SimdVector<f32, L3_REG_SIZE>, L3_SIZE / L3_REG_SIZE> l3_weights_vec;
-        util::MultiArray<f32, L3_SIZE> l3_weights;
+        util::MultiArray<util::SimdVector<f32, L4_REG_SIZE>, L3_SIZE, L4_SIZE / L4_REG_SIZE> l3_weights_vec;
+        util::MultiArray<f32, L3_SIZE, L4_SIZE> l3_weights;
     };
-    util::MultiArray<f32, 1> l3_biases;
+    util::MultiArray<f32, L4_SIZE> l3_biases;
+
+    union {
+        util::MultiArray<util::SimdVector<f32, L4_REG_SIZE>, L4_SIZE / L4_REG_SIZE> l4_weights_vec;
+        util::MultiArray<f32, L4_SIZE> l4_weights;
+    };
+    util::MultiArray<f32, 1> l4_biases;
 };
 
 f64 evaluate(const BoardState &state);
