@@ -123,7 +123,7 @@ f64 evaluate(const BoardState &state) {
         }
 
         // Activate l3
-        v *= sigmoid<L3_REG_SIZE>(g);
+        v *= util::clamp_scalar<f32, L3_REG_SIZE>(g * (1.0f / 6.0f) + 0.5f, 0, 1);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
