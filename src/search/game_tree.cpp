@@ -16,7 +16,7 @@
 namespace search {
 
 #ifdef DATAGEN
-constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 3.5f;
+constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #else
 constexpr f32 ROOT_SOFTMAX_TEMPERATURE = 2.0f;
 #endif
@@ -296,13 +296,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_bishops = board_.state().bishops().pop_count();
     const auto num_rooks = board_.state().rooks().pop_count();
     const auto num_queens = board_.state().queens().pop_count();
-<<<<<<< HEAD
     const auto sum_material = (312 * (num_knights + num_bishops) + 512 * num_rooks + 912 * num_queens);
-=======
-    const auto sum_material = KNIGHT_MATERIAL * num_knights + BISHOP_MATERIAL * num_bishops +
-                              ROOK_MATERIAL * num_rooks + QUEEN_MATERIAL * num_queens;
-    const auto raw_eval = network::value::evaluate(board_.state());
->>>>>>> main
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
     return util::math::sigmoid(scaled);
 #endif
