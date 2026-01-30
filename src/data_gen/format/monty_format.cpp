@@ -56,7 +56,7 @@ void MontyFormatWriter::write_with_result(f64 result) {
     put_u8(rights.can_queenside_castle(Color::WHITE) ? rights.queenside_rook_file(Color::WHITE) : File::A);
     put_u8(rights.can_kingside_castle(Color::WHITE) ? rights.kingside_rook_file(Color::WHITE) : File::H);
     put_u8(rights.can_queenside_castle(Color::BLACK) ? rights.queenside_rook_file(Color::BLACK) : File::A);
-    put_u8(rights.can_kingside_castle(Color::BLACK) ? rights.kingside_rook_file(Color::BLACK) : File::A);
+    put_u8(rights.can_kingside_castle(Color::BLACK) ? rights.kingside_rook_file(Color::BLACK) : File::H);
 
     // Game outcome
     put_u8(static_cast<u8>(result * 2.0));
