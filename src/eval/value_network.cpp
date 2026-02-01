@@ -1,4 +1,5 @@
 #include "value_network.hpp"
+#include "../util/static_vector.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,13 +8,12 @@
 namespace network::value {
 
 const extern ValueNetwork *const network;
+using FeatureReference = std::reference_wrapper<const util::MultiArray<i16Vec, L1_SIZE / L1_REG_SIZE>>;
 
 namespace detail {
 
-[[nodiscard]] const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
-                                                                             Color piece_color, Color perspective,
-                                                                             Square king_sq, Bitboard threats,
-                                                                             Bitboard defences) {
+[[nodiscard]] FeatureReference feature(Square sq, PieceType piece, Color piece_color, Color perspective, Square king_sq,
+                                       Bitboard threats, Bitboard defences) {
     usize flip = 0b111000 * perspective ^ 0b000111 * (king_sq.file() >= File::E);
     return network
         ->ft_weights_vec[defences.is_set(sq)][threats.is_set(sq)][piece_color != perspective][piece - 1][sq ^ flip];
@@ -22,8 +22,7 @@ namespace detail {
 } // namespace detail
 
 f64 evaluate(const BoardState &state) {
-    std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
-    std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
+    std::array<i16Vec, L1_SIZE / L1_REG_SIZE> accumulator;
 
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
@@ -31,27 +30,47 @@ f64 evaluate(const BoardState &state) {
     const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
                                              state.pinned_threats_by(Color::BLACK)};
 
+    util::StaticVector<FeatureReference, 32> features;
+
+    auto push_feature = [&]<typename... Args>(Args &&...args) { features.push_back(detail::feature(args...)); };
+
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
-            const auto feat = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
-            }
+            push_feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
         }
 
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
-            const auto feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
+            push_feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
+        }
+    }
+
+    constexpr int Regs =
+#ifdef __AVX512F__
+        32;
+#else
+        16;
+#endif
+
+    const auto *ft_biases = network->ft_biases.data();
+    for (int j = 0, offset = 0; offset < L1_SIZE; offset += Regs * L1_REG_SIZE, j += Regs) {
+        i16Vec tmp[Regs];
+        for (int i = 0; i < Regs; ++i) {
+            tmp[i] = util::loadu<i16>(ft_biases + offset + i * L1_REG_SIZE);
+        }
+        for (auto feat : features) {
+            for (int i = 0; i < Regs; ++i) {
+                tmp[i] += feat.get()[i];
             }
+        }
+        for (int i = 0; i < Regs; ++i) {
+            accumulator[j + i] = tmp[i];
         }
     }
 
     const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
-
     const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
 
     std::array<i32, L2_SIZE> l2_int{};
