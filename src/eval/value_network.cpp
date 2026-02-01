@@ -88,8 +88,7 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        const auto scaled = util::fma<f32, L2_REG_SIZE>(v, util::set1<f32, L2_REG_SIZE>(1.0f / 6.0f),
-                                                        util::set1<f32, L2_REG_SIZE>(0.5f));
+        const auto scaled = util::fma<f32, L2_REG_SIZE>(v, network->l2a_weights_vec[i], network->l2a_bias_vec[i]);
         v *= util::clamp_scalar<f32, L2_REG_SIZE>(scaled, 0, 1);
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
