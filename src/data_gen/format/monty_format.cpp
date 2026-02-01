@@ -49,13 +49,14 @@ void MontyFormatWriter::write_with_result(f64 result) {
     // Initial starting position
     out_.write(reinterpret_cast<const char *>(&compressed_board_), sizeof(compressed_board_));
 
-    auto valid_file_or_zero = [](File f, File if_wrong) { return f == File::NO_FILE ? if_wrong : static_cast<u8>(f); };
+
+    const auto rights = initial_state_.castle_rights;
 
     // Initial rook files
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::WHITE), File::A));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::WHITE), File::H));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.queenside_rook_file(Color::BLACK), File::A));
-    put_u8(valid_file_or_zero(initial_state_.castle_rights.kingside_rook_file(Color::BLACK), File::H));
+    put_u8(rights.can_queenside_castle(Color::WHITE) ? rights.queenside_rook_file(Color::WHITE) : File::A);
+    put_u8(rights.can_kingside_castle(Color::WHITE) ? rights.kingside_rook_file(Color::WHITE) : File::H);
+    put_u8(rights.can_queenside_castle(Color::BLACK) ? rights.queenside_rook_file(Color::BLACK) : File::A);
+    put_u8(rights.can_kingside_castle(Color::BLACK) ? rights.kingside_rook_file(Color::BLACK) : File::H);
 
     // Game outcome
     put_u8(static_cast<u8>(result * 2.0));
