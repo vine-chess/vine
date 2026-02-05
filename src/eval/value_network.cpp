@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <iostream>
 
 namespace network::value {
 
@@ -61,8 +62,8 @@ f64 evaluate(const BoardState &state) {
         auto right = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i + L1_SIZE / 2);
 
         // Clamp to [0, 1] (quantized)
-        left = util::clamp_scalar<i16, L2_REG_SIZE>(left, 0, QA);
-        right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
+        left = util::clamp<i16, L2_REG_SIZE>(left, 0, QA);
+        right = util::clamp<i16, L2_REG_SIZE>(right, 0, QA);
 
         // Widen so pairwise doesnt overflow the i16s, using u16s here is neutral
         const auto left_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(left);
@@ -88,8 +89,8 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        const auto scaled = util::fma<f32, L2_REG_SIZE>(v, network->l2a_weights_vec[i], network->l2a_bias_vec[i]);
-        v *= util::clamp_scalar<f32, L2_REG_SIZE>(scaled, 0, 1);
+        const auto scaled = util::fma<f32, L2_REG_SIZE>(v, network->l2a_scale, network->l2a_bias);
+        v *= util::clamp<f32, L2_REG_SIZE>(scaled, 0, 1);
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
@@ -107,10 +108,9 @@ f64 evaluate(const BoardState &state) {
             g = util::fma<f32, L3_REG_SIZE>(l2_val, w2, g);
         }
 
-        const auto g_scaled = util::fma<f32, L3_REG_SIZE>(g, util::set1<f32, L3_REG_SIZE>(1.0f / 6.0f),
-                                                          util::set1<f32, L3_REG_SIZE>(0.5f));
+        const auto g_scaled = util::fma<f32, L3_REG_SIZE>(g, 1.0f / 6.0f, 0.5f);
         // Activate l3
-        v *= util::clamp_scalar<f32, L3_REG_SIZE>(g_scaled, 0, 1);
+        v *= util::clamp<f32, L3_REG_SIZE>(g_scaled, 0, 1);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
@@ -118,7 +118,7 @@ f64 evaluate(const BoardState &state) {
                                        util::fma<f32, L3_REG_SIZE>(v, network->l3_weights_vec[i], l3_val));
     }
 
-    f32 final_sum = network->l3_biases[0];
+    f32 final_sum = network->l3_bias;
     for (usize i = 0; i < L3_SIZE; ++i) {
         final_sum += l3[i];
     }

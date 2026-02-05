@@ -71,8 +71,13 @@ inline SimdVector<T, N> set1(T val) {
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
-inline SimdVector<T, N> clamp_scalar(SimdVector<T, N> a, T lo, T hi) {
-    return min<T, N>(set1<T, N>(hi), max<T, N>(set1<T, N>(lo), a));
+inline SimdVector<T, N> clamp(SimdVector<T, N> x, SimdVector<T, N> lo, SimdVector<T, N> hi) {
+    return min<T, N>(hi, max<T, N>(lo, x));
+}
+
+template <class T = i16, usize N = NATIVE_SIZE<T>>
+inline SimdVector<T, N> clamp(SimdVector<T, N> x, T lo, T hi) {
+    return clamp<T, N>(x, set1<T, N>(lo), set1<T, N>(hi));
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
@@ -122,6 +127,11 @@ inline SimdVector<T, N> fma(SimdVector<T, N> a, SimdVector<T, N> b, SimdVector<T
     for (usize i = 0; i < N; ++i)
         a[i] = std::fma(a[i], b[i], c[i]);
     return a;
+}
+
+template <class T, usize N>
+inline SimdVector<T, N> fma(SimdVector<T, N> a, T b, T c) {
+    return fma<T, N>(a, set1<T, N>(b), set1<T, N>(c));
 }
 
 #ifdef __x86_64__

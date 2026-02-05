@@ -105,9 +105,9 @@ PolicyContext::PolicyContext(const BoardState &state)
         }
     }
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
-        const auto first_clamped = util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i], 0, Q);
+        const auto first_clamped = util::clamp<i16, VECTOR_SIZE>(feature_accumulator_[i], 0, Q);
         const auto second_clamped =
-            util::clamp_scalar<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], 0, Q);
+            util::clamp<i16, VECTOR_SIZE>(feature_accumulator_[i + L1_SIZE / 2 / VECTOR_SIZE], 0, Q);
         activated_acc_[i] = first_clamped * second_clamped;
     }
 }
