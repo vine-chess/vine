@@ -47,9 +47,6 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
         util::MultiArray<f32, L3_SIZE> l3_weights;
     };
     f32 l3_bias;
-
-    f32 l2a_scale;
-    f32 l2a_bias;
 };
 
 f64 evaluate(const BoardState &state);
