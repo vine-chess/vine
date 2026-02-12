@@ -326,7 +326,8 @@ void GameTree::backpropagate_score(f64 score) {
 
         // A node's score is the average of all of its children's score
         auto &node = node_at(node_idx);
-        node.sum_of_scores += score;
+        const auto relaxation_factor = std::max(1.0 - static_cast<double>(node.num_visits) / 16384.0, 0.25);
+        node.sum_of_scores += score * relaxation_factor;
         node.num_visits++;
         hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
 
