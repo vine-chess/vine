@@ -78,6 +78,17 @@ constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
 
 } // namespace detail
 
+namespace cuda_detail {
+
+void export_cuda_network(CudaPolicyNetwork &dst) {
+    std::ranges::copy(network->ft_weights.flat_span(), dst.ft_weights.begin());
+    std::ranges::copy(network->ft_biases, dst.ft_biases.begin());
+    std::ranges::copy(network->l1_weights.flat_span(), dst.l1_weights.begin());
+    std::ranges::copy(network->l1_biases, dst.l1_biases.begin());
+}
+
+} // namespace cuda_detail
+
 PolicyContext::PolicyContext(const BoardState &state)
     : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {
 
@@ -130,6 +141,11 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const i32 bias = network->l1_biases[idx];
 
     return static_cast<f32>(dot + bias * Q * Q) * (1.0f / static_cast<f32>(Q * Q * Q));
+}
+
+u16 move_output_idx(const BoardState &state, Move move, PieceType moving_piece) {
+    const usize idx = detail::move_output_idx(state.side_to_move, move, moving_piece, state.king(state.side_to_move).lsb());
+    return static_cast<u16>(idx);
 }
 
 } // namespace network::policy

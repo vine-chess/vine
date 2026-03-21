@@ -7,14 +7,14 @@
 #include <string>
 
 void BoardState::place_piece(PieceType piece_type, Square sq, Color color) {
-    piece_type_on_sq[sq] = piece_type;
+    piece_type_on_sq[sq] = ColoredPiece(piece_type, color);
     piece_bbs[piece_type - 1].set(sq);
     side_bbs[color].set(sq);
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
 }
 
 void BoardState::remove_piece(PieceType piece_type, Square sq, Color color) {
-    piece_type_on_sq[sq] = PieceType::NONE;
+    piece_type_on_sq[sq] = ColoredPiece::none();
     piece_bbs[piece_type - 1].unset(sq);
     side_bbs[color].unset(sq);
     hash_key ^= zobrist::pieces[piece_type - 1][color][sq];
@@ -77,11 +77,11 @@ Bitboard BoardState::king(Color color) const {
 }
 
 PieceType BoardState::get_piece_type(Square sq) const {
-    return piece_type_on_sq[sq];
+    return piece_type_on_sq[sq].piece_type();
 }
 
 Color BoardState::get_piece_color(Square sq) const {
-    assert(piece_type_on_sq[sq] != PieceType::NONE);
+    assert(piece_type_on_sq[sq].piece_type() != PieceType::NONE);
     return side_bbs[Color::WHITE].is_set(sq) ? Color::WHITE : Color::BLACK;
 }
 

@@ -1,8 +1,7 @@
 #include "value_network.hpp"
+#include "value_network.cuh"
 
 #include <algorithm>
-#include <array>
-#include <cstring>
 
 namespace network::value {
 
@@ -20,6 +19,21 @@ namespace detail {
 }
 
 } // namespace detail
+
+namespace cuda_detail {
+
+void export_cuda_network(CudaValueNetwork &dst) {
+    std::ranges::copy(network->ft_weights.flat_span(), dst.ft_weights.begin());
+    std::ranges::copy(network->ft_biases, dst.ft_biases.begin());
+    std::ranges::copy(network->l1_weights.flat_span(), dst.l1_weights.begin());
+    std::ranges::copy(network->l1_biases, dst.l1_biases.begin());
+    std::ranges::copy(network->l2_weights.flat_span(), dst.l2_weights.begin());
+    std::ranges::copy(network->l2_biases, dst.l2_biases.begin());
+    std::ranges::copy(network->l3_weights, dst.l3_weights.begin());
+    dst.l3_bias = network->l3_biases[0];
+}
+
+} // namespace cuda_detail
 
 f64 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;

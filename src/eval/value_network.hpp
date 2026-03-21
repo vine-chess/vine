@@ -1,6 +1,8 @@
 #ifndef VALUE_NETWORK_HPP
 #define VALUE_NETWORK_HPP
 
+#include "value_network.cuh"
+
 #include "../chess/board_state.hpp"
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
@@ -49,6 +51,8 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
 };
 
 f64 evaluate(const BoardState &state);
+bool cuda_available();
+void evaluate_many(const CudaBoardInput *inputs, f32 *outputs, usize count);
 
 } // namespace network::value
 

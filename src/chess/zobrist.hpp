@@ -29,7 +29,7 @@ constexpr auto side_to_move = [] {
 
 constexpr auto pieces = [] {
     auto next_u64 = [hash = 12477279837831370886ull]() mutable { return hash = murmur3(hash); };
-    PieceTable piece_table;
+    PieceTable piece_table{};
     for (auto &table : piece_table)
         for (auto &color : table)
             for (u64 &square : color)
@@ -39,7 +39,7 @@ constexpr auto pieces = [] {
 
 constexpr auto castle_rights = [] {
     auto next_u64 = [hash = 13400036725371814030ull]() mutable { return hash = murmur3(hash); };
-    CastleRightsTable castle_rights_table;
+    CastleRightsTable castle_rights_table{};
     castle_rights_table[1] = next_u64();
     castle_rights_table[2] = next_u64();
     castle_rights_table[4] = next_u64();
@@ -64,7 +64,7 @@ constexpr auto castle_rights = [] {
 
 constexpr auto en_passant = [] {
     auto next_u64 = [hash = 2997978520062052832ull]() mutable { return hash = murmur3(hash); };
-    EnPassantTable en_passant_table;
+    EnPassantTable en_passant_table{};
     for (u64 &entry : en_passant_table)
         entry = next_u64();
     return en_passant_table;

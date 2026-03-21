@@ -1,13 +1,21 @@
 EXE = vine
-FILES = $(shell find src -name '*.cpp')
+FILES = $(shell find src -name '*.cpp' ! -name 'cuda_test.cpp')
+CUDA_TEST_FILES = src/eval/value_network.cu src/eval/policy_network.cu
 
 OBJS = $(FILES:.cpp=.o)
+TEST_EXE = cuda_test
+TEST_FILES = $(filter-out src/main.cpp,$(FILES)) src/tests/cuda_test.cpp
+TEST_OBJS = $(TEST_FILES:.cpp=.cuda_test.o)
 
 OPTIMIZE ?= -O3 -flto
 
 FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
+TEST_FLAGS = $(filter-out -flto,$(FLAGS))
+TEST_CXX = clang++
+NVCC ?= nvcc
+NVCCFLAGS = -std=c++20 -O3
 
 DOWNLOAD_NETS = no
 
@@ -59,7 +67,7 @@ ifeq ($(MAKECMDGOALS),datagen)
 	FLAGS += -DDATAGEN
 endif
 
-.PHONY: nets
+.PHONY: nets compile-commands clean
 nets:
 ifeq ($(DOWNLOAD_NETS),yes)
 	@if [ ! -f $(VALUEFILE) ]; then \
@@ -78,8 +86,17 @@ datagen: all
 %.o: %.c
 	$(CC) $(FLAGS) -c $< -o $@
 
+%.cuda_test.o: %.cpp
+	$(TEST_CXX) $(TEST_FLAGS) -c $< -o $@
+
 all: nets $(OBJS)
 	$(CXX) $(FLAGS) $(OBJS) -o $(EXE)
 
+cuda-test: nets $(TEST_OBJS)
+	$(NVCC) $(NVCCFLAGS) $(TEST_OBJS) $(CUDA_TEST_FILES) -o $(TEST_EXE)
+
+compile-commands:
+	bear --output compile_commands.json -- $(MAKE) -B cuda-test
+
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(TEST_OBJS) $(TEST_EXE)

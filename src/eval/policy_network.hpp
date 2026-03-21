@@ -1,6 +1,8 @@
 #ifndef POLICY_NETWORK_HPP
 #define POLICY_NETWORK_HPP
 
+#include "policy_network.cuh"
+
 #include "../chess/board_state.hpp"
 #include "../util/multi_array.hpp"
 #include "../util/simd.hpp"
@@ -9,9 +11,6 @@
 
 namespace network::policy {
 
-constexpr i16 Q = 128;
-constexpr usize L1_SIZE = 4096;
-constexpr usize OUTPUT_SIZE = 3920;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
 
 using i8Vec = util::SimdVector<i8, VECTOR_SIZE>;
@@ -46,6 +45,17 @@ class PolicyContext {
     Square king_sq_;
     std::array<util::SimdVector<i16, VECTOR_SIZE>, L1_SIZE / 2 / VECTOR_SIZE> activated_acc_{};
 };
+
+[[nodiscard]] u16 move_output_idx(const BoardState &state, Move move, PieceType moving_piece);
+
+namespace cuda_detail {
+
+void export_cuda_network(CudaPolicyNetwork &dst);
+
+} // namespace cuda_detail
+
+bool cuda_available();
+void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs, usize position_count);
 
 } // namespace network::policy
 

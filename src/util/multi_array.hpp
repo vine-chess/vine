@@ -2,6 +2,7 @@
 #define MULTI_ARRAY_HPP
 
 #include <array>
+#include <span>
 #include <type_traits>
 
 namespace util {
@@ -32,6 +33,9 @@ class MultiArray {
     ArrayType data_;
 
   public:
+    static_assert(std::is_standard_layout_v<ChildType>);
+    static_assert(std::is_trivially_copyable_v<ChildType>);
+
     using value_type = typename ArrayType::value_type;
     using size_type = typename ArrayType::size_type;
     using difference_type = typename ArrayType::difference_type;
@@ -124,6 +128,26 @@ class MultiArray {
     }
     constexpr size_type max_size() const noexcept {
         return data_.max_size();
+    }
+
+    [[nodiscard]] static consteval size_type flat_size() noexcept {
+        return Size * (Sizes * ... * 1);
+    }
+
+    [[nodiscard]] constexpr T *flat_data() noexcept {
+        return reinterpret_cast<T *>(data_.data());
+    }
+
+    [[nodiscard]] constexpr const T *flat_data() const noexcept {
+        return reinterpret_cast<const T *>(data_.data());
+    }
+
+    [[nodiscard]] constexpr auto flat_span() noexcept {
+        return std::span<T, flat_size()>(flat_data(), flat_size());
+    }
+
+    [[nodiscard]] constexpr auto flat_span() const noexcept {
+        return std::span<const T, flat_size()>(flat_data(), flat_size());
     }
 
     constexpr MultiArray<T, Size, Sizes...> &operator=(const MultiArray<T, Size, Sizes...> &other) = default;

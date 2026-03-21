@@ -9,6 +9,39 @@
 #include "zobrist.hpp"
 #include <ostream>
 
+class ColoredPiece {
+  public:
+    constexpr ColoredPiece() = default;
+    constexpr ColoredPiece(PieceType piece_type, Color color)
+        : raw_(static_cast<u8>(piece_type) << COLOR_BITS | static_cast<u8>(color)) {}
+
+    [[nodiscard]] constexpr static ColoredPiece none() {
+        return ColoredPiece();
+    }
+
+    [[nodiscard]] constexpr PieceType piece_type() const {
+        return PieceType{static_cast<u8>(raw_ >> COLOR_BITS)};
+    }
+
+    [[nodiscard]] constexpr Color color() const {
+        return Color{static_cast<u8>(raw_ & COLOR_MASK)};
+    }
+
+    [[nodiscard]] constexpr bool operator==(ColoredPiece const &other) const = default;
+
+
+    [[nodiscard]] constexpr operator u8() const {
+        return raw_;
+    }
+
+
+  private:
+    static constexpr u8 COLOR_BITS = 1;
+    static constexpr u8 COLOR_MASK = 0b1;
+
+    u8 raw_ = 0;
+};
+
 struct BoardState {
     void place_piece(PieceType piece_type, Square sq, Color color);
     void remove_piece(PieceType piece_type, Square sq, Color color);
@@ -36,7 +69,7 @@ struct BoardState {
 
     std::array<Bitboard, 6> piece_bbs{};
     std::array<Bitboard, 2> side_bbs{};
-    std::array<PieceType, 64> piece_type_on_sq{};
+    std::array<ColoredPiece, 64> piece_type_on_sq{};
     Color side_to_move{Color::WHITE};
     Square en_passant_sq{};
     CastleRights castle_rights{};
