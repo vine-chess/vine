@@ -2,6 +2,7 @@
 #define GAME_TREE_HPP
 
 #include "../chess/board.hpp"
+#include "../eval/evaluator.hpp"
 #include "hash_table.hpp"
 #include "history.hpp"
 #include "node.hpp"
@@ -72,6 +73,7 @@ class GameTree {
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
     History history_;
+    network::CpuEvaluator evaluator_;
 };
 
 } // namespace search

@@ -1,7 +1,5 @@
 #include "game_tree.hpp"
 #include "../chess/move_gen.hpp"
-#include "../eval/policy_network.hpp"
-#include "../eval/value_network.hpp"
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 
@@ -182,8 +180,11 @@ NodeIndex GameTree::select_and_expand_node() {
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
     Node &node = node_at(node_idx);
 
-    // We keep track of a policy context so that we only accumulate once per node
-    const network::policy::PolicyContext ctx(state);
+    auto ctx = evaluator_.policy_context(state);
+    for (Node &child : get_children(node)) {
+        ctx.enqueue(child.move, state.get_piece_type(child.move.from()));
+    }
+    ctx.ready();
 
     const bool root_node = node_idx == active_half().root_idx();
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
@@ -193,8 +194,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx) {
         // Compute policy output for this move
         const auto history_score =
             history_.entry(board_.state(), child.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
-        child.policy_score =
-            (ctx.logit(child.move, state.get_piece_type(child.move.from())) + history_score) / temperature;
+        child.policy_score = (ctx.logit() + history_score) / temperature;
         // Keep track of highest policy so we can shift all the policy
         // values down to avoid precision loss from large exponents
         highest_policy = std::max(highest_policy, child.policy_score);
@@ -281,7 +281,7 @@ f64 GameTree::simulate_node(NodeIndex node_idx) {
     const auto num_queens = board_.state().queens().pop_count();
     const auto sum_material = KNIGHT_MATERIAL * num_knights + BISHOP_MATERIAL * num_bishops +
                               ROOK_MATERIAL * num_rooks + QUEEN_MATERIAL * num_queens;
-    const auto raw_eval = network::value::evaluate(board_.state());
+    const auto raw_eval = evaluator_.value(board_.state());
     const auto scaled = raw_eval * (sum_material + 8192) / 16384;
 
     return util::math::sigmoid(scaled);
@@ -317,8 +317,8 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
-    auto cp_score =
-        static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
+    auto cp_score = static_cast<i32>(network::value::EVAL_SCALE *
+                                     util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
     auto child_terminal_state = TerminalState::none();
 
     while (!nodes_in_path_.empty()) {
