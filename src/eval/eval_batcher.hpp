@@ -7,58 +7,109 @@
 #include "../util/types.hpp"
 #include <array>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <span>
+#include <thread>
 
 namespace network {
 
 class PolicyQueue {
   public:
+    static constexpr u32 kBatchSize = 64;
+
+    // Thread-facing copy of the information it needs to retrieve the result of its evaluation request
     struct PolicySlot {
-        u32 board_idx;
+        // What generation of batch this policy slot belongs to
+        u32 generation = 0;
+        // The index into the processed batch results
+        u32 board_idx = 0;
+        // Span over all move indices that must be passed to the policy inference, filled by an individual thread
         std::span<u16> move_indices;
     };
 
+    // Structure containing the logit results of an individual request in a batch
     struct BatchResult {
-        std::array<f32, MAX_MOVES> logits;
+        std::array<f32, MAX_MOVES> logits{};
     };
 
-    PolicyQueue() : policy_indices_(0), move_indices_({}) {}
+    PolicyQueue();
+    PolicyQueue(const PolicyQueue &) = delete;
+    PolicyQueue &operator=(const PolicyQueue &) = delete;
+    ~PolicyQueue();
 
-    // Returns a structure with indexing information of this request in the current batch
-    [[nodiscard]] PolicySlot get_policy_slot(u32 len) const {
-        const auto old = policy_indices_.fetch_add(len | (1ull << 32));
-        if (++num_enqueued_items_ > BATCH_SIZE) {
-            throw std::runtime_error("double buffer time?");
-        }
-        return {old >> 32, std::span{&move_indices_[u32(old)], len}};
-    }
+    // Spawn the "GPU" worker/polling thread
+    void start();
+    // Stop the "GPU" worker/polling thread
+    void stop();
 
-    [[nodiscard]] bool is_full() const {
-        return num_enqueued_items_ >= BATCH_SIZE;
-    }
+    // Reserves a slot in the current batch for processing (may block until a slot is available)
+    [[nodiscard]] PolicySlot reserve_policy_slot(u32 len);
 
-    void mark_as_completed() {
-        policy_indices_ = 0;
-    }
+    // Called by a thread after it has filled its slot with the move indices to be evaluated
+    void mark_ready(const PolicySlot &slot);
+
+    // Blocks a thread until the "GPU" has processed the current batch
+    [[nodiscard]] BatchResult wait_for_result(const PolicySlot &slot);
+
+    // Called by a thread after it has consumed the results of its evaluations
+    void mark_consumed(const PolicySlot &slot);
 
   private:
-    std::array<BatchResult, BATCH_SIZE> batch_results_;
-    std::array<u16, MAX_MOVES * BATCH_SIZE> move_indices_;
-    std::atomic<u64> policy_indices_;
-    std::atomic<u64> num_enqueued_items_;
+    void gpu_loop();
+
+    void reset_slots();
+
+    // Internal structure to track the state of an evaluation request
+    struct InternalSlot {
+        std::array<u16, MAX_MOVES> move_indices{};
+        u32 move_count = 0;
+        bool ready = false;
+        bool consumed = false;
+    };
+
+    enum class Phase {
+        Filling,    // The queue still has slots to be filled with
+        Processing, // The "GPU" has begun processing each evaluation (unused for now)
+        Completed   // The "GPU" has finished evaluating all requests of the current batch
+    };
+
+    // The state of the current batch
+    Phase phase_;
+    // The evaluated results of the most recent batch
+    std::array<BatchResult, kBatchSize> batch_results_{};
+    // Structure that holds information about each evaluation request
+    std::array<InternalSlot, kBatchSize> slots_{};
+    // Information about the current slots
+    u32 reserved_slots_ = 0;
+    u32 ready_slots_ = 0;
+    u32 completed_slots_ = 0;
+    u32 consumed_slots_ = 0;
+    // The worker/"GPU" thread
+    std::thread gpu_thread_;
+    // Mutex to ensure only one thread can modify the queue's state at a time
+    std::mutex state_mutex_;
+    // Condition variable to the "GPU" that the batch can be processed now
+    std::condition_variable cv_producer_;
+    // Condition variable to the threads that the batch results can be consumed now
+    std::condition_variable cv_consumers_;
+    // Boolean to signal to the "GPU" to exit
+    bool stop_requested_ = false;
+    // Current batch generation
+    u32 generation_ = 0;
+    // Which generation of batches was most recently processed
+    u32 completed_generation_ = 0;
 };
 
 class GlobalPolicyQueue {
   public:
-    GlobalPolicyQueue() : queue_() {}
-    ~GlobalPolicyQueue() {}
+    static GlobalPolicyQueue &get();
 
-    static GlobalPolicyQueue get() const {
-        static GlobalPolicyQueue instance;
-        return instance;
-    }
+    [[nodiscard]] PolicyQueue &queue();
 
   private:
+    GlobalPolicyQueue() = default;
+
     PolicyQueue queue_;
 };
 
