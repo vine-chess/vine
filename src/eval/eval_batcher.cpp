@@ -161,7 +161,7 @@ void PolicyQueue::gpu_loop() {
 }
 
 void PolicyQueue::process_batch() {
-    for (u32 batch_idx = 0; batch_idx < kBatchSize; ++batch_idx) {
+    for (u32 batch_idx = 0; batch_idx < kBatchSize; ++batch_idx, ++completed_slots_) {
         const auto &slot = slots_[batch_idx];
         const auto &move_indices = move_indices_[batch_idx];
         const auto &move_piece_types = move_piece_types_[batch_idx];
@@ -174,7 +174,6 @@ void PolicyQueue::process_batch() {
             result.logits[move_idx] = ctx.logit(move_indices[move_idx], move_piece_types[move_idx]);
         }
     }
-    completed_slots_ = kBatchSize;
     completed_generation_ = generation_;
 }
 
