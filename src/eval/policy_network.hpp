@@ -40,6 +40,8 @@ class PolicyContext {
     // Raw score (logit) for a specific move in the position
     [[nodiscard]] f32 logit(Move move, PieceType moving_piece) const;
 
+    [[nodiscard]] f32 logit(u32 move_idx, PieceType moving_piece) const;
+
   private:
     Color stm_;
     Square king_sq_;

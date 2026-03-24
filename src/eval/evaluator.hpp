@@ -1,6 +1,7 @@
 #ifndef EVALUATOR_HPP
 #define EVALUATOR_HPP
 
+#include "eval_batcher.hpp"
 #include "policy_network.hpp"
 #include "value_network.hpp"
 
@@ -11,7 +12,8 @@ namespace network {
 
 class CpuPolicyContext {
   public:
-    explicit CpuPolicyContext(const BoardState &state) : ctx_(state) {}
+    explicit CpuPolicyContext(const BoardState &state) : state_(state) {}
+
     CpuPolicyContext(const CpuPolicyContext &) = delete;
     CpuPolicyContext &operator=(const CpuPolicyContext &) = delete;
     CpuPolicyContext(CpuPolicyContext &&) = delete;
@@ -24,21 +26,48 @@ class CpuPolicyContext {
     }
 
     void ready() {
+        vine_assert(!ready_);
+
         ready_ = true;
         next_idx_ = 0;
+
+        auto &queue = GlobalPolicyQueue::get().queue();
+
+        slot_ = queue.reserve_policy_slot(state_, static_cast<u32>(moves_.size()));
+
+        for (usize i = 0; i < moves_.size(); ++i) {
+            slot_.move_indices[i] = policy::move_output_idx(state_, moves_[i], moving_pieces_[i]);
+        }
+        for (usize i = 0; i < moving_pieces_.size(); ++i) {
+            slot_.piece_types[i] = moving_pieces_[i];
+        }
+
+        queue.mark_ready(slot_);
+        result_ = queue.wait_for_result(slot_);
     }
 
     [[nodiscard]] f32 logit() {
         vine_assert(ready_);
         vine_assert(next_idx_ < moves_.size());
+
         const usize idx = next_idx_++;
-        return ctx_.logit(moves_[idx], moving_pieces_[idx]);
+        const f32 out = result_.logits[idx];
+
+        if (next_idx_ == moves_.size()) {
+            GlobalPolicyQueue::get().queue().mark_consumed(slot_);
+        }
+
+        return out;
     }
 
   private:
-    policy::PolicyContext ctx_;
+    const BoardState &state_;
     util::StaticVector<Move, 256> moves_;
     util::StaticVector<PieceType, 256> moving_pieces_;
+
+    PolicyQueue::PolicySlot slot_{};
+    PolicyQueue::BatchResult result_{};
+
     usize next_idx_ = 0;
     bool ready_ = false;
 };

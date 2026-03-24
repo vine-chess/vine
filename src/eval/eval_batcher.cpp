@@ -1,4 +1,5 @@
 #include "eval_batcher.hpp"
+#include "policy_network.hpp"
 
 namespace network {
 
@@ -21,7 +22,7 @@ void PolicyQueue::start() {
 
 void PolicyQueue::stop() {
     {
-        std::scoped_lock lock(mutex_);
+        std::scoped_lock lock(state_mutex_);
         stop_requested_ = true;
         cv_producer_.notify_all();
         cv_consumers_.notify_all();
@@ -32,7 +33,7 @@ void PolicyQueue::stop() {
     }
 }
 
-PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(u32 len) {
+PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(const BoardState &state, u32 len) {
     std::unique_lock lock(state_mutex_);
 
     if (len > MAX_MOVES) {
@@ -48,11 +49,13 @@ PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(u32 len) {
     }
 
     const u32 board_idx = reserved_slots_++;
+    slots_[board_idx].board_state = state;
     slots_[board_idx].move_count = len;
     slots_[board_idx].ready = false;
     slots_[board_idx].consumed = false;
 
-    return PolicySlot{generation_, board_idx, std::span<u16>(&slots_[board_idx].move_indices, len)};
+    return PolicySlot{generation_, board_idx, std::span(move_indices_[board_idx].data(), len),
+                      std::span(move_piece_types_[board_idx].data(), len)};
 }
 
 void PolicyQueue::mark_ready(const PolicySlot &slot) {
@@ -95,7 +98,7 @@ PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
 }
 
 void PolicyQueue::mark_consumed(const PolicySlot &slot) {
-    std::scoped_lock lock(mutex_);
+    std::scoped_lock lock(state_mutex_);
 
     if (phase_ != Phase::Completed || completed_generation_ != slot.generation) {
         throw std::runtime_error("mark_consumed called for non-completed generation");
@@ -112,7 +115,7 @@ void PolicyQueue::mark_consumed(const PolicySlot &slot) {
     slots_[slot.board_idx].consumed = true;
     ++consumed_slots_;
 
-    if (consumed_slots_ == completed_boards_) {
+    if (consumed_slots_ == completed_slots_) {
         reset_slots();
         // Notify the "GPU" that all batch results have been consumed, so that it may begin waiting for the next batch
         cv_producer_.notify_one();
@@ -129,18 +132,59 @@ void PolicyQueue::reset_slots() {
     completed_slots_ = 0;
     consumed_slots_ = 0;
     phase_ = Phase::Filling;
-
-    for (auto &slot : slots_) {
-        slot = {};
-    }
+    slots_ = {};
+    move_indices_ = {};
+    move_piece_types_ = {};
 }
 
 void PolicyQueue::gpu_loop() {
     std::unique_lock lock(state_mutex_);
 
     while (!stop_requested_) {
-        // wait and process batches
+        // Wait until a stop request, or we have all slots ready to be evaluated
+        cv_producer_.wait(lock, [&] { return stop_requested_ || ready_slots_ == kBatchSize; });
+
+        if (stop_requested_) {
+            break;
+        }
+
+        phase_ = Phase::Processing;
+        process_batch();
+        phase_ = Phase::Completed;
+
+        // Notify all threads that this batch has been completed
+        cv_consumers_.notify_all();
+
+        // Wait for this batch to be consumed before waiting for all ready slots
+        cv_producer_.wait(lock, [&] { return stop_requested_ || phase_ == Phase::Filling; });
     }
+}
+
+void PolicyQueue::process_batch() {
+    for (u32 batch_idx = 0; batch_idx < kBatchSize; ++batch_idx) {
+        const auto &slot = slots_[batch_idx];
+        const auto &move_indices = move_indices_[batch_idx];
+        const auto &move_piece_types = move_piece_types_[batch_idx];
+
+        auto &result = batch_results_[batch_idx];
+        result.logits.fill(0.0f);
+
+        const auto ctx = policy::PolicyContext(slot.board_state);
+        for (u32 move_idx = 0; move_idx < slot.move_count; ++move_idx) {
+            result.logits[move_idx] = ctx.logit(move_indices[move_idx], move_piece_types[move_idx]);
+        }
+    }
+    completed_slots_ = kBatchSize;
+    completed_generation_ = generation_;
+}
+
+GlobalPolicyQueue &GlobalPolicyQueue::get() {
+    static GlobalPolicyQueue instance;
+    return instance;
+}
+
+PolicyQueue &GlobalPolicyQueue::queue() {
+    return queue_;
 }
 
 } // namespace network

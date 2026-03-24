@@ -2,6 +2,7 @@
 #include "../chess/move_gen.hpp"
 #include "../data_gen/game_runner.hpp"
 #include "../eval/policy_network.hpp"
+#include "../eval/eval_batcher.hpp"
 #include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
@@ -226,12 +227,16 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             MoveList moves;
             generate_moves(board_.state(), moves);
 
-            const network::policy::PolicyContext ctx(board_.state());
+            auto ctx = network::CpuEvaluator{}.policy_context(board_.state());
+            for (const auto move : moves) {
+                ctx.enqueue(move, board_.state().get_piece_type(move.from()));
+            }
+            ctx.ready();
 
             std::vector<f64> logits;
             logits.reserve(moves.size());
             for (const auto move : moves) {
-                logits.push_back(ctx.logit(move, board_.state().get_piece_type(move.from())));
+                logits.push_back(ctx.logit());
             }
 
             if (!logits.empty()) {

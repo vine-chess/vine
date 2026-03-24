@@ -1,12 +1,9 @@
 #ifndef VINE_EVAL_BATCHER_H
 #define VINE_EVAL_BATCHER_H
 
-#define BATCH_SIZE 64
-
 #include "../chess/move_gen.hpp"
 #include "../util/types.hpp"
 #include <array>
-#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <span>
@@ -16,7 +13,7 @@ namespace network {
 
 class PolicyQueue {
   public:
-    static constexpr u32 kBatchSize = 64;
+    static constexpr u32 kBatchSize = 1;
 
     // Thread-facing copy of the information it needs to retrieve the result of its evaluation request
     struct PolicySlot {
@@ -24,8 +21,10 @@ class PolicyQueue {
         u32 generation = 0;
         // The index into the processed batch results
         u32 board_idx = 0;
-        // Span over all move indices that must be passed to the policy inference, filled by an individual thread
+        // Span over all move indices, filled by an individual thread
         std::span<u16> move_indices;
+        // Span over all moving piece types, filled by an individual thread
+        std::span<PieceType> piece_types;
     };
 
     // Structure containing the logit results of an individual request in a batch
@@ -44,7 +43,7 @@ class PolicyQueue {
     void stop();
 
     // Reserves a slot in the current batch for processing (may block until a slot is available)
-    [[nodiscard]] PolicySlot reserve_policy_slot(u32 len);
+    [[nodiscard]] PolicySlot reserve_policy_slot(const BoardState &state, u32 len);
 
     // Called by a thread after it has filled its slot with the move indices to be evaluated
     void mark_ready(const PolicySlot &slot);
@@ -58,11 +57,13 @@ class PolicyQueue {
   private:
     void gpu_loop();
 
+    void process_batch();
+
     void reset_slots();
 
     // Internal structure to track the state of an evaluation request
     struct InternalSlot {
-        std::array<u16, MAX_MOVES> move_indices{};
+        BoardState board_state;
         u32 move_count = 0;
         bool ready = false;
         bool consumed = false;
@@ -75,9 +76,12 @@ class PolicyQueue {
     };
 
     // The state of the current batch
-    Phase phase_;
+    Phase phase_ = Phase::Filling;
     // The evaluated results of the most recent batch
     std::array<BatchResult, kBatchSize> batch_results_{};
+    // The move information that will be passed to inference (must be dense and kept separate from the slot structure)
+    std::array<std::array<u16, MAX_MOVES>, kBatchSize> move_indices_;
+    std::array<std::array<PieceType, MAX_MOVES>, kBatchSize> move_piece_types_;
     // Structure that holds information about each evaluation request
     std::array<InternalSlot, kBatchSize> slots_{};
     // Information about the current slots

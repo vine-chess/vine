@@ -125,11 +125,14 @@ PolicyContext::PolicyContext(const BoardState &state)
 
 f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     const usize idx = detail::move_output_idx(stm_, move, moving_piece, king_sq_);
+    return logit(idx, moving_piece);
+}
 
+f32 PolicyContext::logit(u32 move_idx, PieceType moving_piece) const {
     const auto UNROLL = 4;
     std::array<util::SimdVector<i32, VECTOR_SIZE / 2>, UNROLL> sum{};
 
-    const auto &weights = network->l1_weights_vec[idx];
+    const auto &weights = network->l1_weights_vec[move_idx];
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; i += UNROLL) {
         for (usize k = 0; k < UNROLL; ++k) {
             const auto weights_i16 = util::convert_vector<i16, i8, VECTOR_SIZE>(weights[i + k]);
@@ -138,13 +141,14 @@ f32 PolicyContext::logit(Move move, PieceType moving_piece) const {
     }
 
     const i32 dot = util::reduce_vector<i32, VECTOR_SIZE / 2>(std::reduce(std::begin(sum), std::end(sum)));
-    const i32 bias = network->l1_biases[idx];
+    const i32 bias = network->l1_biases[move_idx];
 
     return static_cast<f32>(dot + bias * Q * Q) * (1.0f / static_cast<f32>(Q * Q * Q));
 }
 
 u16 move_output_idx(const BoardState &state, Move move, PieceType moving_piece) {
-    const usize idx = detail::move_output_idx(state.side_to_move, move, moving_piece, state.king(state.side_to_move).lsb());
+    const usize idx =
+        detail::move_output_idx(state.side_to_move, move, moving_piece, state.king(state.side_to_move).lsb());
     return static_cast<u16>(idx);
 }
 
