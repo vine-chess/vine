@@ -17,8 +17,6 @@ class PolicyQueue {
 
     // Thread-facing copy of the information it needs to retrieve the result of its evaluation request
     struct PolicySlot {
-        // What generation of batch this policy slot belongs to
-        u32 generation = 0;
         // The index into the processed batch results
         u32 board_idx = 0;
         // Span over all move indices, filled by an individual thread
@@ -99,10 +97,6 @@ class PolicyQueue {
     std::condition_variable cv_consumers_;
     // Boolean to signal to the "GPU" to exit
     bool stop_requested_ = false;
-    // Current batch generation
-    u32 generation_ = 0;
-    // Which generation of batches was most recently processed
-    u32 completed_generation_ = 0;
 };
 
 class GlobalPolicyQueue {

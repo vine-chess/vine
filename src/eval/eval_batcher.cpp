@@ -42,7 +42,7 @@ PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(const BoardState &state
 
     // Wait until either the "GPU" stops or we have an available slot to reserve
     cv_consumers_.wait(lock,
-                       [&] { return stop_requested_ || (phase_ == Phase::FILLING && reserved_slots_ < kBatchSize); });
+                       [&] { return stop_requested_ || (phase_ == Phase::FILLING && reserved_slots_ < BATCH_SIZE); });
 
     if (stop_requested_) {
         throw std::runtime_error("policy queue stopped");
@@ -54,16 +54,12 @@ PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(const BoardState &state
     slots_[board_idx].ready = false;
     slots_[board_idx].consumed = false;
 
-    return PolicySlot{generation_, board_idx, std::span(move_indices_[board_idx].data(), len),
+    return PolicySlot{board_idx, std::span(move_indices_[board_idx].data(), len),
                       std::span(move_piece_types_[board_idx].data(), len)};
 }
 
 void PolicyQueue::mark_ready(const PolicySlot &slot) {
     std::scoped_lock lock(state_mutex_);
-
-    if (slot.generation != generation_) {
-        throw std::runtime_error("mark_ready called with stale generation");
-    }
 
     if (slot.board_idx >= reserved_slots_) {
         throw std::runtime_error("invalid board index in mark_ready");
@@ -77,7 +73,7 @@ void PolicyQueue::mark_ready(const PolicySlot &slot) {
     ++ready_slots_;
 
     // Notify the "GPU" if all slots are now ready
-    if (ready_slots_ == kBatchSize) {
+    if (ready_slots_ == BATCH_SIZE) {
         cv_producer_.notify_one();
     }
 }
@@ -86,9 +82,7 @@ PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
     std::unique_lock lock(state_mutex_);
 
     // Wait for the current batch to be processed before consuming this slot's result
-    cv_consumers_.wait(lock, [&] {
-        return stop_requested_ || (phase_ == Phase::COMPLETED && completed_generation_ == slot.generation);
-    });
+    cv_consumers_.wait(lock, [&] { return stop_requested_ || phase_ == Phase::COMPLETED; });
 
     if (stop_requested_) {
         throw std::runtime_error("policy queue stopped");
@@ -100,7 +94,7 @@ PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
 void PolicyQueue::mark_consumed(const PolicySlot &slot) {
     std::scoped_lock lock(state_mutex_);
 
-    if (phase_ != Phase::COMPLETED || completed_generation_ != slot.generation) {
+    if (phase_ != Phase::COMPLETED) {
         throw std::runtime_error("mark_consumed called for non-completed generation");
     }
 
@@ -126,7 +120,6 @@ void PolicyQueue::mark_consumed(const PolicySlot &slot) {
 
 void PolicyQueue::reset_slots() {
     // Reset all slot information for the next batch
-    ++generation_;
     reserved_slots_ = 0;
     ready_slots_ = 0;
     completed_slots_ = 0;
@@ -142,7 +135,7 @@ void PolicyQueue::gpu_loop() {
 
     while (!stop_requested_) {
         // Wait until a stop request, or we have all slots ready to be evaluated
-        cv_producer_.wait(lock, [&] { return stop_requested_ || ready_slots_ == kBatchSize; });
+        cv_producer_.wait(lock, [&] { return stop_requested_ || ready_slots_ == BATCH_SIZE; });
 
         if (stop_requested_) {
             break;
@@ -161,7 +154,7 @@ void PolicyQueue::gpu_loop() {
 }
 
 void PolicyQueue::process_batch() {
-    for (u32 batch_idx = 0; batch_idx < kBatchSize; ++batch_idx, ++completed_slots_) {
+    for (u32 batch_idx = 0; batch_idx < BATCH_SIZE; ++batch_idx, ++completed_slots_) {
         const auto &slot = slots_[batch_idx];
         const auto &move_indices = move_indices_[batch_idx];
         const auto &move_piece_types = move_piece_types_[batch_idx];
@@ -174,7 +167,6 @@ void PolicyQueue::process_batch() {
             result.logits[move_idx] = ctx.logit(move_indices[move_idx], move_piece_types[move_idx]);
         }
     }
-    completed_generation_ = generation_;
 }
 
 GlobalPolicyQueue &GlobalPolicyQueue::get() {
