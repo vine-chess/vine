@@ -13,7 +13,7 @@ namespace network {
 
 class PolicyQueue {
   public:
-    static constexpr u32 kBatchSize = 1;
+    static constexpr u32 BATCH_SIZE = 1;
 
     // Thread-facing copy of the information it needs to retrieve the result of its evaluation request
     struct PolicySlot {
@@ -78,12 +78,12 @@ class PolicyQueue {
     // The state of the current batch
     Phase phase_ = Phase::FILLING;
     // The evaluated results of the most recent batch
-    std::array<BatchResult, kBatchSize> batch_results_{};
+    std::array<BatchResult, BATCH_SIZE> batch_results_{};
     // The move information that will be passed to inference (must be dense and kept separate from the slot structure)
-    std::array<std::array<u16, MAX_MOVES>, kBatchSize> move_indices_;
-    std::array<std::array<PieceType, MAX_MOVES>, kBatchSize> move_piece_types_;
+    std::array<std::array<u16, MAX_MOVES>, BATCH_SIZE> move_indices_;
+    std::array<std::array<PieceType, MAX_MOVES>, BATCH_SIZE> move_piece_types_;
     // Structure that holds information about each evaluation request
-    std::array<InternalSlot, kBatchSize> slots_{};
+    std::array<InternalSlot, BATCH_SIZE> slots_{};
     // Information about the current slots
     u32 reserved_slots_ = 0;
     u32 ready_slots_ = 0;
