@@ -70,13 +70,13 @@ class PolicyQueue {
     };
 
     enum class Phase {
-        Filling,    // The queue still has slots to be filled with
-        Processing, // The "GPU" has begun processing each evaluation (unused for now)
-        Completed   // The "GPU" has finished evaluating all requests of the current batch
+        FILLING,    // The queue still has slots to be filled with
+        PROCESSING, // The "GPU" has begun processing each evaluation (unused for now)
+        COMPLETED   // The "GPU" has finished evaluating all requests of the current batch
     };
 
     // The state of the current batch
-    Phase phase_ = Phase::Filling;
+    Phase phase_ = Phase::FILLING;
     // The evaluated results of the most recent batch
     std::array<BatchResult, kBatchSize> batch_results_{};
     // The move information that will be passed to inference (must be dense and kept separate from the slot structure)

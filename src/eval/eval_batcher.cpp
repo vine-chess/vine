@@ -42,7 +42,7 @@ PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(const BoardState &state
 
     // Wait until either the "GPU" stops or we have an available slot to reserve
     cv_consumers_.wait(lock,
-                       [&] { return stop_requested_ || (phase_ == Phase::Filling && reserved_slots_ < kBatchSize); });
+                       [&] { return stop_requested_ || (phase_ == Phase::FILLING && reserved_slots_ < kBatchSize); });
 
     if (stop_requested_) {
         throw std::runtime_error("policy queue stopped");
@@ -87,7 +87,7 @@ PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
 
     // Wait for the current batch to be processed before consuming this slot's result
     cv_consumers_.wait(lock, [&] {
-        return stop_requested_ || (phase_ == Phase::Completed && completed_generation_ == slot.generation);
+        return stop_requested_ || (phase_ == Phase::COMPLETED && completed_generation_ == slot.generation);
     });
 
     if (stop_requested_) {
@@ -100,7 +100,7 @@ PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
 void PolicyQueue::mark_consumed(const PolicySlot &slot) {
     std::scoped_lock lock(state_mutex_);
 
-    if (phase_ != Phase::Completed || completed_generation_ != slot.generation) {
+    if (phase_ != Phase::COMPLETED || completed_generation_ != slot.generation) {
         throw std::runtime_error("mark_consumed called for non-completed generation");
     }
 
@@ -131,7 +131,7 @@ void PolicyQueue::reset_slots() {
     ready_slots_ = 0;
     completed_slots_ = 0;
     consumed_slots_ = 0;
-    phase_ = Phase::Filling;
+    phase_ = Phase::FILLING;
     slots_ = {};
     move_indices_ = {};
     move_piece_types_ = {};
@@ -148,15 +148,15 @@ void PolicyQueue::gpu_loop() {
             break;
         }
 
-        phase_ = Phase::Processing;
+        phase_ = Phase::PROCESSING;
         process_batch();
-        phase_ = Phase::Completed;
+        phase_ = Phase::COMPLETED;
 
         // Notify all threads that this batch has been completed
         cv_consumers_.notify_all();
 
         // Wait for this batch to be consumed before waiting for all ready slots
-        cv_producer_.wait(lock, [&] { return stop_requested_ || phase_ == Phase::Filling; });
+        cv_producer_.wait(lock, [&] { return stop_requested_ || phase_ == Phase::FILLING; });
     }
 }
 
