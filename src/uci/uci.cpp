@@ -2,14 +2,14 @@
 #include "../chess/move_gen.hpp"
 #include "../data_gen/game_runner.hpp"
 #include "../eval/policy_network.hpp"
-#include "../eval/eval_batcher.hpp"
+#include "../eval/policy_queue.hpp"
 #include "../eval/value_network.hpp"
 #include "../tests/bench.hpp"
 #include "../tests/perft.hpp"
 #include "../util/math.hpp"
 #include "../util/string.hpp"
-#include "../util/tunable.hpp"
 #include "../util/tui.hpp"
+#include "../util/tunable.hpp"
 #include "../util/types.hpp"
 #include "options.hpp"
 
@@ -218,7 +218,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         } else if (parts[0] == "print") {
             out << "static eval:\n";
 
-            const auto eval = network::value::evaluate(board_.state());
+            const auto eval = network::CpuEvaluator{}.value(board_.state());
             util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
             out << std::round(network::value::EVAL_SCALE * eval) << '\n';
             util::tui::reset_color(out);

@@ -1,4 +1,4 @@
-#include "eval_batcher.hpp"
+#include "policy_queue.hpp"
 #include "policy_network.hpp"
 
 namespace network {
@@ -54,8 +54,8 @@ PolicyQueue::PolicySlot PolicyQueue::reserve_policy_slot(const BoardState &state
     slots_[board_idx].ready = false;
     slots_[board_idx].consumed = false;
 
-    return PolicySlot{board_idx, std::span(move_indices_[board_idx].data(), len),
-                      std::span(move_piece_types_[board_idx].data(), len)};
+    return {board_idx, std::span(move_indices_[board_idx].data(), len),
+            std::span(move_piece_types_[board_idx].data(), len)};
 }
 
 void PolicyQueue::mark_ready(const PolicySlot &slot) {
@@ -78,7 +78,7 @@ void PolicyQueue::mark_ready(const PolicySlot &slot) {
     }
 }
 
-PolicyQueue::BatchResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
+PolicyQueue::PolicyResult PolicyQueue::wait_for_result(const PolicySlot &slot) {
     std::unique_lock lock(state_mutex_);
 
     // Wait for the current batch to be processed before consuming this slot's result

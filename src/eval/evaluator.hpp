@@ -1,9 +1,9 @@
 #ifndef EVALUATOR_HPP
 #define EVALUATOR_HPP
 
-#include "eval_batcher.hpp"
 #include "policy_network.hpp"
-#include "value_network.hpp"
+#include "policy_queue.hpp"
+#include "value_queue.hpp"
 
 #include "../util/assert.hpp"
 #include "../util/static_vector.hpp"
@@ -66,16 +66,31 @@ class CpuPolicyContext {
     util::StaticVector<PieceType, 256> moving_pieces_;
 
     PolicyQueue::PolicySlot slot_{};
-    PolicyQueue::BatchResult result_{};
+    PolicyQueue::PolicyResult result_{};
 
     usize next_idx_ = 0;
     bool ready_ = false;
 };
 
+class ValueEvaluator {
+public:
+    [[nodiscard]] f64 value(const BoardState &state) const {
+        auto &queue = GlobalValueQueue::get().queue();
+
+        const auto slot = queue.reserve_value_slot(state);
+        queue.mark_ready(slot);
+
+        const auto result = queue.wait_for_result(slot);
+        queue.mark_consumed(slot);
+
+        return result.value;
+    }
+};
+
 class CpuEvaluator {
   public:
     [[nodiscard]] f64 value(const BoardState &state) const {
-        return value::evaluate(state);
+        return ValueEvaluator{}.value(state);
     }
 
     [[nodiscard]] CpuPolicyContext policy_context(const BoardState &state) const {
