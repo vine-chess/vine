@@ -28,13 +28,13 @@ class Thread {
         return *this;
     }
 
-    void go(GameTree &tree, const Board &board, const TimeSettings &time_settings, Verbosity verbosity);
+    template <class Evaluator>
+    void go(GameTree &tree, Evaluator &evaluator, const Board &board, const TimeSettings &time_settings,
+            Verbosity verbosity);
 
     [[nodiscard]] u64 iterations() const;
 
   private:
-    void thread_loop();
-
     void write_info(GameTree &tree, u64 iterations, u64 nodes, bool write_bestmove = false) const;
 
     std::thread raw_thread_;
@@ -43,5 +43,7 @@ class Thread {
 };
 
 } // namespace search
+
+#include "thread.tpp"
 
 #endif // THREAD_HPP

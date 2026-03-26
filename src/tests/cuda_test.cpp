@@ -1,5 +1,6 @@
 #include "../chess/board.hpp"
 #include "../chess/move_gen.hpp"
+#include "../eval/evaluator.hpp"
 #include "../eval/policy_network.hpp"
 #include "../eval/value_network.hpp"
 #include "../util/random.hpp"
@@ -21,6 +22,7 @@ struct TestOptions {
     bool is_value = true;
     usize count = 4096;
     bool benchmark_only = false;
+    bool use_blocking_evaluator = false;
 };
 
 struct RunStats {
@@ -119,6 +121,11 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
     std::cout << (options.benchmark_only ? "benchmark completed for " : "test passed for ");
     std::cout << options.count << " positions";
     std::cout << " (benchmark_only=" << options.benchmark_only << ")\n";
+    if (options.use_blocking_evaluator) {
+        std::cout << "mode: blocking evaluator\n";
+    } else {
+        std::cout << "mode: direct batch kernel\n";
+    }
     std::cout << "gpu eval: " << gpu_seconds << " s, " << gpu_positions_per_second << " pos/s\n";
 
     if (!options.is_value) {
@@ -156,9 +163,10 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
 
     if (!options.benchmark_only) {
         const auto cpu_start = std::chrono::high_resolution_clock::now();
+        const network::CpuEvaluator cpu_evaluator;
         parallel_for_chunks(options.count, [&](usize begin, usize end) {
             for (usize i = begin; i < end; ++i) {
-                expected[i] = static_cast<f32>(network::value::evaluate(states[i]));
+                expected[i] = static_cast<f32>(cpu_evaluator.value(states[i]));
             }
         });
         stats.cpu_eval_time +=
@@ -166,7 +174,14 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
     }
 
     const auto gpu_start = std::chrono::high_resolution_clock::now();
-    network::value::evaluate_many(inputs.data(), actual.data(), options.count);
+    if (options.use_blocking_evaluator) {
+        const network::GpuEvaluator gpu_evaluator;
+        for (usize i = 0; i < options.count; ++i) {
+            actual[i] = static_cast<f32>(gpu_evaluator.value(states[i]));
+        }
+    } else {
+        network::value::evaluate_many(inputs.data(), actual.data(), options.count);
+    }
     stats.gpu_eval_time +=
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - gpu_start);
 
@@ -215,13 +230,18 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
 
     if (!options.benchmark_only) {
         const auto cpu_start = std::chrono::high_resolution_clock::now();
+        const network::CpuEvaluator cpu_evaluator;
         parallel_for_chunks(options.count, [&](usize begin, usize end) {
             for (usize i = begin; i < end; ++i) {
-                const network::policy::PolicyContext ctx(states[i]);
+                auto ctx = cpu_evaluator.policy_context(states[i]);
                 for (usize move_idx = 0; move_idx < move_lists[i].size(); ++move_idx) {
                     const Move move = move_lists[i][move_idx];
                     const PieceType moving_piece = states[i].piece_type_on_sq[move.from()].piece_type();
-                    expected[inputs[i].move_offset + move_idx] = ctx.logit(move, moving_piece);
+                    ctx.enqueue(move, moving_piece);
+                }
+                ctx.ready();
+                for (usize move_idx = 0; move_idx < move_lists[i].size(); ++move_idx) {
+                    expected[inputs[i].move_offset + move_idx] = ctx.logit();
                 }
             }
         });
@@ -230,7 +250,22 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
     }
 
     const auto gpu_start = std::chrono::high_resolution_clock::now();
-    network::policy::evaluate_many(inputs.data(), move_indices.data(), actual.data(), options.count);
+    if (options.use_blocking_evaluator) {
+        const network::GpuEvaluator gpu_evaluator;
+        for (usize i = 0; i < options.count; ++i) {
+            auto ctx = gpu_evaluator.policy_context(states[i]);
+            for (const Move move : move_lists[i]) {
+                const PieceType moving_piece = states[i].piece_type_on_sq[move.from()].piece_type();
+                ctx.enqueue(move, moving_piece);
+            }
+            ctx.ready();
+            for (usize move_idx = 0; move_idx < move_lists[i].size(); ++move_idx) {
+                actual[inputs[i].move_offset + move_idx] = ctx.logit();
+            }
+        }
+    } else {
+        network::policy::evaluate_many(inputs.data(), move_indices.data(), actual.data(), options.count);
+    }
     stats.gpu_eval_time +=
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - gpu_start);
 
@@ -263,6 +298,10 @@ int main(int argc, char **argv) {
         std::string_view arg = argv[i];
         if (arg == "--bench") {
             options.benchmark_only = true;
+            continue;
+        }
+        if (arg == "--blocking-evaluator") {
+            options.use_blocking_evaluator = true;
             continue;
         }
         if (arg == "value") {

@@ -6,6 +6,7 @@ OBJS = $(FILES:.cpp=.o)
 TEST_EXE = cuda_test
 TEST_FILES = $(filter-out src/main.cpp,$(FILES)) src/tests/cuda_test.cpp
 TEST_OBJS = $(TEST_FILES:.cpp=.cuda_test.o)
+DATAGEN_OBJS = $(FILES:.cpp=.datagen.o)
 
 OPTIMIZE ?= -O3 -flto
 
@@ -13,6 +14,7 @@ FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
 TEST_FLAGS = $(filter-out -flto,$(FLAGS))
+DATAGEN_FLAGS = $(filter-out -flto,$(FLAGS)) -DDATAGEN -DDATAGEN_CUDA
 TEST_CXX = clang++
 NVCC ?= nvcc
 NVCCFLAGS = -std=c++20 -O3
@@ -63,10 +65,6 @@ endif
 
 .DEFAULT_GOAL := all 
 
-ifeq ($(MAKECMDGOALS),datagen)
-	FLAGS += -DDATAGEN
-endif
-
 .PHONY: nets compile-commands clean
 nets:
 ifeq ($(DOWNLOAD_NETS),yes)
@@ -78,8 +76,6 @@ ifeq ($(DOWNLOAD_NETS),yes)
 	fi
 endif
 
-datagen: all
-
 %.o: %.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
 
@@ -89,8 +85,14 @@ datagen: all
 %.cuda_test.o: %.cpp
 	$(TEST_CXX) $(TEST_FLAGS) -c $< -o $@
 
+%.datagen.o: %.cpp
+	$(TEST_CXX) $(DATAGEN_FLAGS) -c $< -o $@
+
 all: nets $(OBJS)
 	$(CXX) $(FLAGS) $(OBJS) -o $(EXE)
+
+datagen: nets $(DATAGEN_OBJS)
+	$(NVCC) $(NVCCFLAGS) $(DATAGEN_OBJS) $(CUDA_TEST_FILES) -o $(EXE)
 
 cuda-test: nets $(TEST_OBJS)
 	$(NVCC) $(NVCCFLAGS) $(TEST_OBJS) $(CUDA_TEST_FILES) -o $(TEST_EXE)
@@ -99,4 +101,4 @@ compile-commands:
 	bear --output compile_commands.json -- $(MAKE) -B cuda-test
 
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) $(TEST_EXE)
+	rm -f $(OBJS) $(TEST_OBJS) $(DATAGEN_OBJS) $(TEST_EXE)

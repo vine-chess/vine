@@ -2,9 +2,17 @@
 #define GAME_RUNNER_HPP
 
 #include "../search/searcher.hpp"
+#include "../util/types.hpp"
 #include "openings.hpp"
 
 namespace datagen {
+
+enum class EvaluatorBackend : u8 {
+    CPU,
+    QUEUED_CPU,
+    GPU,
+    QUEUED_GPU,
+};
 
 struct Settings {
     // Number of random moves to play for the opening
@@ -23,6 +31,8 @@ struct Settings {
     std::string book_path;
     // Opening settings
     f64 temperature, gamma;
+    // Evaluator backend
+    EvaluatorBackend evaluator_backend = EvaluatorBackend::QUEUED_CPU;
 };
 
 void run_games(Settings settings, std::ostream &out);

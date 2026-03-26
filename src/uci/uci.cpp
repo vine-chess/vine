@@ -141,8 +141,14 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     settings.hash_size = 16;
     settings.time_settings = search::TimeSettings{};
     settings.output_file = "output.bin";
+    settings.evaluator_backend = datagen::EvaluatorBackend::QUEUED_CPU;
 
-    for (size_t i = 1; i + 1 < parts.size(); i += 2) {
+    size_t arg_start = 1;
+    if (parts.size() > 1 && (parts[1] == "policy" || parts[1] == "value")) {
+        arg_start = 2;
+    }
+
+    for (size_t i = arg_start; i + 1 < parts.size(); i += 2) {
         const auto key = parts[i];
         const auto value = parts[i + 1];
 
@@ -168,6 +174,18 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
             settings.gamma = std::strtod(std::string(value).c_str(), &dummy);
         } else if (key == "book") {
             settings.book_path = value;
+        } else if (key == "eval") {
+            if (value == "cpu") {
+                settings.evaluator_backend = datagen::EvaluatorBackend::CPU;
+            } else if (value == "queued_cpu") {
+                settings.evaluator_backend = datagen::EvaluatorBackend::QUEUED_CPU;
+            } else if (value == "gpu") {
+                settings.evaluator_backend = datagen::EvaluatorBackend::GPU;
+            } else if (value == "queued_gpu") {
+                settings.evaluator_backend = datagen::EvaluatorBackend::QUEUED_GPU;
+            } else {
+                out << "info string warning: unknown datagen evaluator: " << value << std::endl;
+            }
         } else {
             out << "info string warning: unknown datagen key: " << key << std::endl;
         }

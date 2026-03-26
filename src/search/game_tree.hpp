@@ -3,6 +3,7 @@
 
 #include "../chess/board.hpp"
 #include "../eval/evaluator.hpp"
+#include "../util/tunable.hpp"
 #include "hash_table.hpp"
 #include "history.hpp"
 #include "node.hpp"
@@ -10,6 +11,25 @@
 #include <span>
 
 namespace search {
+
+#ifdef DATAGEN
+TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f, 0.1f);
+#else
+TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 2.010033808133197, 0.5f, 3.0f, 0.1f);
+#endif
+TUNABLE_STEP(SOFTMAX_TEMPERATURE, 1.288386775295493, 1.0f, 3.0f, 0.08);
+TUNABLE_STEP(ROOT_EXPLORATION_CONSTANT, 1.3847280475167136, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(EXPLORATION_CONSTANT, 0.8481266142929403, 0.5f, 2.5f, 0.05f);
+TUNABLE_STEP(CPUCT_VISIT_SCALE, 7827, 2048, 16384, 256);
+TUNABLE_STEP(CPUCT_VISIT_SCALE_DIVISOR, 8815, 2048, 16384, 256);
+TUNABLE_STEP(GINI_BASE, 0.4426053054270583, 0.0f, 1.5f, 0.05f);
+TUNABLE_STEP(GINI_MULTIPLIER, 1.4479240539808982, 0.5f, 3.0f, 0.1f);
+TUNABLE_STEP(GINI_MAXIMUM, 2.1158971557968873, 1.25f, 3.25f, 0.1f);
+TUNABLE_STEP(POLICY_HISTORY_DIVISOR, 16333, 8192, 32768, 1024);
+TUNABLE_STEP(KNIGHT_MATERIAL, 298, 100, 600, 30);
+TUNABLE_STEP(BISHOP_MATERIAL, 315, 100, 600, 30);
+TUNABLE_STEP(ROOK_MATERIAL, 473, 300, 800, 40);
+TUNABLE_STEP(QUEEN_MATERIAL, 863, 500, 1500, 50);
 
 class GameTree {
   public:
@@ -19,7 +39,8 @@ class GameTree {
     void set_node_capacity(usize capacity);
     void set_hash_table_capacity(usize capacity);
 
-    void new_search(const Board &root_board);
+    template <class Evaluator>
+    void new_search(const Board &root_board, Evaluator &evaluator);
 
     [[nodiscard]] Node &node_at(NodeIndex idx);
     [[nodiscard]] const Node &node_at(NodeIndex idx) const;
@@ -33,14 +54,17 @@ class GameTree {
     // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
     // Expansion is the second stage of an iteration. However, due to memory-usage optimization we perform expansion
     // whenever a node is selected twice, which is handled in the selection stage.
-    [[nodiscard]] NodeIndex select_and_expand_node();
+    template <class Evaluator>
+    [[nodiscard]] NodeIndex select_and_expand_node(Evaluator &evaluator);
     // This function computes the policy scores for all children of a node that is already expanded. The policy score is
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
-    void compute_policy(const BoardState &state, NodeIndex node_idx);
+    template <class Evaluator>
+    void compute_policy(const BoardState &state, NodeIndex node_idx, Evaluator &evaluator);
 
     // Stage 3: Simulation
     // Calls out to the value head to return a score for the node that is being simulated.
-    [[nodiscard]] f64 simulate_node(NodeIndex node_idx);
+    template <class Evaluator>
+    [[nodiscard]] f64 simulate_node(NodeIndex node_idx, Evaluator &evaluator);
 
     // Stage 4 (Final): Backpropagation
     // Propagates the scores of a node that was just simulated to itself and its ancestor nodes, increasing the number
@@ -56,7 +80,8 @@ class GameTree {
 
     [[nodiscard]] std::span<Node> get_children(Node node);
 
-    [[nodiscard]] bool expand_node(NodeIndex node_idx);
+    template <class Evaluator>
+    [[nodiscard]] bool expand_node(NodeIndex node_idx, Evaluator &evaluator);
 
     [[nodiscard]] bool fetch_children(NodeIndex node_idx);
 
@@ -73,9 +98,10 @@ class GameTree {
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
     History history_;
-    network::CpuEvaluator evaluator_;
 };
 
 } // namespace search
+
+#include "game_tree.tpp"
 
 #endif // GAME_TREE_HPP

@@ -15,49 +15,6 @@ u64 Thread::iterations() const {
     return num_iterations_;
 }
 
-void Thread::go(GameTree &tree, const Board &root_board, const TimeSettings &time_settings, Verbosity verbosity) {
-    time_manager_.start_tracking(time_settings);
-
-    tree.new_search(root_board);
-
-    u64 iterations = 0, nodes = 0;
-    u64 previous_depth = 0, previous_sum_depths = 0;
-
-    while (++iterations) {
-        const auto node = tree.select_and_expand_node();
-        tree.backpropagate_score(tree.simulate_node(node));
-
-        nodes += tree.sum_depths() - previous_sum_depths;
-        previous_sum_depths = tree.sum_depths();
-
-        const u64 depth = tree.sum_depths() / iterations;
-        if (depth > previous_depth) {
-            previous_depth = depth;
-            if (verbosity == Verbosity::VERBOSE) {
-                write_info(tree, iterations, nodes);
-            }
-        }
-
-        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth)) {
-            break;
-        }
-    }
-
-    const Node &root = tree.root();
-    if (root.num_children == 0) {
-        return;
-    }
-
-    if (verbosity != Verbosity::NONE) {
-        write_info(tree, iterations, nodes, true);
-    }
-    num_iterations_ = iterations;
-}
-
-void Thread::thread_loop() {
-    // TODO: this shit
-}
-
 void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree) {
     if (node.terminal() || !node.expanded()) {
         return;

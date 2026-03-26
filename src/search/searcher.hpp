@@ -19,6 +19,8 @@ class Searcher {
     void set_verbosity(Verbosity verbosity);
 
     void go(Board &board, const TimeSettings &time_settings = {});
+    template <class Evaluator>
+    void go(Board &board, Evaluator &evaluator, const TimeSettings &time_settings);
 
     [[nodiscard]] const GameTree &game_tree() const;
     [[nodiscard]] u64 iterations() const;
@@ -28,9 +30,17 @@ class Searcher {
   private:
     std::vector<Thread> threads_;
     GameTree game_tree_;
+    network::CpuEvaluator cpu_evaluator_;
     Verbosity verbosity_;
 };
 
 } // namespace search
+
+template <class Evaluator>
+void search::Searcher::go(Board &board, Evaluator &evaluator, const TimeSettings &time_settings) {
+    for (auto &thread : threads_) {
+        thread.go(game_tree_, evaluator, board, time_settings, verbosity_);
+    }
+}
 
 #endif // SEARCH_HPP

@@ -1,12 +1,14 @@
 #include "game_runner.hpp"
 #include "../chess/move_gen.hpp"
+#include "../eval/evaluator.hpp"
 #include "format/monty_format.hpp"
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <iostream>
-#include <optional>
+#include <string_view>
 
 namespace datagen {
 
@@ -18,24 +20,44 @@ void signal_handler([[maybe_unused]] i32 signum) {
 std::atomic_size_t games_played = 0;
 std::atomic_size_t positions_written = 0;
 
-void thread_loop(const Settings &settings, std::ofstream &out_file, const std::vector<std::string> &opening_fens) {
-    auto writer = std::make_unique<MontyFormatWriter>(out_file);
+namespace {
+
+[[nodiscard]] constexpr std::string_view evaluator_backend_name(const EvaluatorBackend backend) {
+    switch (backend) {
+    case EvaluatorBackend::CPU:
+        return "cpu";
+    case EvaluatorBackend::QUEUED_CPU:
+        return "queued_cpu";
+    case EvaluatorBackend::GPU:
+        return "gpu";
+    case EvaluatorBackend::QUEUED_GPU:
+        return "queued_gpu";
+    }
+
+    return "unknown";
+}
+
+template <class Evaluator>
+void thread_loop(const Settings &settings, const usize thread_id, std::ofstream &out_file,
+                 const std::vector<std::string> &opening_fens) {
+    MontyFormatWriter writer(out_file);
 
     search::Searcher searcher;
+    Evaluator evaluator;
     searcher.set_hash_size(settings.hash_size);
     searcher.set_verbosity(search::Verbosity::NONE);
 
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
-    const usize games_per_thread = settings.num_games / settings.num_threads;
-    for (usize i = 0; i < games_per_thread && !stop_flag.load(std::memory_order_relaxed); i++) {
+    for (usize i = thread_id; i < settings.num_games && !stop_flag.load(std::memory_order_relaxed);
+         i += settings.num_threads) {
         const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
         Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
-        writer->push_board_state(board.state());
+        writer.push_board_state(board.state());
 
         f64 game_result;
         while (true) {
-            searcher.go(board, settings.time_settings);
+            searcher.go(board, evaluator, settings.time_settings);
 
             const auto &game_tree = searcher.game_tree();
             const auto &root_node = game_tree.root();
@@ -48,7 +70,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             search::NodeIndex best_child_idx = root_node.first_child_idx;
             for (usize j = 0; j < root_node.num_children; j++) {
                 const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
+                visits_dist.emplace_back(writer.to_monty_move(child.move, board.state()), child.num_visits);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
                     best_child_idx = root_node.first_child_idx + j;
                 }
@@ -57,7 +79,7 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             const auto &best_child = game_tree.node_at(best_child_idx);
             vine_assert(!best_child.move.is_null());
 
-            writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
+            writer.push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
             board.make_move(best_child.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
@@ -68,13 +90,44 @@ void thread_loop(const Settings &settings, std::ofstream &out_file, const std::v
             }
         }
 
-        writer->write_with_result(game_result);
+        writer.write_with_result(game_result);
         games_played.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
+template <class Evaluator>
+void launch_threads(const Settings &settings, std::ostream &out, const std::vector<std::string> &opening_fens,
+                    std::vector<std::string> &thread_files, std::vector<std::thread> &threads) {
+    for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
+        const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
+        thread_files.push_back(thread_file_path);
+
+        threads.emplace_back([settings, thread_id, thread_file_path, &out, &opening_fens]() {
+            std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
+            if (!thread_output) {
+                out << "failed to open thread output file " << thread_file_path << std::endl;
+                return;
+            }
+
+            thread_loop<Evaluator>(settings, thread_id, thread_output, opening_fens);
+        });
+    }
+}
+
+} // namespace
+
 void run_games(Settings settings, std::ostream &out) {
+    stop_flag = false;
+    games_played = 0;
+    positions_written = 0;
+
+    if (settings.num_threads == 0) {
+        out << "error: datagen requires at least one thread\n";
+        return;
+    }
+
     out << "starting datagen..." << std::endl;
+    out << "  evaluator         : " << evaluator_backend_name(settings.evaluator_backend) << '\n';
 
     std::signal(SIGINT, signal_handler);
 
@@ -140,24 +193,36 @@ void run_games(Settings settings, std::ostream &out) {
         }
     };
 
-    for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-        const auto thread_file_path = settings.output_file + "_temp" + std::to_string(thread_id);
-        thread_files.push_back(thread_file_path);
-
-        threads.emplace_back([settings, thread_file_path, &out, &opening_fens]() {
-            std::ofstream thread_output(thread_file_path, std::ios::binary | std::ios::app);
-            if (!thread_output) {
-                out << "failed to open thread output file " << thread_file_path << std::endl;
-                return;
-            }
-
-            thread_loop(settings, thread_output, opening_fens);
-
-            thread_output.close();
-            if (!thread_output.good()) {
-                out << "failed to close thread output file " << thread_file_path << std::endl;
-            }
-        });
+    try {
+        switch (settings.evaluator_backend) {
+        case EvaluatorBackend::CPU:
+            launch_threads<network::CpuEvaluator>(settings, out, opening_fens, thread_files, threads);
+            break;
+        case EvaluatorBackend::QUEUED_CPU:
+            launch_threads<network::QueuedCpuEvaluator>(settings, out, opening_fens, thread_files, threads);
+            break;
+#ifdef DATAGEN_CUDA
+        case EvaluatorBackend::GPU:
+            launch_threads<network::GpuEvaluator>(settings, out, opening_fens, thread_files, threads);
+            break;
+        case EvaluatorBackend::QUEUED_GPU:
+            network::QueuedGpuEvaluator::set_batch_size(std::max<u32>(1, static_cast<u32>(settings.num_threads / 2)));
+            launch_threads<network::QueuedGpuEvaluator>(settings, out, opening_fens, thread_files, threads);
+            break;
+#else
+        case EvaluatorBackend::GPU:
+        case EvaluatorBackend::QUEUED_GPU:
+            out << "error: this datagen build does not include CUDA evaluators\n";
+            stop_flag = true;
+            monitor.join();
+            return;
+#endif
+        }
+    } catch (const std::exception &e) {
+        stop_flag = true;
+        monitor.join();
+        out << "error: failed to initialize datagen evaluator: " << e.what() << '\n';
+        return;
     }
 
     for (auto &thread : threads) {

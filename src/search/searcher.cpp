@@ -1,6 +1,5 @@
 #include "searcher.hpp"
 #include "../uci/uci.hpp"
-#include "game_tree.hpp"
 #include <iostream>
 
 namespace search {
@@ -26,9 +25,7 @@ void Searcher::set_verbosity(Verbosity verbosity) {
 }
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
-    for (auto &thread : threads_) {
-        thread.go(game_tree_, board, time_settings, verbosity_);
-    }
+    go(board, cpu_evaluator_, time_settings);
 }
 
 const GameTree &Searcher::game_tree() const {

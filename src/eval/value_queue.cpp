@@ -55,14 +55,6 @@ ValueQueue::ValueSlot ValueQueue::reserve_value_slot(const BoardState &state) {
 void ValueQueue::mark_ready(const ValueSlot &slot) {
     std::scoped_lock lock(state_mutex_);
 
-    if (slot.board_idx >= reserved_slots_) {
-        throw std::runtime_error("invalid board index in mark_ready");
-    }
-
-    if (slots_[slot.board_idx].ready) {
-        throw std::runtime_error("slot marked ready twice");
-    }
-
     slots_[slot.board_idx].ready = true;
     ++ready_slots_;
 
@@ -87,18 +79,6 @@ ValueQueue::ValueResult ValueQueue::wait_for_result(const ValueSlot &slot) {
 
 void ValueQueue::mark_consumed(const ValueSlot &slot) {
     std::scoped_lock lock(state_mutex_);
-
-    if (phase_ != Phase::COMPLETED) {
-        throw std::runtime_error("mark_consumed called for non-completed generation");
-    }
-
-    if (slot.board_idx >= completed_slots_) {
-        throw std::runtime_error("invalid board index in mark_consumed");
-    }
-
-    if (slots_[slot.board_idx].consumed) {
-        throw std::runtime_error("slot consumed twice");
-    }
 
     slots_[slot.board_idx].consumed = true;
     ++consumed_slots_;
