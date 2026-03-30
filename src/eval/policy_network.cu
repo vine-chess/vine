@@ -175,6 +175,11 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
     }
 }
 
+DeviceCached<cuda_detail::CudaPolicyNetwork> &cached_policy_network() {
+    static DeviceCached<cuda_detail::CudaPolicyNetwork> cached_network;
+    return cached_network;
+}
+
 } // namespace
 
 bool cuda_available() {
@@ -182,12 +187,83 @@ bool cuda_available() {
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
 }
 
+class CudaExecutor {
+  public:
+    CudaExecutor() {
+        cuda_check(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+        device_network_ = cached_policy_network().get_or_init(
+            [](auto &host_network) { cuda_detail::export_cuda_network(host_network); });
+    }
+
+    ~CudaExecutor() {
+        if (stream_ != nullptr) {
+            cudaStreamDestroy(stream_);
+        }
+    }
+
+    void reserve(usize position_count, usize total_move_count) {
+        host_inputs_.reserve(position_count);
+        host_move_indices_.reserve(total_move_count);
+        host_outputs_.reserve(total_move_count);
+        device_inputs_.reserve(position_count);
+        device_move_indices_.reserve(total_move_count);
+        device_outputs_.reserve(total_move_count);
+    }
+
+    [[nodiscard]] CudaPolicyInput *inputs() {
+        return host_inputs_.data();
+    }
+
+    [[nodiscard]] u16 *move_indices() {
+        return host_move_indices_.data();
+    }
+
+    [[nodiscard]] f32 *outputs() {
+        return host_outputs_.data();
+    }
+
+    void launch(usize position_count, usize total_move_count) {
+        if (position_count == 0 || total_move_count == 0) {
+            return;
+        }
+
+        reserve(position_count, total_move_count);
+
+        cuda_check(cudaMemcpyAsync(device_inputs_.data(), host_inputs_.data(), position_count * sizeof(CudaPolicyInput),
+                                   cudaMemcpyHostToDevice, stream_));
+        cuda_check(cudaMemcpyAsync(device_move_indices_.data(), host_move_indices_.data(), total_move_count * sizeof(u16),
+                                   cudaMemcpyHostToDevice, stream_));
+
+        const i32 position_count_i32 = static_cast<i32>(position_count);
+        const i32 block_count = (position_count_i32 + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK;
+        evaluate_kernel<<<block_count, THREADS_PER_BLOCK, 0, stream_>>>(
+            device_inputs_.data(), device_move_indices_.data(), device_outputs_.data(), position_count_i32,
+            device_network_);
+        cuda_check(cudaGetLastError());
+
+        cuda_check(cudaMemcpyAsync(host_outputs_.data(), device_outputs_.data(), total_move_count * sizeof(f32),
+                                   cudaMemcpyDeviceToHost, stream_));
+    }
+
+    void wait() {
+        cuda_check(cudaStreamSynchronize(stream_));
+    }
+
+  private:
+    PinnedArray<CudaPolicyInput> host_inputs_;
+    PinnedArray<u16> host_move_indices_;
+    PinnedArray<f32> host_outputs_;
+    DeviceBuffer<CudaPolicyInput> device_inputs_;
+    DeviceBuffer<u16> device_move_indices_;
+    DeviceBuffer<f32> device_outputs_;
+    cudaStream_t stream_ = nullptr;
+    cuda_detail::CudaPolicyNetwork *device_network_ = nullptr;
+};
+
 void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs, usize position_count) {
     if (position_count == 0) {
         return;
     }
-
-    static DeviceCached<cuda_detail::CudaPolicyNetwork> cached_network;
 
     usize total_move_count = 0;
     for (usize i = 0; i < position_count; ++i) {
@@ -198,23 +274,19 @@ void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *
         return;
     }
 
-    const i32 position_count_i32 = static_cast<i32>(position_count);
-    CudaArray<CudaPolicyInput> device_inputs(position_count);
-    CudaArray<u16> device_move_indices(total_move_count);
-    CudaArray<f32> device_outputs(total_move_count);
-
-    device_inputs.set(inputs);
-    device_move_indices.set(move_indices);
-    auto *device_network =
-        cached_network.get_or_init([](auto &host_network) { cuda_detail::export_cuda_network(host_network); });
-
-    const i32 block_count = (position_count_i32 + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK;
-    evaluate_kernel<<<block_count, THREADS_PER_BLOCK>>>(device_inputs, device_move_indices, device_outputs,
-                                                        position_count_i32, device_network);
-    cuda_check(cudaGetLastError());
-    cuda_check(cudaDeviceSynchronize());
-
-    device_outputs.get(outputs);
+    static thread_local CudaExecutor executor;
+    executor.reserve(position_count, total_move_count);
+    for (usize i = 0; i < position_count; ++i) {
+        executor.inputs()[i] = inputs[i];
+    }
+    for (usize i = 0; i < total_move_count; ++i) {
+        executor.move_indices()[i] = move_indices[i];
+    }
+    executor.launch(position_count, total_move_count);
+    executor.wait();
+    for (usize i = 0; i < total_move_count; ++i) {
+        outputs[i] = executor.outputs()[i];
+    }
 }
 
 } // namespace network::policy

@@ -158,6 +158,8 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
             settings.num_games = *util::parse_number<usize>(value);
         } else if (key == "threads") {
             settings.num_threads = *util::parse_number<usize>(value);
+        } else if (key == "workers" || key == "workers_per_thread") {
+            settings.workers_per_thread = *util::parse_number<usize>(value);
         } else if (key == "hash") {
             settings.hash_size = *util::parse_number<usize>(value);
         } else if (key == "nodes") {

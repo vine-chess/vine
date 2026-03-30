@@ -21,6 +21,8 @@ struct Settings {
     usize num_games;
     // Number of threads to run games simultaneously
     usize num_threads;
+    // Number of search trees to run per thread
+    usize workers_per_thread = 1;
     // Hash size per thread
     usize hash_size;
     // Time management settings for move stop conditions

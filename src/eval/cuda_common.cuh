@@ -72,6 +72,80 @@ struct CudaArray {
 };
 
 template <class T>
+struct PinnedArray {
+    T *ptr = nullptr;
+    std::size_t size = 0;
+
+    PinnedArray() = default;
+
+    PinnedArray(const PinnedArray &) = delete;
+    PinnedArray &operator=(const PinnedArray &) = delete;
+
+    ~PinnedArray() {
+        reset();
+    }
+
+    void reserve(std::size_t n) {
+        if (size >= n) {
+            return;
+        }
+
+        reset();
+        cuda_check(cudaMallocHost(reinterpret_cast<void **>(&ptr), n * sizeof(T)));
+        size = n;
+    }
+
+    void reset() {
+        if (ptr != nullptr) {
+            cudaFreeHost(ptr);
+            ptr = nullptr;
+            size = 0;
+        }
+    }
+
+    [[nodiscard]] T *data() {
+        return ptr;
+    }
+};
+
+template <class T>
+struct DeviceBuffer {
+    T *ptr = nullptr;
+    std::size_t size = 0;
+
+    DeviceBuffer() = default;
+
+    DeviceBuffer(const DeviceBuffer &) = delete;
+    DeviceBuffer &operator=(const DeviceBuffer &) = delete;
+
+    ~DeviceBuffer() {
+        reset();
+    }
+
+    void reserve(std::size_t n) {
+        if (size >= n) {
+            return;
+        }
+
+        reset();
+        cuda_check(cudaMalloc(reinterpret_cast<void **>(&ptr), n * sizeof(T)));
+        size = n;
+    }
+
+    void reset() {
+        if (ptr != nullptr) {
+            cudaFree(ptr);
+            ptr = nullptr;
+            size = 0;
+        }
+    }
+
+    [[nodiscard]] T *data() {
+        return ptr;
+    }
+};
+
+template <class T>
 class DeviceCached {
   public:
     static_assert(std::is_trivially_copyable_v<T>);

@@ -7,12 +7,14 @@ TEST_EXE = cuda_test
 TEST_FILES = $(filter-out src/main.cpp,$(FILES)) src/tests/cuda_test.cpp
 TEST_OBJS = $(TEST_FILES:.cpp=.cuda_test.o)
 DATAGEN_OBJS = $(FILES:.cpp=.datagen.o)
+DEPS = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d) $(DATAGEN_OBJS:.o=.d)
 
 OPTIMIZE ?= -O3 -flto
 
 FLAGS = -std=c++20 -fconstexpr-steps=100000000
 FLAGS += $(EXTRA_FLAGS)
 FLAGS += $(OPTIMIZE)
+DEPFLAGS = -MMD -MP
 TEST_FLAGS = $(filter-out -flto,$(FLAGS))
 DATAGEN_FLAGS = $(filter-out -flto,$(FLAGS)) -DDATAGEN -DDATAGEN_CUDA
 TEST_CXX = clang++
@@ -77,16 +79,16 @@ ifeq ($(DOWNLOAD_NETS),yes)
 endif
 
 %.o: %.cpp
-	$(CXX) $(FLAGS) -c $< -o $@
+	$(CXX) $(FLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c
-	$(CC) $(FLAGS) -c $< -o $@
+	$(CC) $(FLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.cuda_test.o: %.cpp
-	$(TEST_CXX) $(TEST_FLAGS) -c $< -o $@
+	$(TEST_CXX) $(TEST_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.datagen.o: %.cpp
-	$(TEST_CXX) $(DATAGEN_FLAGS) -c $< -o $@
+	$(TEST_CXX) $(DATAGEN_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 all: nets $(OBJS)
 	$(CXX) $(FLAGS) $(OBJS) -o $(EXE)
@@ -101,4 +103,6 @@ compile-commands:
 	bear --output compile_commands.json -- $(MAKE) -B cuda-test
 
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) $(DATAGEN_OBJS) $(TEST_EXE)
+	rm -f $(OBJS) $(TEST_OBJS) $(DATAGEN_OBJS) $(DEPS) $(TEST_EXE)
+
+-include $(DEPS)

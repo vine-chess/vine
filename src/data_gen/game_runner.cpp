@@ -8,6 +8,7 @@
 #include <exception>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string_view>
 
 namespace datagen {
@@ -37,61 +38,110 @@ namespace {
     return "unknown";
 }
 
+[[nodiscard]] constexpr usize workers_per_thread(const Settings &settings) {
+    return settings.workers_per_thread == 0 ? 1 : settings.workers_per_thread;
+}
+
+[[nodiscard]] constexpr usize hash_per_worker(const Settings &settings) {
+    const usize workers = workers_per_thread(settings);
+    const usize hash = settings.hash_size / workers;
+    return hash == 0 ? 1 : hash;
+}
+
+struct SearchContext {
+    search::Searcher searcher;
+    Board board;
+    std::unique_ptr<MontyFormatWriter> writer;
+    bool running = false;
+};
+
+[[nodiscard]] f64 terminal_game_result(const Board &board) {
+    return board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
+}
+
 template <class Evaluator>
 void thread_loop(const Settings &settings, const usize thread_id, std::ofstream &out_file,
                  const std::vector<std::string> &opening_fens) {
-    MontyFormatWriter writer(out_file);
-
-    search::Searcher searcher;
     Evaluator evaluator;
-    searcher.set_hash_size(settings.hash_size);
-    searcher.set_verbosity(search::Verbosity::NONE);
 
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
-    for (usize i = thread_id; i < settings.num_games && !stop_flag.load(std::memory_order_relaxed);
-         i += settings.num_threads) {
-        const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
-        Board board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
-        writer.push_board_state(board.state());
+    std::vector<SearchContext> workers(workers_per_thread(settings));
+    for (auto &worker : workers) {
+        worker.searcher.set_hash_size(hash_per_worker(settings));
+        worker.searcher.set_verbosity(search::Verbosity::NONE);
+        worker.writer = std::make_unique<MontyFormatWriter>(out_file);
+    }
 
-        f64 game_result;
-        while (true) {
-            searcher.go(board, evaluator, settings.time_settings);
+    usize next_game_idx = thread_id;
+    usize next_worker_idx = 0;
 
-            const auto &game_tree = searcher.game_tree();
-            const auto &root_node = game_tree.root();
-            if (root_node.terminal()) {
-                game_result = board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
-                break;
-            }
-
-            VisitsDistribution visits_dist;
-            search::NodeIndex best_child_idx = root_node.first_child_idx;
-            for (usize j = 0; j < root_node.num_children; j++) {
-                const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                visits_dist.emplace_back(writer.to_monty_move(child.move, board.state()), child.num_visits);
-                if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                    best_child_idx = root_node.first_child_idx + j;
-                }
-            }
-
-            const auto &best_child = game_tree.node_at(best_child_idx);
-            vine_assert(!best_child.move.is_null());
-
-            writer.push_move(best_child.move, 1.0 - best_child.q(), visits_dist, board.state());
-            board.make_move(best_child.move);
-
-            positions_written.fetch_add(1, std::memory_order_relaxed);
-
-            if (board.is_draw()) {
-                game_result = 0.5;
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        bool has_running_workers = false;
+        for (const auto &worker : workers) {
+            if (worker.running) {
+                has_running_workers = true;
                 break;
             }
         }
 
-        writer.write_with_result(game_result);
-        games_played.fetch_add(1, std::memory_order_relaxed);
+        if (next_game_idx >= settings.num_games && !has_running_workers) {
+            break;
+        }
+
+        auto &worker = workers[next_worker_idx];
+        next_worker_idx = (next_worker_idx + 1) % workers.size();
+
+        if (!worker.running) {
+            if (next_game_idx >= settings.num_games) {
+                continue;
+            }
+
+            const auto base_opening_fen = opening_fens[rng::next_u64(0, opening_fens.size() - 1)];
+            worker.board =
+                Board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
+            worker.searcher.clear();
+            worker.writer->push_board_state(worker.board.state());
+            worker.running = true;
+            next_game_idx += settings.num_threads;
+        }
+
+        worker.searcher.go(worker.board, evaluator, settings.time_settings);
+
+        const auto &game_tree = worker.searcher.game_tree();
+        const auto &root_node = game_tree.root();
+        if (root_node.terminal()) {
+            worker.writer->write_with_result(terminal_game_result(worker.board));
+            worker.searcher.clear();
+            worker.running = false;
+            games_played.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
+
+        VisitsDistribution visits_dist;
+        search::NodeIndex best_child_idx = root_node.first_child_idx;
+        for (usize j = 0; j < root_node.num_children; j++) {
+            const auto &child = game_tree.node_at(root_node.first_child_idx + j);
+            visits_dist.emplace_back(worker.writer->to_monty_move(child.move, worker.board.state()), child.num_visits);
+            if (child.q() < game_tree.node_at(best_child_idx).q()) {
+                best_child_idx = root_node.first_child_idx + j;
+            }
+        }
+
+        const auto &best_child = game_tree.node_at(best_child_idx);
+        vine_assert(!best_child.move.is_null());
+
+        worker.writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, worker.board.state());
+        worker.board.make_move(best_child.move);
+
+        positions_written.fetch_add(1, std::memory_order_relaxed);
+
+        if (worker.board.is_draw()) {
+            worker.writer->write_with_result(0.5);
+            worker.searcher.clear();
+            worker.running = false;
+            games_played.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 }
 

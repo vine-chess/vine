@@ -92,8 +92,8 @@ class GpuPolicyContext {
     }
 
     void enqueue(Move move, PieceType moving_piece) {
-        moves_[move_count_] = move;
-        moving_pieces_[move_count_] = moving_piece;
+        moves_.push_back(move);
+        moving_pieces_.push_back(moving_piece);
         ++move_count_;
     }
 
@@ -134,8 +134,8 @@ class QueuedGpuPolicyContext {
     explicit QueuedGpuPolicyContext(const BoardState &state) : state_(state) {}
 
     void enqueue(Move move, PieceType moving_piece) {
-        moves_[move_count_] = move;
-        moving_pieces_[move_count_] = moving_piece;
+        moves_.push_back(move);
+        moving_pieces_.push_back(moving_piece);
         ++move_count_;
     }
 
