@@ -65,8 +65,8 @@ f64 evaluate(const BoardState &state) {
         right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
 
         // Widen so pairwise doesnt overflow the i16s, using u16s here is neutral
-        const auto left_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(left);
-        const auto right_widened = util::convert_vector<i32, i16, L2_REG_SIZE>(right);
+        const auto left_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(left);
+        const auto right_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(right);
 
         // Pairwise multiply the clamped values
         const auto activated = left_widened * right_widened;
@@ -88,30 +88,35 @@ f64 evaluate(const BoardState &state) {
     // Activate l2
     for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
-        v = util::clamp_scalar<f32, L2_REG_SIZE>(v, 0, 1);
-        v *= v;
+        const auto scaled = util::fma<f32, L2_REG_SIZE>(v, util::set1<f32, L2_REG_SIZE>(1.0f / 6.0f),
+                                                        util::set1<f32, L2_REG_SIZE>(0.5f));
+        v *= util::clamp_scalar<f32, L2_REG_SIZE>(scaled, 0, 1);
         util::storeu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i, v);
     }
 
     std::array<f32, L3_SIZE> l3{};
     for (usize i = 0; i < L3_SIZE / L3_REG_SIZE; ++i) {
         auto v = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i);
+        auto g = util::loadu<f32, L3_REG_SIZE>(network->l2_biases.data() + L3_REG_SIZE * i + L3_SIZE);
 
         // Matrix multiply l2 -> l3
         for (usize j = 0; j < L2_SIZE; ++j) {
             const auto l2_val = util::set1<f32, L3_REG_SIZE>(l2[j]);
-            const auto w = network->l2_weights_vec[j][i];
-            v = util::fmadd_ps(l2_val, w, v);
+            const auto w1 = network->l2_weights_vec[j][i];
+            const auto w2 = network->l2_weights_vec[j][i + L3_SIZE / L3_REG_SIZE];
+            v = util::fma<f32, L3_REG_SIZE>(l2_val, w1, v);
+            g = util::fma<f32, L3_REG_SIZE>(l2_val, w2, g);
         }
 
+        const auto g_scaled = util::fma<f32, L3_REG_SIZE>(g, util::set1<f32, L3_REG_SIZE>(1.0f / 6.0f),
+                                                          util::set1<f32, L3_REG_SIZE>(0.5f));
         // Activate l3
-        v = util::clamp_scalar<f32, L3_REG_SIZE>(v, 0, 1);
-        v *= v;
+        v *= util::clamp_scalar<f32, L3_REG_SIZE>(g_scaled, 0, 1);
 
         // Matrix multiply l3 -> out
         const auto l3_val = util::loadu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i);
         util::storeu<f32, L3_REG_SIZE>(l3.data() + L3_REG_SIZE * i,
-                                       util::fmadd_ps(v, network->l3_weights_vec[i], l3_val));
+                                       util::fma<f32, L3_REG_SIZE>(v, network->l3_weights_vec[i], l3_val));
     }
 
     f32 final_sum = network->l3_biases[0];

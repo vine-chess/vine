@@ -10,7 +10,7 @@
 namespace network::policy {
 
 constexpr i16 Q = 128;
-constexpr usize L1_SIZE = 2048;
+constexpr usize L1_SIZE = 4096;
 constexpr usize OUTPUT_SIZE = 3920;
 constexpr usize VECTOR_SIZE = std::min<usize>(L1_SIZE, util::NATIVE_SIZE<i16>);
 
