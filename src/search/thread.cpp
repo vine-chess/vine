@@ -83,7 +83,7 @@ void extract_pv_internal(std::vector<Move> &pv, const Node &node, GameTree &tree
         }
     }
 
-    pv.push_back(tree.node_at(best_child_idx).move);
+    pv.push_back(tree.node_at(best_child_idx).info.move);
     extract_pv_internal(pv, tree.node_at(best_child_idx), tree);
 }
 
