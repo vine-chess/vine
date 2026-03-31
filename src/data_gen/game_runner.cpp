@@ -108,8 +108,8 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
 
         worker.searcher.go(worker.board, evaluator, settings.time_settings);
 
-        const auto &game_tree = worker.searcher.game_tree();
-        const auto &root_node = game_tree.root();
+        auto &game_tree = worker.searcher.game_tree();
+        auto root_node = game_tree.root();
         if (root_node.terminal()) {
             worker.writer->write_with_result(terminal_game_result(worker.board));
             worker.searcher.clear();
@@ -119,20 +119,21 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
         }
 
         VisitsDistribution visits_dist;
-        search::NodeIndex best_child_idx = root_node.first_child_idx;
-        for (usize j = 0; j < root_node.num_children; j++) {
-            const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-            visits_dist.emplace_back(worker.writer->to_monty_move(child.move, worker.board.state()), child.num_visits);
+        search::NodeIndex best_child_idx = root_node.info.first_child_idx;
+        for (usize j = 0; j < root_node.info.num_children; j++) {
+            auto child = game_tree.node_at(root_node.info.first_child_idx + j);
+            visits_dist.emplace_back(worker.writer->to_monty_move(child.info.move, worker.board.state()),
+                                     child.num_visits);
             if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                best_child_idx = root_node.first_child_idx + j;
+                best_child_idx = root_node.info.first_child_idx + j;
             }
         }
 
         const auto &best_child = game_tree.node_at(best_child_idx);
-        vine_assert(!best_child.move.is_null());
+        vine_assert(!best_child.info.move.is_null());
 
-        worker.writer->push_move(best_child.move, 1.0 - best_child.q(), visits_dist, worker.board.state());
-        worker.board.make_move(best_child.move);
+        worker.writer->push_move(best_child.info.move, 1.0 - best_child.q(), visits_dist, worker.board.state());
+        worker.board.make_move(best_child.info.move);
 
         positions_written.fetch_add(1, std::memory_order_relaxed);
 

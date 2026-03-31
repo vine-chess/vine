@@ -7,6 +7,7 @@
 #include "hash_table.hpp"
 #include "history.hpp"
 #include "node.hpp"
+#include "node_index.hpp"
 #include "tree_half.hpp"
 #include "../chess/move_gen.hpp"
 #include "../util/assert.hpp"
@@ -48,10 +49,8 @@ class GameTree {
     template <class Evaluator>
     void new_search(const Board &root_board, Evaluator &evaluator);
 
-    [[nodiscard]] Node &node_at(NodeIndex idx);
-    [[nodiscard]] const Node &node_at(NodeIndex idx) const;
-    [[nodiscard]] const Node &root() const;
-    [[nodiscard]] Node &root();
+    [[nodiscard]] NodeReference node_at(NodeIndex idx);
+    [[nodiscard]] NodeReference root();
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;
@@ -84,7 +83,7 @@ class GameTree {
   private:
     void backpropagate_terminal_state(NodeIndex node_idx, TerminalState child_terminal_state);
 
-    [[nodiscard]] std::span<Node> get_children(Node node);
+    [[nodiscard]] NodeRange get_children(NodeReference node);
 
     template <class Evaluator>
     [[nodiscard]] bool expand_node(NodeIndex node_idx, Evaluator &evaluator);
@@ -96,10 +95,12 @@ class GameTree {
 
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
+    [[nodiscard]] NodeIndex pick_highest_puct(NodeReference parent, f64 exploration_constant);
+
     std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
     u64 tree_usage_ = 0;
-    TreeHalf::Index active_half_;
+    search::HalfIndex active_half_;
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
@@ -146,7 +147,7 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
     };
 
     while (true) {
-        Node &node = node_at(node_idx);
+        auto node = node_at(node_idx);
 
         if (node.num_visits > 0) {
             if (!expand_node(node_idx, evaluator)) {
@@ -168,37 +169,24 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
         const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
-            base *=
-                std::min<f64>(GINI_MAXIMUM, GINI_BASE - GINI_MULTIPLIER * std::log(node.gini_impurity / 255.0 + 0.001));
+            base *= std::min<f64>(GINI_MAXIMUM,
+                                  GINI_BASE - GINI_MULTIPLIER * std::log(node.info.gini_impurity / 255.0 + 0.001));
             return base;
         }();
 
-        NodeIndex best_child_idx = 0;
-        f64 best_child_score = std::numeric_limits<f64>::min();
-
-        const Node parent = node;
-        const auto children = get_children(node);
-        for (u16 i = 0; i < node.num_children; ++i) {
-            Node &child_node = children[i];
-            const f64 child_score = compute_puct(parent, child_node, cpuct);
-            if (child_score > best_child_score) {
-                best_child_idx = node.first_child_idx + i;
-                best_child_score = child_score;
-            }
-        }
-
-        node_idx = best_child_idx, nodes_in_path_.push_back(node_idx);
-        board_.make_move(node_at(node_idx).move);
+        node_idx = pick_highest_puct(node, cpuct);
+        nodes_in_path_.push_back(node_idx);
+        board_.make_move(node_at(node_idx).info.move);
     }
 }
 
 template <class Evaluator>
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx, Evaluator &evaluator) {
-    Node &node = node_at(node_idx);
+    auto node = node_at(node_idx);
 
     auto ctx = evaluator.policy_context(state);
-    for (Node &child : get_children(node)) {
-        ctx.enqueue(child.move, state.get_piece_type(child.move.from()));
+    for (auto child : get_children(node)) {
+        ctx.enqueue(child.info.move, state.get_piece_type(child.info.move.from()));
     }
     ctx.ready();
 
@@ -206,32 +194,32 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx, Evalu
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
 
     f32 highest_policy = -std::numeric_limits<f32>::max();
-    for (Node &child : get_children(node)) {
+    for (auto child : get_children(node)) {
         const auto history_score =
-            history_.entry(board_.state(), child.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
+            history_.entry(board_.state(), child.info.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
         child.policy_score = (ctx.logit() + history_score) / temperature;
         highest_policy = std::max(highest_policy, child.policy_score);
     }
 
     f32 sum_exponents = 0.0f;
-    for (Node &child : get_children(node)) {
+    for (auto child : get_children(node)) {
         const f32 exp_policy = std::exp(child.policy_score - highest_policy);
         sum_exponents += exp_policy;
         child.policy_score = exp_policy;
     }
 
     f32 sum_squares = 0.0f;
-    for (Node &child : get_children(node)) {
+    for (auto child : get_children(node)) {
         child.policy_score /= sum_exponents;
         sum_squares += child.policy_score * child.policy_score;
     }
 
-    node.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
+    node.info.gini_impurity = static_cast<u8>(255.0f * std::clamp(1.0f - sum_squares, 0.0f, 1.0f));
 }
 
 template <class Evaluator>
 bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
-    auto &node = node_at(node_idx);
+    auto node = node_at(node_idx);
     if (node.expanded() || node.terminal()) {
         return true;
     }
@@ -239,7 +227,7 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
     vine_assert(node_idx.index() == 0 || node.num_visits > 0);
 
     if (board_.is_draw() && node_idx != active_half().root_idx()) {
-        node.terminal_state = TerminalState::draw();
+        node.info.terminal_state = TerminalState::draw();
         return true;
     }
 
@@ -247,7 +235,7 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
     generate_moves(board_.state(), move_list);
 
     if (move_list.empty()) {
-        node.terminal_state = board_.state().checkers != 0 ? TerminalState::loss(0) : TerminalState::draw();
+        node.info.terminal_state = board_.state().checkers != 0 ? TerminalState::loss(0) : TerminalState::draw();
         return true;
     }
 
@@ -255,8 +243,8 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
         return false;
     }
 
-    node.first_child_idx = active_half().construct_idx(active_half().filled_size());
-    node.num_children = move_list.size();
+    node.info.first_child_idx = active_half().construct_idx(active_half().filled_size());
+    node.info.num_children = move_list.size();
 
     for (const auto move : move_list) {
         active_half().push_node(Node{
@@ -264,16 +252,16 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
         });
     }
 
-    tree_usage_ += node.num_children * sizeof(Node);
+    tree_usage_ += node.info.num_children * sizeof(Node);
     compute_policy(board_.state(), node_idx, evaluator);
     return true;
 }
 
 template <class Evaluator>
 f64 GameTree::simulate_node(NodeIndex node_idx, Evaluator &evaluator) {
-    const auto &node = node_at(node_idx);
+    const auto node = node_at(node_idx);
     if (node.terminal()) {
-        return node.terminal_state.score();
+        return node.info.terminal_state.score();
     }
 
     if (const auto hash_entry = hash_table_.probe(board_.state().hash_key)) {

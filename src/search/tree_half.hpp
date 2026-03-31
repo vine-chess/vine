@@ -2,51 +2,16 @@
 #define TREE_HALF_H
 
 #include "../util/types.hpp"
+#include "node.hpp"
+#include "node_index.hpp"
 #include <vector>
 
 namespace search {
 
-class Node;
-class NodeIndex;
-
 class TreeHalf {
   public:
-    class Index {
-      public:
-        static constexpr u8 LOWER = 0;
-        static constexpr u8 UPPER = 1;
 
-        constexpr Index(u8 v = LOWER) noexcept : value_(v & 0x1u) {}
-        constexpr Index(const Index &) noexcept = default;
-        Index &operator=(const Index &) noexcept = default;
-
-        [[nodiscard]] constexpr Index operator~() const noexcept {
-            return {static_cast<u8>(value_ ^ 0x1u)};
-        }
-
-        [[nodiscard]] constexpr bool operator==(const Index &other) const noexcept {
-            return value_ == other.value_;
-        }
-        [[nodiscard]] constexpr bool operator!=(const Index &other) const noexcept {
-            return value_ != other.value_;
-        }
-
-        [[nodiscard]] constexpr operator u8() const noexcept {
-            return value_;
-        }
-
-        [[nodiscard]] static constexpr Index lower() noexcept {
-            return {LOWER};
-        }
-        [[nodiscard]] static constexpr Index upper() noexcept {
-            return {UPPER};
-        }
-
-      private:
-        u8 value_;
-    };
-
-    explicit TreeHalf(Index our_half);
+    explicit TreeHalf(HalfIndex our_half);
 
     void set_node_capacity(usize capacity);
 
@@ -57,17 +22,24 @@ class TreeHalf {
     void clear_dangling_references();
     void push_node(const Node &node);
 
-    [[nodiscard]] NodeIndex root_idx() const;
-    [[nodiscard]] Node &root_node();
-    [[nodiscard]] const Node &root_node() const;
-    [[nodiscard]] Node &operator[](NodeIndex idx);
-    [[nodiscard]] const Node &operator[](NodeIndex idx) const;
+    [[nodiscard]] NodeIndex root_idx();
+    [[nodiscard]] NodeReference root_node();
+    [[nodiscard]] NodeReference operator[](NodeIndex idx);
     [[nodiscard]] NodeIndex construct_idx(u32 idx) const noexcept;
 
+    [[nodiscard]] NodeRange range(NodeReference node);
+
   private:
-    std::vector<Node> nodes_;
+    // Sums of all scores that have been propagated back to each node
+    std::vector<f64> score_sums_;
+    // Policy given to each node by its parent node
+    std::vector<f32> policy_scores_;
+    // Number of times each node has been visited
+    std::vector<u32> visit_counts_;
+
+    std::vector<NodeInfo> nodes_;
     usize filled_size_;
-    Index our_half_;
+    HalfIndex our_half_;
 };
 
 } // namespace search
