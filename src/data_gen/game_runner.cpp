@@ -27,10 +27,6 @@ namespace {
     switch (backend) {
     case EvaluatorBackend::CPU:
         return "cpu";
-    case EvaluatorBackend::QUEUED_CPU:
-        return "queued_cpu";
-    case EvaluatorBackend::GPU:
-        return "gpu";
     case EvaluatorBackend::QUEUED_GPU:
         return "queued_gpu";
     }
@@ -249,19 +245,12 @@ void run_games(Settings settings, std::ostream &out) {
         case EvaluatorBackend::CPU:
             launch_threads<network::CpuEvaluator>(settings, out, opening_fens, thread_files, threads);
             break;
-        case EvaluatorBackend::QUEUED_CPU:
-            launch_threads<network::QueuedCpuEvaluator>(settings, out, opening_fens, thread_files, threads);
-            break;
 #ifdef DATAGEN_CUDA
-        case EvaluatorBackend::GPU:
-            launch_threads<network::GpuEvaluator>(settings, out, opening_fens, thread_files, threads);
-            break;
         case EvaluatorBackend::QUEUED_GPU:
             network::QueuedGpuEvaluator::set_batch_size(std::max<u32>(1, static_cast<u32>(settings.num_threads / 2)));
             launch_threads<network::QueuedGpuEvaluator>(settings, out, opening_fens, thread_files, threads);
             break;
 #else
-        case EvaluatorBackend::GPU:
         case EvaluatorBackend::QUEUED_GPU:
             out << "error: this datagen build does not include CUDA evaluators\n";
             stop_flag = true;
