@@ -9,6 +9,17 @@
 
 namespace search {
 
+enum class RequestKind : u8 {
+    None,
+    Value,
+    Policy,
+};
+
+struct Request {
+    RequestKind kind = RequestKind::None;
+    NodeIndex node = NodeIndex::none();
+};
+
 class Searcher {
   public:
     Searcher();
@@ -25,14 +36,18 @@ class Searcher {
     [[nodiscard]] GameTree &game_tree();
     [[nodiscard]] const GameTree &game_tree() const;
     [[nodiscard]] u64 iterations() const;
+    [[nodiscard]] Request poll() const;
 
     void clear();
+    void finish_value(f64 score);
+    void finish_policy();
 
   private:
     std::vector<Thread> threads_;
     GameTree game_tree_;
     network::CpuEvaluator cpu_evaluator_;
     Verbosity verbosity_;
+    Request request_;
 };
 
 } // namespace search

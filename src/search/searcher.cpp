@@ -44,8 +44,22 @@ u64 Searcher::iterations() const {
     return result;
 }
 
+Request Searcher::poll() const {
+    return request_;
+}
+
 void Searcher::clear() {
     game_tree_.clear();
+    request_ = {};
+}
+
+void Searcher::finish_value(f64 score) {
+    game_tree_.backpropagate_score(score);
+    request_ = {};
+}
+
+void Searcher::finish_policy() {
+    request_ = {};
 }
 
 } // namespace search
