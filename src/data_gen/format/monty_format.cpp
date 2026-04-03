@@ -40,9 +40,12 @@ void MontyFormatWriter::push_board_state(const BoardState &state) {
     compressed_board_.full_move_count = 1; // TODO: full move clock
 }
 
-void MontyFormatWriter::push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist,
-                                  const BoardState &state) {
-    moves_.push_back({to_monty_move(best_move, state), root_q, visit_dist});
+void MontyFormatWriter::push_move(Move best_move, f64 root_q, const BoardState &state) {
+    moves_.push_back({convert_move(best_move, state), root_q, {}});
+}
+
+void MontyFormatWriter::push_visit(Move move, u32 visits, const BoardState &state) {
+    moves_.back().visits.emplace_back(convert_move(move, state), visits);
 }
 
 void MontyFormatWriter::write_with_result(f64 result) {
@@ -89,7 +92,7 @@ void MontyFormatWriter::write_with_result(f64 result) {
     out_.flush();
 }
 
-u16 MontyFormatWriter::to_monty_move(Move move, const BoardState &state) const {
+u16 MontyFormatWriter::convert_move(Move move, const BoardState &state) const {
     static constexpr u16 FLAG_QUIET = 0, FLAG_DBL_PUSH = 1, FLAG_CAP = 4, FLAG_ENP = 5, FLAG_KS = 2, FLAG_QS = 3,
                          FLAG_NPR = 8, FLAG_BPR = 9, FLAG_RPR = 10, FLAG_QPR = 11, FLAG_NPC = 12, FLAG_BPC = 13,
                          FLAG_RPC = 14, FLAG_QPC = 15;

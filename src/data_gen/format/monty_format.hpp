@@ -33,12 +33,12 @@ class MontyFormatWriter {
     explicit MontyFormatWriter(std::ostream &out);
 
     void push_board_state(const BoardState &state);
-    void push_move(Move best_move, f64 root_q, const VisitsDistribution &visit_dist, const BoardState &state);
+    void push_move(Move best_move, f64 root_q, const BoardState &state);
+    void push_visit(Move move, u32 visits, const BoardState &state);
     void write_with_result(double game_result);
 
-    [[nodiscard]] u16 to_monty_move(Move move, const BoardState &state) const;
-
   private:
+    [[nodiscard]] u16 convert_move(Move move, const BoardState &state) const;
     void put_u8(u8 v);
     void put_u16(u16 v);
     void put_u64(u64 v);

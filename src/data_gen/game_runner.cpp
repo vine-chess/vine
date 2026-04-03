@@ -5,10 +5,10 @@
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
+#include <deque>
 #include <exception>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <string_view>
 
 namespace datagen {
@@ -45,9 +45,11 @@ namespace {
 }
 
 struct SearchContext {
+    explicit SearchContext(std::ostream &out) : writer(out) {}
+
     search::Searcher searcher;
     Board board;
-    std::unique_ptr<MontyFormatWriter> writer;
+    MontyFormatWriter writer;
     bool running = false;
 };
 
@@ -62,11 +64,13 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
 
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
-    std::vector<SearchContext> workers(workers_per_thread(settings));
+    std::deque<SearchContext> workers;
+    for (usize i = 0; i < workers_per_thread(settings); ++i) {
+        workers.emplace_back(out_file);
+    }
     for (auto &worker : workers) {
         worker.searcher.set_hash_size(hash_per_worker(settings));
         worker.searcher.set_verbosity(search::Verbosity::NONE);
-        worker.writer = std::make_unique<MontyFormatWriter>(out_file);
     }
 
     usize next_game_idx = thread_id;
@@ -97,7 +101,7 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
             worker.board =
                 Board(generate_opening(base_opening_fen, settings.random_moves, settings.temperature, settings.gamma));
             worker.searcher.clear();
-            worker.writer->push_board_state(worker.board.state());
+            worker.writer.push_board_state(worker.board.state());
             worker.running = true;
             next_game_idx += settings.num_threads;
         }
@@ -107,19 +111,16 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
         auto &game_tree = worker.searcher.game_tree();
         auto root_node = game_tree.root();
         if (root_node.terminal()) {
-            worker.writer->write_with_result(terminal_game_result(worker.board));
+            worker.writer.write_with_result(terminal_game_result(worker.board));
             worker.searcher.clear();
             worker.running = false;
             games_played.fetch_add(1, std::memory_order_relaxed);
             continue;
         }
 
-        VisitsDistribution visits_dist;
         search::NodeIndex best_child_idx = root_node.info.first_child_idx;
         for (usize j = 0; j < root_node.info.num_children; j++) {
             auto child = game_tree.node_at(root_node.info.first_child_idx + j);
-            visits_dist.emplace_back(worker.writer->to_monty_move(child.info.move, worker.board.state()),
-                                     child.num_visits);
             if (child.q() < game_tree.node_at(best_child_idx).q()) {
                 best_child_idx = root_node.info.first_child_idx + j;
             }
@@ -128,13 +129,17 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ofstream 
         const auto &best_child = game_tree.node_at(best_child_idx);
         vine_assert(!best_child.info.move.is_null());
 
-        worker.writer->push_move(best_child.info.move, 1.0 - best_child.q(), visits_dist, worker.board.state());
+        worker.writer.push_move(best_child.info.move, 1.0 - best_child.q(), worker.board.state());
+        for (usize j = 0; j < root_node.info.num_children; j++) {
+            auto child = game_tree.node_at(root_node.info.first_child_idx + j);
+            worker.writer.push_visit(child.info.move, child.num_visits, worker.board.state());
+        }
         worker.board.make_move(best_child.info.move);
 
         positions_written.fetch_add(1, std::memory_order_relaxed);
 
         if (worker.board.is_draw()) {
-            worker.writer->write_with_result(0.5);
+            worker.writer.write_with_result(0.5);
             worker.searcher.clear();
             worker.running = false;
             games_played.fetch_add(1, std::memory_order_relaxed);
