@@ -9,7 +9,12 @@ namespace datagen {
 
 enum class EvaluatorBackend : u8 {
     CPU,
-    QUEUED_GPU,
+    GPU,
+};
+
+enum class DatagenMode : u8 {
+    policy,
+    value,
 };
 
 struct Settings {
@@ -33,6 +38,8 @@ struct Settings {
     f64 temperature, gamma;
     // Evaluator backend
     EvaluatorBackend evaluator_backend = EvaluatorBackend::CPU;
+    // Whether to do value or policy datagen
+    DatagenMode mode = DatagenMode::policy;
 };
 
 void run_games(Settings settings, std::ostream &out);

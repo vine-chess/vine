@@ -51,6 +51,7 @@ void Thread::go(GameTree &tree, Evaluator &evaluator, const Board &root_board, c
 
     u64 iterations = 0, nodes = 0;
     u64 previous_depth = 0, previous_sum_depths = 0;
+    util::StaticVector<u32, MAX_MOVES> old_visit_dist;
 
     while (++iterations) {
         const auto node = tree.select_and_expand_node(evaluator);
@@ -67,9 +68,17 @@ void Thread::go(GameTree &tree, Evaluator &evaluator, const Board &root_board, c
             }
         }
 
-        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth)) {
+        util::StaticVector<u32, MAX_MOVES> new_visit_dist;
+        for (u16 i = 0; i < tree.root().info.num_children; ++i) {
+            new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
+        }
+
+        if (time_manager_.times_up(tree, iterations, root_board.state().side_to_move, depth, old_visit_dist,
+                                   new_visit_dist)) {
             break;
         }
+
+        old_visit_dist = new_visit_dist;
     }
 
     const Node &root = tree.root();

@@ -96,6 +96,7 @@ class GameTree {
     [[nodiscard]] bool advance_root_node(Board old_board, const Board &new_board, NodeIndex start);
 
     [[nodiscard]] NodeIndex pick_highest_puct(NodeReference parent, f64 exploration_constant);
+    void inject_dirichlet_noise(NodeIndex node_idx);
 
     std::array<TreeHalf, 2> halves_;
     HashTable hash_table_;
@@ -104,6 +105,9 @@ class GameTree {
     Board board_;
     u32 sum_depths_ = 0;
     util::StaticVector<NodeIndex, 512> nodes_in_path_;
+    f64 dirichlet_epsilon_ = 0.0;
+    f64 dirichlet_alpha_ = 0.0;
+    bool use_gini_ = true;
     History history_;
 };
 

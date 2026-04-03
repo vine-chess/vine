@@ -1,5 +1,6 @@
 #include "game_tree.hpp"
 #include "../eval/value_network.hpp"
+#include "../uci/uci.hpp"
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 
@@ -156,10 +157,8 @@ void GameTree::backpropagate_score(f64 score) {
         score = 1.0 - score;
         cp_score = -cp_score;
 
-        // Undo all moves except the move that led to the root node
         if (!nodes_in_path_.empty()) {
             board_.undo_move();
-
             // Update the history for this move to influence new node policy scores
             if (child_terminal_state.is_none()) {
                 history_.entry(board_.state(), node.info.move).update(cp_score);
@@ -243,6 +242,31 @@ bool GameTree::advance_root_node(Board old_board, const Board &new_board, NodeIn
     }
 
     return old_board.state() == new_board.state();
+}
+
+void GameTree::inject_dirichlet_noise(NodeIndex node_idx) {
+    auto node = node_at(node_idx);
+    vine_assert(node_idx == active_half().root_idx());
+
+    std::vector<f64> noise;
+    noise.reserve(node.info.num_children);
+
+    // Generate a distribution of random numbers and normalize
+    f64 sum = 0.0f;
+    for (usize i = 0; i < node.info.num_children; i++) {
+        noise.push_back(rng::next_f64_gamma(dirichlet_alpha_));
+        sum += noise.back();
+    }
+    for (usize i = 0; i < node.info.num_children; i++) {
+        noise[i] /= sum;
+    }
+
+    // Mix in the Dirichlet noise with the policy priors
+    for (u16 i = 0; i < node.info.num_children; ++i) {
+        auto child = node_at(node.info.first_child_idx + i);
+        child.policy_score =
+            static_cast<f32>((1.0 - dirichlet_epsilon_) * child.policy_score + dirichlet_epsilon_ * noise[i]);
+    }
 }
 
 void GameTree::clear() {
