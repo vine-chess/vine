@@ -4,6 +4,10 @@
 
 namespace search {
 
+bool use_gini_option_enabled() {
+    return std::get<bool>(uci::options.get("UseGiniImpurity")->value_as_variant());
+}
+
 Searcher::Searcher() : verbosity_(Verbosity::VERBOSE) {
     set_thread_count(1);
     clear();
@@ -26,6 +30,7 @@ void Searcher::set_verbosity(Verbosity verbosity) {
 }
 
 void Searcher::go(Board &board, const TimeSettings &time_settings) {
+    game_tree_.set_use_gini(use_gini_option_enabled());
     go(board, cpu_evaluator_, time_settings);
 }
 

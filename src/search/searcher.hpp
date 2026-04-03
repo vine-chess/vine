@@ -20,6 +20,8 @@ struct Request {
     NodeIndex node = NodeIndex::none();
 };
 
+[[nodiscard]] bool use_gini_option_enabled();
+
 class Searcher {
   public:
     Searcher();
@@ -54,6 +56,7 @@ class Searcher {
 
 template <class Evaluator>
 void search::Searcher::go(Board &board, Evaluator &evaluator, const TimeSettings &time_settings) {
+    game_tree_.set_use_gini(use_gini_option_enabled());
     for (auto &thread : threads_) {
         thread.go(game_tree_, evaluator, board, time_settings, verbosity_);
     }

@@ -54,6 +54,7 @@ class GameTree {
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;
+    void set_use_gini(bool use_gini);
 
     // Stage 1/2: Selection & Expansion
     // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
@@ -173,8 +174,11 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
         const f64 cpuct = [&] {
             f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
             base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
-            base *= std::min<f64>(GINI_MAXIMUM,
+            if (use_gini_) {
+                base *=
+                    std::min<f64>(GINI_MAXIMUM,
                                   GINI_BASE - GINI_MULTIPLIER * std::log(node.info.gini_impurity / 255.0 + 0.001));
+            }
             return base;
         }();
 

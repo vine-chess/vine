@@ -38,6 +38,10 @@ u64 GameTree::tree_usage() const {
     return tree_usage_;
 }
 
+void GameTree::set_use_gini(bool use_gini) {
+    use_gini_ = use_gini;
+}
+
 NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
     const auto VECTOR_SIZE = 16;
     const auto first_child = parent.info.first_child_idx;
