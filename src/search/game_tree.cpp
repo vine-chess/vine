@@ -320,6 +320,7 @@ void GameTree::backpropagate_score(f64 score) {
     auto cp_score =
         static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
     auto child_terminal_state = TerminalState::none();
+    const auto is_threefold_draw = board_.has_threefold_repetition();
 
     while (!nodes_in_path_.empty()) {
         const auto node_idx = nodes_in_path_.pop_back();
@@ -328,7 +329,10 @@ void GameTree::backpropagate_score(f64 score) {
         auto &node = node_at(node_idx);
         node.sum_of_scores += score;
         node.num_visits++;
-        hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
+
+        if (!is_threefold_draw) {
+            hash_table_.update(board_.state().hash_key, node.q(), node.num_visits);
+        }
 
         // If a terminal state from the child score exists, then we try to backpropagate it to this node
         if (!child_terminal_state.is_none()) {
