@@ -50,22 +50,25 @@ u64 Searcher::iterations() const {
     return result;
 }
 
-Request Searcher::poll() const {
+const BoardState &Searcher::pending_state() const {
+    return game_tree_.state();
+}
+
+const std::optional<Request> &Searcher::poll() const {
     return request_;
 }
 
 void Searcher::clear() {
     game_tree_.clear();
-    request_ = {};
+    request_.reset();
+    value_result_.reset();
+    initialized_ = false;
 }
 
-void Searcher::finish_value(f64 score) {
-    game_tree_.backpropagate_score(score);
-    request_ = {};
-}
-
-void Searcher::finish_policy() {
-    request_ = {};
+void Searcher::finish_value(f32 score) {
+    vine_assert(request_ && request_->kind == RequestKind::Value);
+    value_result_ = score;
+    request_.reset();
 }
 
 } // namespace search

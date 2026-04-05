@@ -13,11 +13,21 @@
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
-#include <span>
 
 namespace search {
+
+enum class RequestKind : u8 {
+    Value,
+    Policy,
+};
+
+struct Request {
+    RequestKind kind;
+    NodeIndex node;
+};
 
 #ifdef DATAGEN
 TUNABLE_STEP(ROOT_SOFTMAX_TEMPERATURE, 3.5f, 0.5f, 5.0f, 0.1f);
@@ -48,13 +58,16 @@ class GameTree {
 
     template <class Evaluator>
     void new_search(const Board &root_board, Evaluator &evaluator);
+    void new_search(const Board &root_board);
 
     [[nodiscard]] NodeReference node_at(NodeIndex idx);
     [[nodiscard]] NodeReference root();
+    [[nodiscard]] NodeIndex root_idx();
 
     [[nodiscard]] u32 sum_depths() const;
     [[nodiscard]] u64 tree_usage() const;
     void set_use_gini(bool use_gini);
+    [[nodiscard]] const BoardState &state() const;
 
     // Stage 1/2: Selection & Expansion
     // Selection is the first stage of an iteration and finds a leaf node for us to expand and/or simulate.
@@ -62,10 +75,13 @@ class GameTree {
     // whenever a node is selected twice, which is handled in the selection stage.
     template <class Evaluator>
     [[nodiscard]] NodeIndex select_and_expand_node(Evaluator &evaluator);
+    [[nodiscard]] Request select_and_expand_node();
     // This function computes the policy scores for all children of a node that is already expanded. The policy score is
     // the main influence of the PUCT algorithm, which drives the selection stage toward a new leaf node to expand.
     template <class Evaluator>
     void compute_policy(const BoardState &state, NodeIndex node_idx, Evaluator &evaluator);
+    template <class NextLogit>
+    void apply_policy(NodeIndex node_idx, NextLogit &&next_logit);
 
     // Stage 3: Simulation
     // Calls out to the value head to return a score for the node that is being simulated.
@@ -76,6 +92,7 @@ class GameTree {
     // Propagates the scores of a node that was just simulated to itself and its ancestor nodes, increasing the number
     // of visits to each node that had a score propagated to it.
     void backpropagate_score(f64 score);
+    void reset_to_root();
 
     void flip_halves();
 
@@ -88,8 +105,10 @@ class GameTree {
 
     template <class Evaluator>
     [[nodiscard]] bool expand_node(NodeIndex node_idx, Evaluator &evaluator);
+    [[nodiscard]] bool expand_node(NodeIndex node_idx, bool &needs_policy);
 
     [[nodiscard]] bool fetch_children(NodeIndex node_idx);
+    [[nodiscard]] f64 cpuct(NodeIndex node_idx, NodeReference node);
 
     [[nodiscard]] TreeHalf &active_half();
     [[nodiscard]] const TreeHalf &active_half() const;
@@ -128,6 +147,21 @@ void GameTree::new_search(const Board &root_board, Evaluator &evaluator) {
     if (!expand_node(active_half().root_idx(), evaluator)) {
         flip_halves();
         vine_assert(expand_node(active_half().root_idx(), evaluator));
+    }
+}
+
+inline void GameTree::new_search(const Board &root_board) {
+    active_half().clear();
+    active_half().push_node(Node{});
+
+    board_ = root_board;
+    sum_depths_ = 0;
+    tree_usage_ = 0;
+
+    bool needs_policy = false;
+    if (!expand_node(active_half().root_idx(), needs_policy)) {
+        flip_halves();
+        vine_assert(expand_node(active_half().root_idx(), needs_policy));
     }
 }
 
@@ -171,18 +205,50 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
             continue;
         }
 
-        const f64 cpuct = [&] {
-            f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
-            base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
-            if (use_gini_) {
-                base *=
-                    std::min<f64>(GINI_MAXIMUM,
-                                  GINI_BASE - GINI_MULTIPLIER * std::log(node.info.gini_impurity / 255.0 + 0.001));
-            }
-            return base;
-        }();
+        node_idx = pick_highest_puct(node, cpuct(node_idx, node));
+        nodes_in_path_.push_back(node_idx);
+        board_.make_move(node_at(node_idx).info.move);
+    }
+}
 
-        node_idx = pick_highest_puct(node, cpuct);
+inline Request GameTree::select_and_expand_node() {
+    NodeIndex node_idx = active_half().root_idx();
+    nodes_in_path_.clear();
+    nodes_in_path_.push_back(node_idx);
+
+    const auto flip_and_restart = [&] {
+        flip_halves();
+        board_.undo_n_moves(nodes_in_path_.size() - 1);
+        nodes_in_path_.clear();
+        nodes_in_path_.push_back(node_idx = active_half().root_idx());
+    };
+
+    while (true) {
+        auto node = node_at(node_idx);
+
+        if (node.num_visits > 0) {
+            bool needs_policy = false;
+            if (!expand_node(node_idx, needs_policy)) {
+                flip_and_restart();
+                continue;
+            }
+            if (needs_policy) {
+                sum_depths_ += nodes_in_path_.size();
+                return {.kind = RequestKind::Policy, .node = node_idx};
+            }
+        }
+
+        if (node.terminal() || !node.visited()) {
+            sum_depths_ += nodes_in_path_.size();
+            return {.kind = RequestKind::Value, .node = node_idx};
+        }
+
+        if (!fetch_children(node_idx)) {
+            flip_and_restart();
+            continue;
+        }
+
+        node_idx = pick_highest_puct(node, cpuct(node_idx, node));
         nodes_in_path_.push_back(node_idx);
         board_.make_move(node_at(node_idx).info.move);
     }
@@ -190,13 +256,19 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
 
 template <class Evaluator>
 void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx, Evaluator &evaluator) {
-    auto node = node_at(node_idx);
-
     auto ctx = evaluator.policy_context(state);
+    auto node = node_at(node_idx);
     for (auto child : get_children(node)) {
         ctx.enqueue(child.info.move, state.get_piece_type(child.info.move.from()));
     }
     ctx.ready();
+
+    apply_policy(node_idx, [&] { return ctx.logit(); });
+}
+
+template <class NextLogit>
+void GameTree::apply_policy(NodeIndex node_idx, NextLogit &&next_logit) {
+    auto node = node_at(node_idx);
 
     const bool root_node = node_idx == active_half().root_idx();
     const f32 temperature = root_node ? ROOT_SOFTMAX_TEMPERATURE : SOFTMAX_TEMPERATURE;
@@ -205,7 +277,7 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx, Evalu
     for (auto child : get_children(node)) {
         const auto history_score =
             history_.entry(board_.state(), child.info.move).value / static_cast<f64>(POLICY_HISTORY_DIVISOR);
-        child.policy_score = (ctx.logit() + history_score) / temperature;
+        child.policy_score = (next_logit() + history_score) / temperature;
         highest_policy = std::max(highest_policy, child.policy_score);
     }
 
@@ -227,7 +299,20 @@ void GameTree::compute_policy(const BoardState &state, NodeIndex node_idx, Evalu
 
 template <class Evaluator>
 bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
+    bool needs_policy = false;
+    if (!expand_node(node_idx, needs_policy)) {
+        return false;
+    }
+
+    if (needs_policy) {
+        compute_policy(board_.state(), node_idx, evaluator);
+    }
+    return true;
+}
+
+inline bool GameTree::expand_node(NodeIndex node_idx, bool &needs_policy) {
     auto node = node_at(node_idx);
+    needs_policy = false;
     if (node.expanded() || node.terminal()) {
         return true;
     }
@@ -261,7 +346,7 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
     }
 
     tree_usage_ += node.info.num_children * sizeof(Node);
-    compute_policy(board_.state(), node_idx, evaluator);
+    needs_policy = true;
     return true;
 }
 

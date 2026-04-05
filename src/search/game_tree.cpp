@@ -26,6 +26,10 @@ NodeReference GameTree::root() {
     return active_half().root_node();
 }
 
+NodeIndex GameTree::root_idx() {
+    return active_half().root_idx();
+}
+
 NodeReference GameTree::node_at(NodeIndex idx) {
     return halves_[idx.half()][idx.index()];
 }
@@ -40,6 +44,20 @@ u64 GameTree::tree_usage() const {
 
 void GameTree::set_use_gini(bool use_gini) {
     use_gini_ = use_gini;
+}
+
+const BoardState &GameTree::state() const {
+    return board_.state();
+}
+
+f64 GameTree::cpuct(NodeIndex node_idx, NodeReference node) {
+    f64 base = node_idx == active_half().root_idx() ? ROOT_EXPLORATION_CONSTANT : EXPLORATION_CONSTANT;
+    base *= 1.0 + std::log((node.num_visits + CPUCT_VISIT_SCALE) / static_cast<f64>(CPUCT_VISIT_SCALE_DIVISOR));
+    if (use_gini_) {
+        base *= std::min<f64>(GINI_MAXIMUM,
+                              GINI_BASE - GINI_MULTIPLIER * std::log(node.info.gini_impurity / 255.0 + 0.001));
+    }
+    return base;
 }
 
 NodeIndex GameTree::pick_highest_puct(NodeReference parent, f64 exploration_constant) {
@@ -168,6 +186,13 @@ void GameTree::backpropagate_score(f64 score) {
                 history_.entry(board_.state(), node.info.move).update(cp_score);
             }
         }
+    }
+}
+
+void GameTree::reset_to_root() {
+    if (!nodes_in_path_.empty()) {
+        board_.undo_n_moves(nodes_in_path_.size() - 1);
+        nodes_in_path_.clear();
     }
 }
 

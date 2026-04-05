@@ -131,6 +131,60 @@ void push_move_data(DataWriter &writer, search::GameTree &game_tree, const searc
     }
 }
 
+template <class Evaluator>
+void finish_policy(search::Searcher &searcher, Evaluator &evaluator, const search::Request request) {
+    const auto &state = searcher.pending_state();
+    auto &tree = searcher.game_tree();
+    const auto node = tree.node_at(request.node);
+
+    auto ctx = evaluator.policy_context(state);
+    for (u16 i = 0; i < node.info.num_children; ++i) {
+        const auto child = tree.node_at(node.info.first_child_idx + i);
+        ctx.enqueue(child.info.move, state.get_piece_type(child.info.move.from()));
+    }
+    ctx.ready();
+    searcher.finish_policy([&] { return ctx.logit(); });
+}
+
+template <class Evaluator>
+void run_resumable_search(search::Searcher &searcher, Board &board, Evaluator &evaluator,
+                          const search::TimeSettings &time_settings) {
+    search::TimeManager time_manager;
+    time_manager.start_tracking(time_settings);
+
+    u64 iterations = 0;
+    u64 previous_depth = 0;
+    util::StaticVector<u32, MAX_MOVES> old_visit_dist;
+
+    while (++iterations) {
+        const auto request = searcher.poll(board);
+        switch (request.kind) {
+        case search::RequestKind::Policy:
+            finish_policy(searcher, evaluator, request);
+            break;
+        case search::RequestKind::Value:
+            searcher.finish_value(static_cast<f32>(evaluator.value(searcher.pending_state())));
+            break;
+        }
+
+        auto &tree = searcher.game_tree();
+        const u64 depth = tree.sum_depths() / iterations;
+        previous_depth = std::max(previous_depth, depth);
+
+        util::StaticVector<u32, MAX_MOVES> new_visit_dist;
+        for (u16 i = 0; i < tree.root().info.num_children; ++i) {
+            new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
+        }
+
+        if (time_manager.times_up(tree, iterations, board.state().side_to_move, previous_depth, old_visit_dist,
+                                  new_visit_dist)) {
+            break;
+        }
+
+        old_visit_dist = new_visit_dist;
+    }
+}
+
 template <class Evaluator, class DataWriter>
 void thread_loop(const Settings &settings, const usize thread_id, std::ostream &out_file,
                  const std::vector<std::string> &opening_fens) {
@@ -180,7 +234,8 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ostream &
             next_game_idx += settings.num_threads;
         }
 
-        worker.searcher.go(worker.board, evaluator, settings.time_settings);
+        // worker.searcher.go(worker.board, evaluator, settings.time_settings);
+        run_resumable_search(worker.searcher, worker.board, evaluator, settings.time_settings);
 
         auto &game_tree = worker.searcher.game_tree();
         const auto root_node = game_tree.root();
