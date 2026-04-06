@@ -117,6 +117,7 @@ class GpuValueQueue {
     void reset_storage() {
         batch_results_ = std::make_unique<ValueResult[]>(batch_size_);
         slots_ = std::make_unique<InternalSlot[]>(batch_size_);
+        ready_indices_ = std::make_unique<u32[]>(batch_size_);
         free_slots_.reset(batch_size_);
         ready_slots_.reset(batch_size_);
         for (u32 board_idx = 0; board_idx < batch_size_; ++board_idx) {
@@ -125,8 +126,6 @@ class GpuValueQueue {
     }
 
     void gpu_loop() {
-        std::array<u32, 256> ready_indices{};
-
         while (!stop_requested_.load(std::memory_order_relaxed)) {
             u32 first_idx = 0;
             if (!ready_slots_.try_pop(first_idx)) {
@@ -134,14 +133,13 @@ class GpuValueQueue {
                 continue;
             }
 
-            vine_assert(batch_size_ <= ready_indices.size());
             usize count = 1;
-            ready_indices[0] = first_idx;
-            while (count < batch_size_ && ready_slots_.try_pop(ready_indices[count])) {
+            ready_indices_[0] = first_idx;
+            while (count < batch_size_ && ready_slots_.try_pop(ready_indices_[count])) {
                 ++count;
             }
 
-            process_batch(std::span(ready_indices.data(), count));
+            process_batch(std::span(ready_indices_.get(), count));
         }
     }
 
@@ -167,6 +165,7 @@ class GpuValueQueue {
     u32 batch_size_ = 1;
     std::unique_ptr<ValueResult[]> batch_results_;
     std::unique_ptr<InternalSlot[]> slots_;
+    std::unique_ptr<u32[]> ready_indices_;
     util::RingQueue<u32> free_slots_;
     util::RingQueue<u32> ready_slots_;
     std::thread gpu_thread_;
@@ -299,6 +298,7 @@ class GpuPolicyQueue {
         batch_results_ = std::make_unique<PolicyResult[]>(batch_size_);
         move_indices_ = std::make_unique<std::array<u16, MAX_MOVES>[]>(batch_size_);
         slots_ = std::make_unique<InternalSlot[]>(batch_size_);
+        ready_indices_ = std::make_unique<u32[]>(batch_size_);
         free_slots_.reset(batch_size_);
         ready_slots_.reset(batch_size_);
         for (u32 board_idx = 0; board_idx < batch_size_; ++board_idx) {
@@ -307,8 +307,6 @@ class GpuPolicyQueue {
     }
 
     void gpu_loop() {
-        std::array<u32, 256> ready_indices{};
-
         while (!stop_requested_.load(std::memory_order_relaxed)) {
             u32 first_idx = 0;
             if (!ready_slots_.try_pop(first_idx)) {
@@ -316,14 +314,13 @@ class GpuPolicyQueue {
                 continue;
             }
 
-            vine_assert(batch_size_ <= ready_indices.size());
             usize count = 1;
-            ready_indices[0] = first_idx;
-            while (count < batch_size_ && ready_slots_.try_pop(ready_indices[count])) {
+            ready_indices_[0] = first_idx;
+            while (count < batch_size_ && ready_slots_.try_pop(ready_indices_[count])) {
                 ++count;
             }
 
-            process_batch(std::span(ready_indices.data(), count));
+            process_batch(std::span(ready_indices_.get(), count));
         }
     }
 
@@ -370,6 +367,7 @@ class GpuPolicyQueue {
     std::unique_ptr<PolicyResult[]> batch_results_;
     std::unique_ptr<std::array<u16, MAX_MOVES>[]> move_indices_;
     std::unique_ptr<InternalSlot[]> slots_;
+    std::unique_ptr<u32[]> ready_indices_;
     util::RingQueue<u32> free_slots_;
     util::RingQueue<u32> ready_slots_;
     std::thread gpu_thread_;

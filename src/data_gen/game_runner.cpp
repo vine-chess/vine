@@ -2,6 +2,7 @@
 #include "../chess/move_gen.hpp"
 #include "../eval/evaluator.hpp"
 #include "../util/math.hpp"
+#include "../util/ring_queue.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
@@ -12,9 +13,10 @@
 #include <exception>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string_view>
-#include <syncstream>
 #include <type_traits>
 
 namespace datagen {
@@ -40,14 +42,12 @@ namespace {
     return "unknown";
 }
 
-[[nodiscard]] constexpr usize workers_per_thread(const Settings &settings) {
-    return settings.workers_per_thread == 0 ? 1 : settings.workers_per_thread;
+[[nodiscard]] constexpr usize searcher_count(const Settings &settings) {
+    return std::max(settings.num_threads, settings.total_memory / std::max<usize>(1, settings.hash_size));
 }
 
-[[nodiscard]] constexpr usize hash_per_worker(const Settings &settings) {
-    const usize workers = workers_per_thread(settings);
-    const usize hash = settings.hash_size / workers;
-    return hash == 0 ? 1 : hash;
+[[nodiscard]] constexpr usize gpu_batch_size(const Settings &settings) {
+    return std::max<usize>(1, searcher_count(settings) / (2 * std::max<usize>(1, settings.gpu_workers_per_queue)));
 }
 
 template <class DataWriter>
@@ -55,13 +55,47 @@ struct SearchContext {
     explicit SearchContext(std::ostream &out) : writer(out) {}
 
     search::Searcher searcher;
+    search::TimeManager time_manager;
+    util::StaticVector<u32, MAX_MOVES> old_visit_dist;
     Board board;
     DataWriter writer;
-    bool running = false;
+    bool resume = false;
+    u64 iterations = 0;
+    u64 previous_depth = 0;
     u16 white_win_plies = 0;
     u16 white_loss_plies = 0;
     u16 draw_plies = 0;
 };
+
+template <class DataWriter>
+struct GamePool {
+    std::deque<SearchContext<DataWriter>> games;
+    util::RingQueue<SearchContext<DataWriter> *> free;
+    util::RingQueue<SearchContext<DataWriter> *> search;
+    util::RingQueue<SearchContext<DataWriter> *> value;
+    util::RingQueue<SearchContext<DataWriter> *> policy;
+
+    void reset(usize count, std::ostream &out) {
+        games.clear();
+        for (usize i = 0; i < count; ++i) {
+            games.emplace_back(out);
+        }
+
+        free.reset(count);
+        search.reset(count);
+        value.reset(count);
+        policy.reset(count);
+        for (auto &game : games) {
+            vine_assert(free.try_push(&game));
+        }
+    }
+};
+
+[[nodiscard]] bool all_done(const Settings &settings, const std::atomic_size_t &next_game_idx,
+                            const std::atomic_size_t &active_games) {
+    return next_game_idx.load(std::memory_order_relaxed) >= settings.num_games &&
+           active_games.load(std::memory_order_relaxed) == 0;
+}
 
 [[nodiscard]] f64 terminal_game_result(const Board &board) {
     return board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
@@ -69,6 +103,10 @@ struct SearchContext {
 
 template <class DataWriter>
 void reset_adjudication(SearchContext<DataWriter> &worker) {
+    worker.old_visit_dist.clear();
+    worker.resume = false;
+    worker.iterations = 0;
+    worker.previous_depth = 0;
     worker.white_win_plies = 0;
     worker.white_loss_plies = 0;
     worker.draw_plies = 0;
@@ -78,10 +116,10 @@ template <class DataWriter>
 [[nodiscard]] std::optional<f64> adjudicated_result(SearchContext<DataWriter> &worker, const Board &board,
                                                     const search::NodeReference best_child, const f64 score) {
     if (best_child.info.terminal_state.is_win()) {
-        return static_cast<f64>(board.state().side_to_move == Color::BLACK);
+        return board.state().side_to_move == Color::BLACK ? 1.0 : 0.0;
     }
     if (best_child.info.terminal_state.is_loss()) {
-        return static_cast<f64>(board.state().side_to_move == Color::WHITE);
+        return board.state().side_to_move == Color::WHITE ? 1.0 : 0.0;
     }
 
     const f64 white_relative_cp =
@@ -146,137 +184,258 @@ void finish_policy(search::Searcher &searcher, Evaluator &evaluator, const searc
     searcher.finish_policy([&] { return ctx.logit(); });
 }
 
-template <class Evaluator>
-void run_resumable_search(search::Searcher &searcher, Board &board, Evaluator &evaluator,
-                          const search::TimeSettings &time_settings) {
-    search::TimeManager time_manager;
-    time_manager.start_tracking(time_settings);
+template <class DataWriter>
+void finish_game(SearchContext<DataWriter> *worker, std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                 std::mutex &out_mutex, const f64 result) {
+    {
+        const std::lock_guard lock(out_mutex);
+        worker->writer.write_with_result(result);
+    }
+    worker->searcher.clear();
+    active_games.fetch_sub(1, std::memory_order_relaxed);
+    games_played.fetch_add(1, std::memory_order_relaxed);
+    vine_assert(pool.free.try_push(worker));
+}
 
-    u64 iterations = 0;
-    u64 previous_depth = 0;
-    util::StaticVector<u32, MAX_MOVES> old_visit_dist;
+template <class DataWriter>
+void finish_move(SearchContext<DataWriter> *worker, const Settings &settings, std::atomic_size_t &active_games,
+                 GamePool<DataWriter> &pool, std::mutex &out_mutex) {
+    auto &game_tree = worker->searcher.game_tree();
+    const auto root_node = game_tree.root();
 
-    while (++iterations) {
-        const auto request = searcher.poll(board);
-        switch (request.kind) {
-        case search::RequestKind::Policy:
-            finish_policy(searcher, evaluator, request);
-            break;
-        case search::RequestKind::Value:
-            searcher.finish_value(static_cast<f32>(evaluator.value(searcher.pending_state())));
-            break;
+    if (root_node.terminal()) {
+        finish_game(worker, active_games, pool, out_mutex, terminal_game_result(worker->board));
+        return;
+    }
+
+    search::NodeIndex best_child_idx = root_node.info.first_child_idx;
+    f32 best_q = game_tree.node_at(best_child_idx).q();
+    for (usize j = 1; j < root_node.info.num_children; ++j) {
+        const auto child = game_tree.node_at(root_node.info.first_child_idx + j);
+        if (child.q() < best_q) {
+            best_child_idx = root_node.info.first_child_idx + j;
+            best_q = child.q();
         }
+    }
 
-        auto &tree = searcher.game_tree();
-        const u64 depth = tree.sum_depths() / iterations;
-        previous_depth = std::max(previous_depth, depth);
+    const auto best_child = game_tree.node_at(best_child_idx);
+    vine_assert(!best_child.info.move.is_null());
 
-        util::StaticVector<u32, MAX_MOVES> new_visit_dist;
-        for (u16 i = 0; i < tree.root().info.num_children; ++i) {
-            new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
+    const f64 score = 1.0 - best_child.q();
+    if (const auto result = adjudicated_result(*worker, worker->board, best_child, score)) {
+        finish_game(worker, active_games, pool, out_mutex, *result);
+        return;
+    }
+
+    push_move_data(worker->writer, game_tree, root_node, best_child, worker->board.state());
+    worker->board.make_move(best_child.info.move);
+
+    positions_written.fetch_add(1, std::memory_order_relaxed);
+
+    if (worker->board.is_draw()) {
+        finish_game(worker, active_games, pool, out_mutex, 0.5);
+        return;
+    }
+
+    worker->time_manager.start_tracking(settings.time_settings);
+    reset_adjudication(*worker);
+    vine_assert(pool.search.try_push(worker));
+}
+
+template <class Evaluator, class DataWriter>
+void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
+                       GamePool<DataWriter> &pool) {
+    if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
+        auto &queue = network::GlobalGpuValueQueue::get().queue();
+        queue.start();
+        std::vector<SearchContext<DataWriter> *> workers(queue.batch_size());
+        std::vector<network::GpuValueQueue::ValueSlot> slots(queue.batch_size());
+
+        while (!stop_flag.load(std::memory_order_relaxed)) {
+            const usize count = pool.value.try_pop_some(std::span(workers.data(), workers.size()));
+            if (count == 0) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            for (usize i = 0; i < count; ++i) {
+                slots[i] = queue.reserve_value_slot(workers[i]->searcher.pending_state());
+                queue.mark_ready(slots[i]);
+            }
+
+            for (usize i = 0; i < count; ++i) {
+                workers[i]->searcher.finish_value(static_cast<f32>(queue.wait_for_result(slots[i])));
+                queue.mark_consumed(slots[i]);
+                workers[i]->resume = true;
+                vine_assert(pool.search.try_push(workers[i]));
+            }
         }
+    } else {
+        Evaluator evaluator;
 
-        if (time_manager.times_up(tree, iterations, board.state().side_to_move, previous_depth, old_visit_dist,
-                                  new_visit_dist)) {
-            break;
+        while (!stop_flag.load(std::memory_order_relaxed)) {
+            SearchContext<DataWriter> *worker = nullptr;
+            if (!pool.value.try_pop(worker)) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            worker->searcher.finish_value(static_cast<f32>(evaluator.value(worker->searcher.pending_state())));
+            worker->resume = true;
+            vine_assert(pool.search.try_push(worker));
         }
-
-        old_visit_dist = new_visit_dist;
     }
 }
 
 template <class Evaluator, class DataWriter>
-void thread_loop(const Settings &settings, const usize thread_id, std::ostream &out_file,
-                 const std::vector<std::string> &opening_fens) {
-    Evaluator evaluator;
+void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
+                        GamePool<DataWriter> &pool) {
+    if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
+        auto &queue = network::GlobalGpuPolicyQueue::get().queue();
+        queue.start();
+        std::vector<SearchContext<DataWriter> *> workers(queue.batch_size());
+        std::vector<search::Request> requests(queue.batch_size());
+        std::vector<network::GpuPolicyQueue::PolicySlot> slots(queue.batch_size());
 
-    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
-
-    std::deque<SearchContext<DataWriter>> workers;
-    for (usize i = 0; i < workers_per_thread(settings); ++i) {
-        workers.emplace_back(out_file);
-    }
-    for (auto &worker : workers) {
-        worker.searcher.set_hash_size(hash_per_worker(settings));
-        worker.searcher.set_verbosity(search::Verbosity::NONE);
-    }
-
-    usize next_game_idx = thread_id;
-    usize next_worker_idx = 0;
-
-    while (!stop_flag.load(std::memory_order_relaxed)) {
-        bool has_running_workers = false;
-        for (const auto &worker : workers) {
-            if (worker.running) {
-                has_running_workers = true;
-                break;
-            }
-        }
-
-        if (next_game_idx >= settings.num_games && !has_running_workers) {
-            break;
-        }
-
-        auto &worker = workers[next_worker_idx];
-        next_worker_idx = (next_worker_idx + 1) % workers.size();
-
-        if (!worker.running) {
-            if (next_game_idx >= settings.num_games) {
+        while (!stop_flag.load(std::memory_order_relaxed)) {
+            const usize count = pool.policy.try_pop_some(std::span(workers.data(), workers.size()));
+            if (count == 0) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
                 continue;
             }
 
-            worker.board =
+            for (usize i = 0; i < count; ++i) {
+                const auto req = workers[i]->searcher.poll();
+                vine_assert(req);
+                requests[i] = *req;
+
+                const auto &state = workers[i]->searcher.pending_state();
+                auto &tree = workers[i]->searcher.game_tree();
+                const auto node = tree.node_at(requests[i].node);
+
+                slots[i] = queue.reserve_policy_slot(state, node.info.num_children);
+                for (u16 j = 0; j < node.info.num_children; ++j) {
+                    const auto child = tree.node_at(node.info.first_child_idx + j);
+                    slots[i].move_indices[j] =
+                        network::policy::move_output_idx(state, child.info.move,
+                                                         state.get_piece_type(child.info.move.from()));
+                }
+                queue.mark_ready(slots[i]);
+            }
+
+            for (usize i = 0; i < count; ++i) {
+                const auto result = queue.wait_for_result(slots[i]);
+                usize next_idx = 0;
+                workers[i]->searcher.finish_policy([&] { return result.logits[next_idx++]; });
+                queue.mark_consumed(slots[i]);
+                workers[i]->resume = true;
+                vine_assert(pool.search.try_push(workers[i]));
+            }
+        }
+    } else {
+        Evaluator evaluator;
+
+        while (!stop_flag.load(std::memory_order_relaxed)) {
+            SearchContext<DataWriter> *worker = nullptr;
+            if (!pool.policy.try_pop(worker)) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            const auto req = worker->searcher.poll();
+            vine_assert(req);
+            finish_policy(worker->searcher, evaluator, *req);
+            worker->resume = true;
+            vine_assert(pool.search.try_push(worker));
+        }
+    }
+}
+
+template <class DataWriter>
+bool times_up(SearchContext<DataWriter> &worker) {
+    auto &tree = worker.searcher.game_tree();
+    ++worker.iterations;
+
+    const u64 depth = tree.sum_depths() / worker.iterations;
+    worker.previous_depth = std::max(worker.previous_depth, depth);
+
+    util::StaticVector<u32, MAX_MOVES> new_visit_dist;
+    for (u16 i = 0; i < tree.root().info.num_children; ++i) {
+        new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
+    }
+
+    const bool stop = worker.time_manager.times_up(tree, worker.iterations, worker.board.state().side_to_move,
+                                                   worker.previous_depth, worker.old_visit_dist, new_visit_dist);
+    worker.old_visit_dist = new_visit_dist;
+    return stop;
+}
+
+template <class Evaluator, class DataWriter>
+void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
+                 GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens) {
+    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
+
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        SearchContext<DataWriter> *worker = nullptr;
+        if (!pool.search.try_pop(worker)) {
+            if (!pool.free.try_pop(worker)) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            const auto game_idx = next_game_idx.fetch_add(1, std::memory_order_relaxed);
+            if (game_idx >= settings.num_games) {
+                vine_assert(pool.free.try_push(worker));
+                if (active_games.load(std::memory_order_relaxed) == 0) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            worker->board =
                 Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
-            worker.searcher.clear();
-            worker.writer.push_board_state(worker.board.state());
-            reset_adjudication(worker);
-            worker.running = true;
-            next_game_idx += settings.num_threads;
+            worker->searcher.clear();
+            worker->searcher.set_hash_size(std::max<usize>(1, settings.hash_size));
+            worker->searcher.set_verbosity(search::Verbosity::NONE);
+            worker->writer.push_board_state(worker->board.state());
+            worker->time_manager.start_tracking(settings.time_settings);
+            reset_adjudication(*worker);
+            active_games.fetch_add(1, std::memory_order_relaxed);
         }
 
-        // worker.searcher.go(worker.board, evaluator, settings.time_settings);
-        run_resumable_search(worker.searcher, worker.board, evaluator, settings.time_settings);
+        const auto request = worker->searcher.poll(worker->board);
 
-        auto &game_tree = worker.searcher.game_tree();
-        const auto root_node = game_tree.root();
-        if (root_node.terminal()) {
-            worker.writer.write_with_result(terminal_game_result(worker.board));
-            worker.searcher.clear();
-            worker.running = false;
-            games_played.fetch_add(1, std::memory_order_relaxed);
-            continue;
-        }
-
-        search::NodeIndex best_child_idx = root_node.info.first_child_idx;
-        for (usize j = 0; j < root_node.info.num_children; ++j) {
-            const auto child = game_tree.node_at(root_node.info.first_child_idx + j);
-            if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                best_child_idx = root_node.info.first_child_idx + j;
+        if (worker->resume) {
+            worker->resume = false;
+            if (times_up(*worker)) {
+                finish_move(worker, settings, active_games, pool, out_mutex);
+                continue;
             }
         }
 
-        const auto best_child = game_tree.node_at(best_child_idx);
-        vine_assert(!best_child.info.move.is_null());
-
-        const f64 score = 1.0 - best_child.q();
-        if (const auto result = adjudicated_result(worker, worker.board, best_child, score)) {
-            worker.writer.write_with_result(*result);
-            worker.searcher.clear();
-            worker.running = false;
-            games_played.fetch_add(1, std::memory_order_relaxed);
-            continue;
-        }
-
-        push_move_data(worker.writer, game_tree, root_node, best_child, worker.board.state());
-        worker.board.make_move(best_child.info.move);
-
-        positions_written.fetch_add(1, std::memory_order_relaxed);
-
-        if (worker.board.is_draw()) {
-            worker.writer.write_with_result(0.5);
-            worker.searcher.clear();
-            worker.running = false;
-            games_played.fetch_add(1, std::memory_order_relaxed);
+        switch (request.kind) {
+        case search::RequestKind::Value:
+            vine_assert(pool.value.try_push(worker));
+            break;
+        case search::RequestKind::Policy:
+            vine_assert(pool.policy.try_push(worker));
+            break;
         }
     }
 }
@@ -284,10 +443,30 @@ void thread_loop(const Settings &settings, const usize thread_id, std::ostream &
 template <class Evaluator, class DataWriter>
 void launch_threads(const Settings &settings, std::ostream &final_output, const std::vector<std::string> &opening_fens,
                     std::vector<std::thread> &threads) {
-    for (usize thread_id = 0; thread_id < settings.num_threads; ++thread_id) {
-        threads.emplace_back([settings, thread_id, &final_output, &opening_fens]() {
-            std::osyncstream thread_output(final_output);
-            thread_loop<Evaluator, DataWriter>(settings, thread_id, thread_output, opening_fens);
+    auto pool = std::make_shared<GamePool<DataWriter>>();
+    pool->reset(searcher_count(settings), final_output);
+    auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
+    auto active_games = std::make_shared<std::atomic_size_t>(0);
+    auto out_mutex = std::make_shared<std::mutex>();
+    const usize gpu_workers = settings.evaluator_backend == EvaluatorBackend::GPU
+                                  ? std::max<usize>(1, settings.gpu_workers_per_queue)
+                                  : 1;
+
+    for (usize i = 0; i < gpu_workers; ++i) {
+        threads.emplace_back([settings, pool, next_game_idx, active_games]() {
+            value_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool);
+        });
+    }
+    for (usize i = 0; i < gpu_workers; ++i) {
+        threads.emplace_back([settings, pool, next_game_idx, active_games]() {
+            policy_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool);
+        });
+    }
+
+    for (usize i = 0; i < settings.num_threads; ++i) {
+        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens]() {
+            thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex,
+                                               opening_fens);
         });
     }
 }
@@ -330,10 +509,11 @@ void run_games(Settings settings, std::ostream &out) {
             const f64 positions_per_sec = (current_positions - last_positions) / elapsed_sec;
             const f64 remaining_games = total_games > current_games ? total_games - current_games : 0;
             const f64 eta_sec = games_per_sec > 0.0 ? remaining_games / games_per_sec : 0.0;
-            const usize eta_min = static_cast<usize>(eta_sec) / 60;
+            const usize eta = eta_sec;
+            const usize eta_min = eta / 60;
             const usize eta_hour = eta_min / 60;
             const usize eta_rem_min = eta_min % 60;
-            const usize eta_rem_sec = static_cast<usize>(eta_sec) % 60;
+            const usize eta_rem_sec = eta % 60;
 
             if (printed) {
                 out << "\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K";
@@ -389,7 +569,7 @@ void run_games(Settings settings, std::ostream &out) {
             break;
 #ifdef DATAGEN_CUDA
         case EvaluatorBackend::GPU:
-            network::QueuedGpuEvaluator::set_batch_size(std::max<u32>(1, static_cast<u32>(settings.num_threads / 2)));
+            network::QueuedGpuEvaluator::set_batch_size(static_cast<u32>(gpu_batch_size(settings)));
             if (settings.mode == DatagenMode::value) {
                 launch_threads<network::QueuedGpuEvaluator, ViriformatWriter>(settings, final_output, opening_fens,
                                                                               threads);

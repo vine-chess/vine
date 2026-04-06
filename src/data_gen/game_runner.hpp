@@ -24,9 +24,11 @@ struct Settings {
     usize num_games;
     // Number of threads to run games simultaneously
     usize num_threads;
-    // Number of search trees to run per thread
-    usize workers_per_thread = 1;
-    // Hash size per thread
+    // Total memory budget in MB for all live searchers
+    usize total_memory = 0;
+    // Number of value threads and number of policy threads for queued GPU eval
+    usize gpu_workers_per_queue = 2;
+    // Hash size per searcher
     usize hash_size;
     // Time management settings for move stop conditions
     search::TimeSettings time_settings;

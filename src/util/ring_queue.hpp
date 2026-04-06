@@ -6,6 +6,7 @@
 #include <atomic>
 #include <bit>
 #include <memory>
+#include <span>
 #include <type_traits>
 
 namespace util {
@@ -26,13 +27,12 @@ class RingQueue {
 
         capacity_ = std::bit_ceil(capacity);
         mask_ = capacity_ - 1;
-        sequences_ = std::make_unique<std::atomic<usize>[]>(capacity_);
-        values_ = std::make_unique<T[]>(capacity_);
+        slots_ = std::make_unique<Slot[]>(capacity_);
         enqueue_pos_.store(0, std::memory_order_relaxed);
         dequeue_pos_.store(0, std::memory_order_relaxed);
 
         for (usize i = 0; i < capacity_; ++i) {
-            sequences_[i].store(i, std::memory_order_relaxed);
+            slots_[i].sequence.store(i, std::memory_order_relaxed);
         }
     }
 
@@ -40,14 +40,14 @@ class RingQueue {
         usize pos = enqueue_pos_.load(std::memory_order_relaxed);
 
         while (true) {
-            const usize idx = pos & mask_;
-            const usize sequence = sequences_[idx].load(std::memory_order_acquire);
+            auto &slot = slots_[pos & mask_];
+            const usize sequence = slot.sequence.load(std::memory_order_acquire);
             const i64 diff = static_cast<i64>(sequence) - static_cast<i64>(pos);
 
             if (diff == 0) {
                 if (enqueue_pos_.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
-                    values_[idx] = value;
-                    sequences_[idx].store(pos + 1, std::memory_order_release);
+                    slot.value = value;
+                    slot.sequence.store(pos + 1, std::memory_order_release);
                     return true;
                 }
             } else if (diff < 0) {
@@ -55,6 +55,8 @@ class RingQueue {
             } else {
                 pos = enqueue_pos_.load(std::memory_order_relaxed);
             }
+
+            __builtin_ia32_pause();
         }
     }
 
@@ -62,14 +64,14 @@ class RingQueue {
         usize pos = dequeue_pos_.load(std::memory_order_relaxed);
 
         while (true) {
-            const usize idx = pos & mask_;
-            const usize sequence = sequences_[idx].load(std::memory_order_acquire);
+            auto &slot = slots_[pos & mask_];
+            const usize sequence = slot.sequence.load(std::memory_order_acquire);
             const i64 diff = static_cast<i64>(sequence) - static_cast<i64>(pos + 1);
 
             if (diff == 0) {
                 if (dequeue_pos_.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
-                    value = values_[idx];
-                    sequences_[idx].store(pos + capacity_, std::memory_order_release);
+                    value = slot.value;
+                    slot.sequence.store(pos + capacity_, std::memory_order_release);
                     return true;
                 }
             } else if (diff < 0) {
@@ -77,18 +79,30 @@ class RingQueue {
             } else {
                 pos = dequeue_pos_.load(std::memory_order_relaxed);
             }
+
+            __builtin_ia32_pause();
         }
     }
 
-    [[nodiscard]] usize capacity() const {
-        return capacity_;
+    [[nodiscard]] usize try_pop_some(std::span<T> values) {
+        usize count = 0;
+        for (; count < values.size(); ++count) {
+            if (!try_pop(values[count])) {
+                break;
+            }
+        }
+        return count;
     }
 
   private:
+    struct alignas(64) Slot {
+        std::atomic<usize> sequence{};
+        T value{};
+    };
+
     usize capacity_ = 0;
     usize mask_ = 0;
-    std::unique_ptr<std::atomic<usize>[]> sequences_;
-    std::unique_ptr<T[]> values_;
+    std::unique_ptr<Slot[]> slots_;
     alignas(64) std::atomic<usize> enqueue_pos_ = 0;
     alignas(64) std::atomic<usize> dequeue_pos_ = 0;
 };
