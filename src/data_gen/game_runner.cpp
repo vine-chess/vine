@@ -3,6 +3,7 @@
 #include "../eval/evaluator.hpp"
 #include "../util/math.hpp"
 #include "../util/ring_queue.hpp"
+#include "../util/sharded_queue.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
@@ -69,13 +70,18 @@ struct SearchContext {
 
 template <class DataWriter>
 struct GamePool {
-    std::deque<SearchContext<DataWriter>> games;
-    util::RingQueue<SearchContext<DataWriter> *> free;
-    util::RingQueue<SearchContext<DataWriter> *> search;
-    util::RingQueue<SearchContext<DataWriter> *> value;
-    util::RingQueue<SearchContext<DataWriter> *> policy;
+    using Game = SearchContext<DataWriter>;
+    using GamePtr = Game *;
+    using ReadyQueue = util::RingQueue<GamePtr>;
+    using WorkQueue = util::ShardedQueue<GamePtr>;
 
-    void reset(usize count, std::ostream &out) {
+    std::deque<SearchContext<DataWriter>> games;
+    ReadyQueue free;
+    ReadyQueue search;
+    WorkQueue value;
+    WorkQueue policy;
+
+    void reset(usize count, usize n, std::ostream &out) {
         games.clear();
         for (usize i = 0; i < count; ++i) {
             games.emplace_back(out);
@@ -83,18 +89,25 @@ struct GamePool {
 
         free.reset(count);
         search.reset(count);
-        value.reset(count);
-        policy.reset(count);
+        value.reset(n, count);
+        policy.reset(n, count);
         for (auto &game : games) {
             vine_assert(free.try_push(&game));
         }
     }
 };
 
+template <class Queue, class T>
+void push_until(Queue &q, T value) {
+    while (!q.try_push(value)) {
+        std::this_thread::yield();
+    }
+}
+
 [[nodiscard]] bool all_done(const Settings &settings, const std::atomic_size_t &next_game_idx,
                             const std::atomic_size_t &active_games) {
-    return next_game_idx.load(std::memory_order_relaxed) >= settings.num_games &&
-           active_games.load(std::memory_order_relaxed) == 0;
+    return next_game_idx.load(std::memory_order_acquire) >= settings.num_games &&
+           active_games.load(std::memory_order_acquire) == 0;
 }
 
 [[nodiscard]] f64 terminal_game_result(const Board &board) {
@@ -194,7 +207,7 @@ void finish_game(SearchContext<DataWriter> *worker, std::atomic_size_t &active_g
     worker->searcher.clear();
     active_games.fetch_sub(1, std::memory_order_relaxed);
     games_played.fetch_add(1, std::memory_order_relaxed);
-    vine_assert(pool.free.try_push(worker));
+    push_until(pool.free, worker);
 }
 
 template <class DataWriter>
@@ -203,7 +216,7 @@ void finish_move(SearchContext<DataWriter> *worker, const Settings &settings, st
     auto &game_tree = worker->searcher.game_tree();
     const auto root_node = game_tree.root();
 
-    if (root_node.terminal()) {
+    if (!root_node.info.terminal_state.is_none()) {
         finish_game(worker, active_games, pool, out_mutex, terminal_game_result(worker->board));
         return;
     }
@@ -239,12 +252,12 @@ void finish_move(SearchContext<DataWriter> *worker, const Settings &settings, st
 
     worker->time_manager.start_tracking(settings.time_settings);
     reset_adjudication(*worker);
-    vine_assert(pool.search.try_push(worker));
+    push_until(pool.search, worker);
 }
 
 template <class Evaluator, class DataWriter>
 void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                       GamePool<DataWriter> &pool) {
+                       GamePool<DataWriter> &pool, typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
     if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
         auto &queue = network::GlobalGpuValueQueue::get().queue();
         queue.start();
@@ -252,7 +265,7 @@ void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_i
         std::vector<network::GpuValueQueue::ValueSlot> slots(queue.batch_size());
 
         while (!stop_flag.load(std::memory_order_relaxed)) {
-            const usize count = pool.value.try_pop_some(std::span(workers.data(), workers.size()));
+            const usize count = rx.try_pop_some(std::span(workers.data(), workers.size()));
             if (count == 0) {
                 if (all_done(settings, next_game_idx, active_games)) {
                     break;
@@ -270,7 +283,7 @@ void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_i
                 workers[i]->searcher.finish_value(static_cast<f32>(queue.wait_for_result(slots[i])));
                 queue.mark_consumed(slots[i]);
                 workers[i]->resume = true;
-                vine_assert(pool.search.try_push(workers[i]));
+                push_until(pool.search, workers[i]);
             }
         }
     } else {
@@ -278,7 +291,7 @@ void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_i
 
         while (!stop_flag.load(std::memory_order_relaxed)) {
             SearchContext<DataWriter> *worker = nullptr;
-            if (!pool.value.try_pop(worker)) {
+            if (!rx.try_pop(worker)) {
                 if (all_done(settings, next_game_idx, active_games)) {
                     break;
                 }
@@ -288,14 +301,14 @@ void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_i
 
             worker->searcher.finish_value(static_cast<f32>(evaluator.value(worker->searcher.pending_state())));
             worker->resume = true;
-            vine_assert(pool.search.try_push(worker));
+            push_until(pool.search, worker);
         }
     }
 }
 
 template <class Evaluator, class DataWriter>
 void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                        GamePool<DataWriter> &pool) {
+                        GamePool<DataWriter> &pool, typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
     if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
         auto &queue = network::GlobalGpuPolicyQueue::get().queue();
         queue.start();
@@ -304,7 +317,7 @@ void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_
         std::vector<network::GpuPolicyQueue::PolicySlot> slots(queue.batch_size());
 
         while (!stop_flag.load(std::memory_order_relaxed)) {
-            const usize count = pool.policy.try_pop_some(std::span(workers.data(), workers.size()));
+            const usize count = rx.try_pop_some(std::span(workers.data(), workers.size()));
             if (count == 0) {
                 if (all_done(settings, next_game_idx, active_games)) {
                     break;
@@ -338,7 +351,7 @@ void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_
                 workers[i]->searcher.finish_policy([&] { return result.logits[next_idx++]; });
                 queue.mark_consumed(slots[i]);
                 workers[i]->resume = true;
-                vine_assert(pool.search.try_push(workers[i]));
+                push_until(pool.search, workers[i]);
             }
         }
     } else {
@@ -346,7 +359,7 @@ void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_
 
         while (!stop_flag.load(std::memory_order_relaxed)) {
             SearchContext<DataWriter> *worker = nullptr;
-            if (!pool.policy.try_pop(worker)) {
+            if (!rx.try_pop(worker)) {
                 if (all_done(settings, next_game_idx, active_games)) {
                     break;
                 }
@@ -358,7 +371,7 @@ void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_
             vine_assert(req);
             finish_policy(worker->searcher, evaluator, *req);
             worker->resume = true;
-            vine_assert(pool.search.try_push(worker));
+            push_until(pool.search, worker);
         }
     }
 }
@@ -384,7 +397,9 @@ bool times_up(SearchContext<DataWriter> &worker) {
 
 template <class Evaluator, class DataWriter>
 void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                 GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens) {
+                 GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens,
+                 typename GamePool<DataWriter>::WorkQueue::Sender value_tx,
+                 typename GamePool<DataWriter>::WorkQueue::Sender policy_tx) {
     rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
     while (!stop_flag.load(std::memory_order_relaxed)) {
@@ -400,13 +415,14 @@ void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, st
 
             const auto game_idx = next_game_idx.fetch_add(1, std::memory_order_relaxed);
             if (game_idx >= settings.num_games) {
-                vine_assert(pool.free.try_push(worker));
+                push_until(pool.free, worker);
                 if (active_games.load(std::memory_order_relaxed) == 0) {
                     break;
                 }
                 std::this_thread::yield();
                 continue;
             }
+            active_games.fetch_add(1, std::memory_order_release);
 
             worker->board =
                 Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
@@ -416,12 +432,10 @@ void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, st
             worker->writer.push_board_state(worker->board.state());
             worker->time_manager.start_tracking(settings.time_settings);
             reset_adjudication(*worker);
-            active_games.fetch_add(1, std::memory_order_relaxed);
         }
 
-        const auto request = worker->searcher.poll(worker->board);
-
         if (worker->resume) {
+            worker->searcher.ready();
             worker->resume = false;
             if (times_up(*worker)) {
                 finish_move(worker, settings, active_games, pool, out_mutex);
@@ -429,12 +443,21 @@ void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, st
             }
         }
 
+        const auto request = worker->searcher.poll(worker->board);
+
         switch (request.kind) {
         case search::RequestKind::Value:
-            vine_assert(pool.value.try_push(worker));
+            if (!worker->searcher.game_tree().node_at(request.node).info.terminal_state.is_none()) {
+                worker->searcher.finish_value(
+                    static_cast<f32>(worker->searcher.game_tree().node_at(request.node).info.terminal_state.score()));
+                worker->resume = true;
+                push_until(pool.search, worker);
+            } else {
+                push_until(value_tx, worker);
+            }
             break;
         case search::RequestKind::Policy:
-            vine_assert(pool.policy.try_push(worker));
+            push_until(policy_tx, worker);
             break;
         }
     }
@@ -444,29 +467,52 @@ template <class Evaluator, class DataWriter>
 void launch_threads(const Settings &settings, std::ostream &final_output, const std::vector<std::string> &opening_fens,
                     std::vector<std::thread> &threads) {
     auto pool = std::make_shared<GamePool<DataWriter>>();
-    pool->reset(searcher_count(settings), final_output);
+    pool->reset(searcher_count(settings), settings.num_threads, final_output);
     auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
     auto active_games = std::make_shared<std::atomic_size_t>(0);
     auto out_mutex = std::make_shared<std::mutex>();
     const usize gpu_workers = settings.evaluator_backend == EvaluatorBackend::GPU
                                   ? std::max<usize>(1, settings.gpu_workers_per_queue)
                                   : 1;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> value_txs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> policy_txs;
+
+    value_rxs.reserve(gpu_workers);
+    policy_rxs.reserve(gpu_workers);
+    value_txs.reserve(settings.num_threads);
+    policy_txs.reserve(settings.num_threads);
 
     for (usize i = 0; i < gpu_workers; ++i) {
-        threads.emplace_back([settings, pool, next_game_idx, active_games]() {
-            value_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool);
+        value_rxs.emplace_back(pool->value.receiver());
+        policy_rxs.emplace_back(pool->policy.receiver());
+    }
+    for (usize i = 0; i < settings.num_threads; ++i) {
+        value_txs.emplace_back(pool->value.sender());
+        policy_txs.emplace_back(pool->policy.sender());
+    }
+
+    for (usize i = 0; i < gpu_workers; ++i) {
+        auto rx = std::move(value_rxs[i]);
+        threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
+            value_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
         });
     }
     for (usize i = 0; i < gpu_workers; ++i) {
-        threads.emplace_back([settings, pool, next_game_idx, active_games]() {
-            policy_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool);
+        auto rx = std::move(policy_rxs[i]);
+        threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
+            policy_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
         });
     }
 
     for (usize i = 0; i < settings.num_threads; ++i) {
-        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens]() {
+        auto value_tx = std::move(value_txs[i]);
+        auto policy_tx = std::move(policy_txs[i]);
+        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens,
+                              value_tx = std::move(value_tx), policy_tx = std::move(policy_tx)]() mutable {
             thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex,
-                                               opening_fens);
+                                               opening_fens, std::move(value_tx), std::move(policy_tx));
         });
     }
 }

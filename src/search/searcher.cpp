@@ -65,6 +65,13 @@ void Searcher::clear() {
     initialized_ = false;
 }
 
+void Searcher::ready() {
+    if (value_result_) {
+        game_tree_.backpropagate_score(*value_result_);
+        value_result_.reset();
+    }
+}
+
 void Searcher::finish_value(f32 score) {
     vine_assert(request_ && request_->kind == RequestKind::Value);
     value_result_ = score;

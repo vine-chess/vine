@@ -33,6 +33,7 @@ class Searcher {
     [[nodiscard]] const std::optional<Request> &poll() const;
 
     void clear();
+    void ready();
     void finish_value(f32 score);
     template <class NextLogit>
     void finish_policy(NextLogit &&next_logit);
@@ -63,26 +64,14 @@ inline search::Request search::Searcher::poll(Board &board) {
         game_tree_.new_search(board);
         initialized_ = true;
 
-        if (const auto root = game_tree_.root(); root.expanded() && !root.terminal()) {
+        if (const auto root = game_tree_.root(); root.expanded() && root.info.terminal_state.is_none()) {
             request_ = {.kind = RequestKind::Policy, .node = game_tree_.root_idx()};
             return *request_;
         }
     }
 
-    while (!request_) {
-        if (value_result_) {
-            game_tree_.backpropagate_score(*value_result_);
-            value_result_.reset();
-        }
-
-        request_ = game_tree_.select_and_expand_node();
-
-        if (request_->kind == RequestKind::Value && game_tree_.node_at(request_->node).terminal()) {
-            game_tree_.backpropagate_score(static_cast<f32>(game_tree_.node_at(request_->node).info.terminal_state.score()));
-            request_.reset();
-        }
-    }
-
+    vine_assert(!request_);
+    request_ = game_tree_.select_and_expand_node();
     return *request_;
 }
 

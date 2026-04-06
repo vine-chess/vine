@@ -3,6 +3,7 @@
 #include "../../../MPMCQueue/include/rigtorp/MPMCQueue.h"
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -12,6 +13,10 @@ namespace {
 
 using Clock = std::chrono::high_resolution_clock;
 volatile u64 checksum_sink = 0;
+
+u64 expected_sum(const usize total) {
+    return total * (total - 1) / 2;
+}
 
 void print_result(const char *name, const usize ops, const Clock::time_point begin, const u64 checksum) {
     checksum_sink ^= checksum;
@@ -63,6 +68,7 @@ void bench(const char *name, const usize prod, const usize cons, const usize ops
 
     u64 sum = 0;
     for (const u64 s : sums) sum += s;
+    assert(sum == expected_sum(total));
     print_result(name, total, begin, sum);
 }
 
@@ -97,7 +103,7 @@ void bench_rigtorp(const usize prod, const usize cons, const usize ops, const us
 } // namespace
 
 int main() {
-    constexpr usize ops = 2'000'000;
+    constexpr usize ops = 200'000;
     constexpr usize small = 512;
     constexpr usize large = 4096;
 
