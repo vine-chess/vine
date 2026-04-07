@@ -110,6 +110,23 @@ void push_until(Queue &q, T value) {
            active_games.load(std::memory_order_acquire) == 0;
 }
 
+template <class Receiver, class T>
+[[nodiscard]] usize fill_batch(Receiver &rx, std::span<T> batch, const Settings &settings,
+                               const std::atomic_size_t &next_game_idx, const std::atomic_size_t &active_games) {
+    usize count = rx.try_pop_some(batch);
+    while (count != 0 && count < batch.size() && !stop_flag.load(std::memory_order_relaxed) &&
+           !all_done(settings, next_game_idx, active_games)) {
+        const usize added = rx.try_pop_some(batch.subspan(count));
+        if (added == 0) {
+            std::this_thread::yield();
+            continue;
+        }
+        count += added;
+    }
+
+    return count;
+}
+
 template <class DataWriter>
 void init_game(DatagenGame<DataWriter> &game, const Settings &settings, const std::vector<std::string> &opening_fens) {
     game.board = Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
@@ -276,14 +293,26 @@ void finish_move(DatagenGame<DataWriter> *game, const Settings &settings, std::a
 template <class DataWriter>
 void value_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_game_idx,
                            std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
-                           typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+                           typename GamePool<DataWriter>::WorkQueue::Receiver rx, std::mutex &fill_mutex) {
     network::GpuValueQueue queue(static_cast<u32>(gpu_batch_size(settings)));
     queue.start();
     std::vector<DatagenGame<DataWriter> *> games(queue.batch_size());
     std::vector<network::GpuValueQueue::ValueSlot> slots(queue.batch_size());
 
     while (!stop_flag.load(std::memory_order_relaxed)) {
-        const usize count = rx.try_pop_some(std::span(games.data(), games.size()));
+        usize count = 0;
+        {
+            std::unique_lock lock(fill_mutex, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            count = fill_batch(rx, std::span(games.data(), games.size()), settings, next_game_idx, active_games);
+        }
         if (count == 0) {
             if (all_done(settings, next_game_idx, active_games)) {
                 break;
@@ -331,7 +360,7 @@ void value_thread_loop_cpu(const Settings &settings, std::atomic_size_t &next_ga
 template <class DataWriter>
 void policy_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_game_idx,
                             std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
-                            typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+                            typename GamePool<DataWriter>::WorkQueue::Receiver rx, std::mutex &fill_mutex) {
     network::GpuPolicyQueue queue(static_cast<u32>(gpu_batch_size(settings)));
     queue.start();
     std::vector<DatagenGame<DataWriter> *> games(queue.batch_size());
@@ -339,7 +368,19 @@ void policy_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_g
     std::vector<network::GpuPolicyQueue::PolicySlot> slots(queue.batch_size());
 
     while (!stop_flag.load(std::memory_order_relaxed)) {
-        const usize count = rx.try_pop_some(std::span(games.data(), games.size()));
+        usize count = 0;
+        {
+            std::unique_lock lock(fill_mutex, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                if (all_done(settings, next_game_idx, active_games)) {
+                    break;
+                }
+                std::this_thread::yield();
+                continue;
+            }
+
+            count = fill_batch(rx, std::span(games.data(), games.size()), settings, next_game_idx, active_games);
+        }
         if (count == 0) {
             if (all_done(settings, next_game_idx, active_games)) {
                 break;
@@ -500,6 +541,8 @@ void launch_gpu_threads(const Settings &settings, std::ostream &final_output,
     auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
     auto active_games = std::make_shared<std::atomic_size_t>(0);
     auto out_mutex = std::make_shared<std::mutex>();
+    auto value_fill_mutex = std::make_shared<std::mutex>();
+    auto policy_fill_mutex = std::make_shared<std::mutex>();
     const usize gpu_workers = std::max<usize>(1, settings.gpu_workers_per_queue);
     std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
     std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
@@ -522,14 +565,18 @@ void launch_gpu_threads(const Settings &settings, std::ostream &final_output,
 
     for (usize i = 0; i < gpu_workers; ++i) {
         auto rx = std::move(value_rxs[i]);
-        threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
-            value_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+        threads.emplace_back([settings, pool, next_game_idx, active_games, value_fill_mutex,
+                              rx = std::move(rx)]() mutable {
+            value_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
+                                              *value_fill_mutex);
         });
     }
     for (usize i = 0; i < gpu_workers; ++i) {
         auto rx = std::move(policy_rxs[i]);
-        threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
-            policy_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+        threads.emplace_back([settings, pool, next_game_idx, active_games, policy_fill_mutex,
+                              rx = std::move(rx)]() mutable {
+            policy_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
+                                               *policy_fill_mutex);
         });
     }
 
