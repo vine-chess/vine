@@ -65,6 +65,12 @@ void Searcher::clear() {
     initialized_ = false;
 }
 
+void Searcher::restart() {
+    request_.reset();
+    value_result_.reset();
+    initialized_ = false;
+}
+
 void Searcher::ready() {
     if (value_result_) {
         game_tree_.backpropagate_score(*value_result_);

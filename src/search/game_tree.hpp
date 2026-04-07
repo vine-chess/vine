@@ -151,8 +151,10 @@ void GameTree::new_search(const Board &root_board, Evaluator &evaluator) {
 }
 
 inline void GameTree::new_search(const Board &root_board) {
-    active_half().clear();
-    active_half().push_node(Node{});
+    if (!advance_root_node(board_, root_board, active_half().root_idx())) {
+        active_half().clear();
+        active_half().push_node(Node{});
+    }
 
     board_ = root_board;
     sum_depths_ = 0;
@@ -195,7 +197,7 @@ NodeIndex GameTree::select_and_expand_node(Evaluator &evaluator) {
             }
         }
 
-        if (!node.info.terminal_state.is_none() || !node.visited()) {
+        if (node.terminal() || !node.visited()) {
             sum_depths_ += nodes_in_path_.size();
             return node_idx;
         }
@@ -238,7 +240,7 @@ inline Request GameTree::select_and_expand_node() {
             }
         }
 
-        if (!node.info.terminal_state.is_none() || !node.visited()) {
+        if (node.terminal() || !node.visited()) {
             sum_depths_ += nodes_in_path_.size();
             return {.kind = RequestKind::Value, .node = node_idx};
         }
@@ -313,7 +315,7 @@ bool GameTree::expand_node(NodeIndex node_idx, Evaluator &evaluator) {
 inline bool GameTree::expand_node(NodeIndex node_idx, bool &needs_policy) {
     auto node = node_at(node_idx);
     needs_policy = false;
-    if (node.expanded() || !node.info.terminal_state.is_none()) {
+    if (node.expanded() || node.terminal()) {
         return true;
     }
 
@@ -353,7 +355,7 @@ inline bool GameTree::expand_node(NodeIndex node_idx, bool &needs_policy) {
 template <class Evaluator>
 f64 GameTree::simulate_node(NodeIndex node_idx, Evaluator &evaluator) {
     const auto node = node_at(node_idx);
-    if (!node.info.terminal_state.is_none()) {
+    if (node.terminal()) {
         return node.info.terminal_state.score();
     }
 

@@ -33,6 +33,7 @@ class Searcher {
     [[nodiscard]] const std::optional<Request> &poll() const;
 
     void clear();
+    void restart();
     void ready();
     void finish_value(f32 score);
     template <class NextLogit>

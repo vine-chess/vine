@@ -1,8 +1,8 @@
 #include "game_runner.hpp"
 #include "../chess/move_gen.hpp"
 #include "../eval/evaluator.hpp"
+#include "../eval/gpu_queue.hpp"
 #include "../util/math.hpp"
-#include "../util/ring_queue.hpp"
 #include "../util/sharded_queue.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
@@ -52,8 +52,8 @@ namespace {
 }
 
 template <class DataWriter>
-struct SearchContext {
-    explicit SearchContext(std::ostream &out) : writer(out) {}
+struct DatagenGame {
+    explicit DatagenGame(std::ostream &out) : writer(out) {}
 
     search::Searcher searcher;
     search::TimeManager time_manager;
@@ -70,12 +70,12 @@ struct SearchContext {
 
 template <class DataWriter>
 struct GamePool {
-    using Game = SearchContext<DataWriter>;
+    using Game = DatagenGame<DataWriter>;
     using GamePtr = Game *;
     using ReadyQueue = util::RingQueue<GamePtr>;
     using WorkQueue = util::ShardedQueue<GamePtr>;
 
-    std::deque<SearchContext<DataWriter>> games;
+    std::deque<DatagenGame<DataWriter>> games;
     ReadyQueue free;
     ReadyQueue search;
     WorkQueue value;
@@ -110,23 +110,54 @@ void push_until(Queue &q, T value) {
            active_games.load(std::memory_order_acquire) == 0;
 }
 
+template <class DataWriter>
+void init_game(DatagenGame<DataWriter> &game, const Settings &settings, const std::vector<std::string> &opening_fens) {
+    game.board = Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
+    game.searcher.clear();
+    game.searcher.set_hash_size(std::max<usize>(1, settings.hash_size));
+    game.searcher.set_verbosity(search::Verbosity::NONE);
+    game.writer.push_board_state(game.board.state());
+    game.time_manager.start_tracking(settings.time_settings);
+    reset_adjudication(game);
+}
+
+template <class DataWriter>
+[[nodiscard]] DatagenGame<DataWriter> *next_game(const Settings &settings, std::atomic_size_t &next_game_idx,
+                                                 std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                                                 const std::vector<std::string> &opening_fens) {
+    DatagenGame<DataWriter> *game = nullptr;
+    if (!pool.free.try_pop(game)) {
+        return nullptr;
+    }
+
+    const auto game_idx = next_game_idx.fetch_add(1, std::memory_order_relaxed);
+    if (game_idx >= settings.num_games) {
+        push_until(pool.free, game);
+        return nullptr;
+    }
+
+    active_games.fetch_add(1, std::memory_order_release);
+    init_game(*game, settings, opening_fens);
+    return game;
+}
+
 [[nodiscard]] f64 terminal_game_result(const Board &board) {
     return board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
 }
 
 template <class DataWriter>
-void reset_adjudication(SearchContext<DataWriter> &worker) {
-    worker.old_visit_dist.clear();
-    worker.resume = false;
-    worker.iterations = 0;
-    worker.previous_depth = 0;
-    worker.white_win_plies = 0;
-    worker.white_loss_plies = 0;
-    worker.draw_plies = 0;
+void reset_adjudication(DatagenGame<DataWriter> &game) {
+    game.old_visit_dist.clear();
+    game.resume = false;
+    game.iterations = 0;
+    game.previous_depth = 0;
+    game.white_win_plies = 0;
+    game.white_loss_plies = 0;
+    game.draw_plies = 0;
 }
 
 template <class DataWriter>
-[[nodiscard]] std::optional<f64> adjudicated_result(SearchContext<DataWriter> &worker, const Board &board,
+[[nodiscard]] std::optional<f64> adjudicated_result(DatagenGame<DataWriter> &game, const Board &board,
                                                     const search::NodeReference best_child, const f64 score) {
     if (best_child.info.terminal_state.is_win()) {
         return board.state().side_to_move == Color::BLACK ? 1.0 : 0.0;
@@ -138,30 +169,30 @@ template <class DataWriter>
     const f64 white_relative_cp =
         400 * util::math::inverse_sigmoid(board.state().side_to_move == Color::WHITE ? score : 1.0 - score);
     if (white_relative_cp >= 2000) {
-        ++worker.white_win_plies;
-        worker.white_loss_plies = 0;
-        worker.draw_plies = 0;
+        ++game.white_win_plies;
+        game.white_loss_plies = 0;
+        game.draw_plies = 0;
     } else if (white_relative_cp <= -2000) {
-        ++worker.white_loss_plies;
-        worker.white_win_plies = 0;
-        worker.draw_plies = 0;
+        ++game.white_loss_plies;
+        game.white_win_plies = 0;
+        game.draw_plies = 0;
     } else if (std::abs(white_relative_cp) <= 30) {
-        ++worker.draw_plies;
-        worker.white_win_plies = 0;
-        worker.white_loss_plies = 0;
+        ++game.draw_plies;
+        game.white_win_plies = 0;
+        game.white_loss_plies = 0;
     } else {
-        worker.white_win_plies = 0;
-        worker.white_loss_plies = 0;
-        worker.draw_plies = 0;
+        game.white_win_plies = 0;
+        game.white_loss_plies = 0;
+        game.draw_plies = 0;
     }
 
-    if (worker.white_win_plies >= 5) {
+    if (game.white_win_plies >= 5) {
         return 1.0;
     }
-    if (worker.white_loss_plies >= 5) {
+    if (game.white_loss_plies >= 5) {
         return 0.0;
     }
-    if (worker.draw_plies >= 10 && board.state().fifty_moves_clock >= 20) {
+    if (game.draw_plies >= 10 && board.state().fifty_moves_clock >= 20) {
         return 0.5;
     }
 
@@ -182,42 +213,27 @@ void push_move_data(DataWriter &writer, search::GameTree &game_tree, const searc
     }
 }
 
-template <class Evaluator>
-void finish_policy(search::Searcher &searcher, Evaluator &evaluator, const search::Request request) {
-    const auto &state = searcher.pending_state();
-    auto &tree = searcher.game_tree();
-    const auto node = tree.node_at(request.node);
-
-    auto ctx = evaluator.policy_context(state);
-    for (u16 i = 0; i < node.info.num_children; ++i) {
-        const auto child = tree.node_at(node.info.first_child_idx + i);
-        ctx.enqueue(child.info.move, state.get_piece_type(child.info.move.from()));
-    }
-    ctx.ready();
-    searcher.finish_policy([&] { return ctx.logit(); });
-}
-
 template <class DataWriter>
-void finish_game(SearchContext<DataWriter> *worker, std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+void finish_game(DatagenGame<DataWriter> *game, std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
                  std::mutex &out_mutex, const f64 result) {
     {
         const std::lock_guard lock(out_mutex);
-        worker->writer.write_with_result(result);
+        game->writer.write_with_result(result);
     }
-    worker->searcher.clear();
+    game->searcher.clear();
     active_games.fetch_sub(1, std::memory_order_relaxed);
     games_played.fetch_add(1, std::memory_order_relaxed);
-    push_until(pool.free, worker);
+    push_until(pool.free, game);
 }
 
 template <class DataWriter>
-void finish_move(SearchContext<DataWriter> *worker, const Settings &settings, std::atomic_size_t &active_games,
+void finish_move(DatagenGame<DataWriter> *game, const Settings &settings, std::atomic_size_t &active_games,
                  GamePool<DataWriter> &pool, std::mutex &out_mutex) {
-    auto &game_tree = worker->searcher.game_tree();
+    auto &game_tree = game->searcher.game_tree();
     const auto root_node = game_tree.root();
 
     if (!root_node.info.terminal_state.is_none()) {
-        finish_game(worker, active_games, pool, out_mutex, terminal_game_result(worker->board));
+        finish_game(game, active_games, pool, out_mutex, terminal_game_result(game->board));
         return;
     }
 
@@ -235,245 +251,256 @@ void finish_move(SearchContext<DataWriter> *worker, const Settings &settings, st
     vine_assert(!best_child.info.move.is_null());
 
     const f64 score = 1.0 - best_child.q();
-    if (const auto result = adjudicated_result(*worker, worker->board, best_child, score)) {
-        finish_game(worker, active_games, pool, out_mutex, *result);
+    if (const auto result = adjudicated_result(*game, game->board, best_child, score)) {
+        finish_game(game, active_games, pool, out_mutex, *result);
         return;
     }
 
-    push_move_data(worker->writer, game_tree, root_node, best_child, worker->board.state());
-    worker->board.make_move(best_child.info.move);
+    push_move_data(game->writer, game_tree, root_node, best_child, game->board.state());
+    game->board.make_move(best_child.info.move);
 
     positions_written.fetch_add(1, std::memory_order_relaxed);
 
-    if (worker->board.is_draw()) {
-        finish_game(worker, active_games, pool, out_mutex, 0.5);
+    if (game->board.is_draw()) {
+        finish_game(game, active_games, pool, out_mutex, 0.5);
         return;
     }
 
-    worker->time_manager.start_tracking(settings.time_settings);
-    reset_adjudication(*worker);
-    push_until(pool.search, worker);
+    game->writer.push_board_state(game->board.state());
+    game->searcher.restart();
+    game->time_manager.start_tracking(settings.time_settings);
+    reset_adjudication(*game);
+    push_until(pool.search, game);
 }
 
-template <class Evaluator, class DataWriter>
-void value_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                       GamePool<DataWriter> &pool, typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
-    if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
-        auto &queue = network::GlobalGpuValueQueue::get().queue();
-        queue.start();
-        std::vector<SearchContext<DataWriter> *> workers(queue.batch_size());
-        std::vector<network::GpuValueQueue::ValueSlot> slots(queue.batch_size());
+template <class DataWriter>
+void value_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_game_idx,
+                           std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                           typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+    network::GpuValueQueue queue(static_cast<u32>(gpu_batch_size(settings)));
+    queue.start();
+    std::vector<DatagenGame<DataWriter> *> games(queue.batch_size());
+    std::vector<network::GpuValueQueue::ValueSlot> slots(queue.batch_size());
 
-        while (!stop_flag.load(std::memory_order_relaxed)) {
-            const usize count = rx.try_pop_some(std::span(workers.data(), workers.size()));
-            if (count == 0) {
-                if (all_done(settings, next_game_idx, active_games)) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        const usize count = rx.try_pop_some(std::span(games.data(), games.size()));
+        if (count == 0) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
             }
-
-            for (usize i = 0; i < count; ++i) {
-                slots[i] = queue.reserve_value_slot(workers[i]->searcher.pending_state());
-                queue.mark_ready(slots[i]);
-            }
-
-            for (usize i = 0; i < count; ++i) {
-                workers[i]->searcher.finish_value(static_cast<f32>(queue.wait_for_result(slots[i])));
-                queue.mark_consumed(slots[i]);
-                workers[i]->resume = true;
-                push_until(pool.search, workers[i]);
-            }
+            std::this_thread::yield();
+            continue;
         }
-    } else {
-        Evaluator evaluator;
 
-        while (!stop_flag.load(std::memory_order_relaxed)) {
-            SearchContext<DataWriter> *worker = nullptr;
-            if (!rx.try_pop(worker)) {
-                if (all_done(settings, next_game_idx, active_games)) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
-            }
-
-            worker->searcher.finish_value(static_cast<f32>(evaluator.value(worker->searcher.pending_state())));
-            worker->resume = true;
-            push_until(pool.search, worker);
+        for (usize i = 0; i < count; ++i) {
+            slots[i] = queue.reserve_value_slot(games[i]->searcher.pending_state());
+            queue.mark_ready(slots[i]);
         }
-    }
-}
 
-template <class Evaluator, class DataWriter>
-void policy_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                        GamePool<DataWriter> &pool, typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
-    if constexpr (std::is_same_v<Evaluator, network::QueuedGpuEvaluator>) {
-        auto &queue = network::GlobalGpuPolicyQueue::get().queue();
-        queue.start();
-        std::vector<SearchContext<DataWriter> *> workers(queue.batch_size());
-        std::vector<search::Request> requests(queue.batch_size());
-        std::vector<network::GpuPolicyQueue::PolicySlot> slots(queue.batch_size());
-
-        while (!stop_flag.load(std::memory_order_relaxed)) {
-            const usize count = rx.try_pop_some(std::span(workers.data(), workers.size()));
-            if (count == 0) {
-                if (all_done(settings, next_game_idx, active_games)) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
-            }
-
-            for (usize i = 0; i < count; ++i) {
-                const auto req = workers[i]->searcher.poll();
-                vine_assert(req);
-                requests[i] = *req;
-
-                const auto &state = workers[i]->searcher.pending_state();
-                auto &tree = workers[i]->searcher.game_tree();
-                const auto node = tree.node_at(requests[i].node);
-
-                slots[i] = queue.reserve_policy_slot(state, node.info.num_children);
-                for (u16 j = 0; j < node.info.num_children; ++j) {
-                    const auto child = tree.node_at(node.info.first_child_idx + j);
-                    slots[i].move_indices[j] =
-                        network::policy::move_output_idx(state, child.info.move,
-                                                         state.get_piece_type(child.info.move.from()));
-                }
-                queue.mark_ready(slots[i]);
-            }
-
-            for (usize i = 0; i < count; ++i) {
-                const auto result = queue.wait_for_result(slots[i]);
-                usize next_idx = 0;
-                workers[i]->searcher.finish_policy([&] { return result.logits[next_idx++]; });
-                queue.mark_consumed(slots[i]);
-                workers[i]->resume = true;
-                push_until(pool.search, workers[i]);
-            }
-        }
-    } else {
-        Evaluator evaluator;
-
-        while (!stop_flag.load(std::memory_order_relaxed)) {
-            SearchContext<DataWriter> *worker = nullptr;
-            if (!rx.try_pop(worker)) {
-                if (all_done(settings, next_game_idx, active_games)) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
-            }
-
-            const auto req = worker->searcher.poll();
-            vine_assert(req);
-            finish_policy(worker->searcher, evaluator, *req);
-            worker->resume = true;
-            push_until(pool.search, worker);
+        for (usize i = 0; i < count; ++i) {
+            games[i]->searcher.finish_value(static_cast<f32>(queue.wait_for_result(slots[i])));
+            queue.mark_consumed(slots[i]);
+            games[i]->resume = true;
+            push_until(pool.search, games[i]);
         }
     }
 }
 
 template <class DataWriter>
-bool times_up(SearchContext<DataWriter> &worker) {
-    auto &tree = worker.searcher.game_tree();
-    ++worker.iterations;
+void value_thread_loop_cpu(const Settings &settings, std::atomic_size_t &next_game_idx,
+                           std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                           typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+    network::CpuEvaluator evaluator;
 
-    const u64 depth = tree.sum_depths() / worker.iterations;
-    worker.previous_depth = std::max(worker.previous_depth, depth);
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        DatagenGame<DataWriter> *game = nullptr;
+        if (!rx.try_pop(game)) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
+            }
+            std::this_thread::yield();
+            continue;
+        }
+
+        game->searcher.finish_value(static_cast<f32>(evaluator.value(game->searcher.pending_state())));
+        game->resume = true;
+        push_until(pool.search, game);
+    }
+}
+
+template <class DataWriter>
+void policy_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_game_idx,
+                            std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                            typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+    network::GpuPolicyQueue queue(static_cast<u32>(gpu_batch_size(settings)));
+    queue.start();
+    std::vector<DatagenGame<DataWriter> *> games(queue.batch_size());
+    std::vector<search::Request> requests(queue.batch_size());
+    std::vector<network::GpuPolicyQueue::PolicySlot> slots(queue.batch_size());
+
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        const usize count = rx.try_pop_some(std::span(games.data(), games.size()));
+        if (count == 0) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
+            }
+            std::this_thread::yield();
+            continue;
+        }
+
+        for (usize i = 0; i < count; ++i) {
+            const auto req = games[i]->searcher.poll();
+            vine_assert(req);
+            requests[i] = *req;
+
+            const auto &state = games[i]->searcher.pending_state();
+            auto &tree = games[i]->searcher.game_tree();
+            const auto node = tree.node_at(requests[i].node);
+
+            slots[i] = queue.reserve_policy_slot(state, node.info.num_children);
+            for (u16 j = 0; j < node.info.num_children; ++j) {
+                const auto child = tree.node_at(node.info.first_child_idx + j);
+                slots[i].move_indices[j] =
+                    network::policy::move_output_idx(state, child.info.move,
+                                                     state.get_piece_type(child.info.move.from()));
+            }
+            queue.mark_ready(slots[i]);
+        }
+
+        for (usize i = 0; i < count; ++i) {
+            const auto result = queue.wait_for_result(slots[i]);
+            usize next_idx = 0;
+            games[i]->searcher.finish_policy([&] { return result.logits[next_idx++]; });
+            queue.mark_consumed(slots[i]);
+            games[i]->resume = true;
+            push_until(pool.search, games[i]);
+        }
+    }
+}
+
+template <class DataWriter>
+void policy_thread_loop_cpu(const Settings &settings, std::atomic_size_t &next_game_idx,
+                            std::atomic_size_t &active_games, GamePool<DataWriter> &pool,
+                            typename GamePool<DataWriter>::WorkQueue::Receiver rx) {
+    network::CpuEvaluator evaluator;
+
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        DatagenGame<DataWriter> *game = nullptr;
+        if (!rx.try_pop(game)) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
+            }
+            std::this_thread::yield();
+            continue;
+        }
+
+        const auto req = game->searcher.poll();
+        vine_assert(req);
+        const auto &state = game->searcher.pending_state();
+        auto &tree = game->searcher.game_tree();
+        const auto node = tree.node_at(req->node);
+
+        auto ctx = evaluator.policy_context(state);
+        for (u16 i = 0; i < node.info.num_children; ++i) {
+            const auto child = tree.node_at(node.info.first_child_idx + i);
+            ctx.enqueue(child.info.move, state.get_piece_type(child.info.move.from()));
+        }
+        ctx.ready();
+        game->searcher.finish_policy([&] { return ctx.logit(); });
+        game->resume = true;
+        push_until(pool.search, game);
+    }
+}
+
+template <class DataWriter>
+bool times_up(DatagenGame<DataWriter> &game) {
+    auto &tree = game.searcher.game_tree();
+    ++game.iterations;
+
+    const u64 depth = tree.sum_depths() / game.iterations;
+    game.previous_depth = std::max(game.previous_depth, depth);
 
     util::StaticVector<u32, MAX_MOVES> new_visit_dist;
     for (u16 i = 0; i < tree.root().info.num_children; ++i) {
         new_visit_dist.push_back(tree.node_at(tree.root().info.first_child_idx + i).num_visits);
     }
 
-    const bool stop = worker.time_manager.times_up(tree, worker.iterations, worker.board.state().side_to_move,
-                                                   worker.previous_depth, worker.old_visit_dist, new_visit_dist);
-    worker.old_visit_dist = new_visit_dist;
+    const bool stop = game.time_manager.times_up(tree, game.iterations, game.board.state().side_to_move,
+                                                 game.previous_depth, game.old_visit_dist, new_visit_dist);
+    game.old_visit_dist = new_visit_dist;
     return stop;
 }
 
-template <class Evaluator, class DataWriter>
-void thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                 GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens,
-                 typename GamePool<DataWriter>::WorkQueue::Sender value_tx,
-                 typename GamePool<DataWriter>::WorkQueue::Sender policy_tx) {
-    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
-
-    while (!stop_flag.load(std::memory_order_relaxed)) {
-        SearchContext<DataWriter> *worker = nullptr;
-        if (!pool.search.try_pop(worker)) {
-            if (!pool.free.try_pop(worker)) {
-                if (all_done(settings, next_game_idx, active_games)) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
-            }
-
-            const auto game_idx = next_game_idx.fetch_add(1, std::memory_order_relaxed);
-            if (game_idx >= settings.num_games) {
-                push_until(pool.free, worker);
-                if (active_games.load(std::memory_order_relaxed) == 0) {
-                    break;
-                }
-                std::this_thread::yield();
-                continue;
-            }
-            active_games.fetch_add(1, std::memory_order_release);
-
-            worker->board =
-                Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
-            worker->searcher.clear();
-            worker->searcher.set_hash_size(std::max<usize>(1, settings.hash_size));
-            worker->searcher.set_verbosity(search::Verbosity::NONE);
-            worker->writer.push_board_state(worker->board.state());
-            worker->time_manager.start_tracking(settings.time_settings);
-            reset_adjudication(*worker);
+template <class DataWriter>
+void advance_search(DatagenGame<DataWriter> *game, const Settings &settings, std::atomic_size_t &active_games,
+                    GamePool<DataWriter> &pool, std::mutex &out_mutex,
+                    typename GamePool<DataWriter>::WorkQueue::Sender &value_tx,
+                    typename GamePool<DataWriter>::WorkQueue::Sender &policy_tx) {
+    if (game->resume) {
+        game->searcher.ready();
+        game->resume = false;
+        if (times_up(*game)) {
+            finish_move(game, settings, active_games, pool, out_mutex);
+            return;
         }
+    }
 
-        if (worker->resume) {
-            worker->searcher.ready();
-            worker->resume = false;
-            if (times_up(*worker)) {
-                finish_move(worker, settings, active_games, pool, out_mutex);
-                continue;
-            }
+    const auto request = game->searcher.poll(game->board);
+
+    switch (request.kind) {
+    case search::RequestKind::Value:
+        if (!game->searcher.game_tree().node_at(request.node).info.terminal_state.is_none()) {
+            game->searcher.finish_value(
+                static_cast<f32>(game->searcher.game_tree().node_at(request.node).info.terminal_state.score()));
+            game->resume = true;
+            push_until(pool.search, game);
+        } else {
+            push_until(value_tx, game);
         }
-
-        const auto request = worker->searcher.poll(worker->board);
-
-        switch (request.kind) {
-        case search::RequestKind::Value:
-            if (!worker->searcher.game_tree().node_at(request.node).info.terminal_state.is_none()) {
-                worker->searcher.finish_value(
-                    static_cast<f32>(worker->searcher.game_tree().node_at(request.node).info.terminal_state.score()));
-                worker->resume = true;
-                push_until(pool.search, worker);
-            } else {
-                push_until(value_tx, worker);
-            }
-            break;
-        case search::RequestKind::Policy:
-            push_until(policy_tx, worker);
-            break;
-        }
+        break;
+    case search::RequestKind::Policy:
+        push_until(policy_tx, game);
+        break;
     }
 }
 
-template <class Evaluator, class DataWriter>
-void launch_threads(const Settings &settings, std::ostream &final_output, const std::vector<std::string> &opening_fens,
-                    std::vector<std::thread> &threads) {
+template <class DataWriter>
+void search_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
+                        GamePool<DataWriter> &pool, std::mutex &out_mutex,
+                        const std::vector<std::string> &opening_fens,
+                        typename GamePool<DataWriter>::WorkQueue::Sender value_tx,
+                        typename GamePool<DataWriter>::WorkQueue::Sender policy_tx) {
+    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
+
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        DatagenGame<DataWriter> *game = nullptr;
+        if (pool.search.try_pop(game)) {
+            advance_search(game, settings, active_games, pool, out_mutex, value_tx, policy_tx);
+            continue;
+        }
+
+        game = next_game(settings, next_game_idx, active_games, pool, opening_fens);
+        if (!game) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
+            }
+            std::this_thread::yield();
+            continue;
+        }
+
+        advance_search(game, settings, active_games, pool, out_mutex, value_tx, policy_tx);
+    }
+}
+
+template <class DataWriter>
+void launch_gpu_threads(const Settings &settings, std::ostream &final_output,
+                        const std::vector<std::string> &opening_fens, std::vector<std::thread> &threads) {
     auto pool = std::make_shared<GamePool<DataWriter>>();
     pool->reset(searcher_count(settings), settings.num_threads, final_output);
     auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
     auto active_games = std::make_shared<std::atomic_size_t>(0);
     auto out_mutex = std::make_shared<std::mutex>();
-    const usize gpu_workers = settings.evaluator_backend == EvaluatorBackend::GPU
-                                  ? std::max<usize>(1, settings.gpu_workers_per_queue)
-                                  : 1;
+    const usize gpu_workers = std::max<usize>(1, settings.gpu_workers_per_queue);
     std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
     std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
     std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> value_txs;
@@ -496,13 +523,13 @@ void launch_threads(const Settings &settings, std::ostream &final_output, const 
     for (usize i = 0; i < gpu_workers; ++i) {
         auto rx = std::move(value_rxs[i]);
         threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
-            value_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+            value_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
         });
     }
     for (usize i = 0; i < gpu_workers; ++i) {
         auto rx = std::move(policy_rxs[i]);
         threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(rx)]() mutable {
-            policy_thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+            policy_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
         });
     }
 
@@ -511,8 +538,52 @@ void launch_threads(const Settings &settings, std::ostream &final_output, const 
         auto policy_tx = std::move(policy_txs[i]);
         threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens,
                               value_tx = std::move(value_tx), policy_tx = std::move(policy_tx)]() mutable {
-            thread_loop<Evaluator, DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex,
-                                               opening_fens, std::move(value_tx), std::move(policy_tx));
+            search_thread_loop<DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex, opening_fens,
+                                           std::move(value_tx), std::move(policy_tx));
+        });
+    }
+}
+
+template <class DataWriter>
+void launch_cpu_threads(const Settings &settings, std::ostream &final_output,
+                        const std::vector<std::string> &opening_fens, std::vector<std::thread> &threads) {
+    auto pool = std::make_shared<GamePool<DataWriter>>();
+    pool->reset(searcher_count(settings), settings.num_threads, final_output);
+    auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
+    auto active_games = std::make_shared<std::atomic_size_t>(0);
+    auto out_mutex = std::make_shared<std::mutex>();
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> value_txs;
+    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> policy_txs;
+
+    value_rxs.emplace_back(pool->value.receiver());
+    policy_rxs.emplace_back(pool->policy.receiver());
+    value_txs.reserve(settings.num_threads);
+    policy_txs.reserve(settings.num_threads);
+
+    for (usize i = 0; i < settings.num_threads; ++i) {
+        value_txs.emplace_back(pool->value.sender());
+        policy_txs.emplace_back(pool->policy.sender());
+    }
+
+    auto value_rx = std::move(value_rxs[0]);
+    threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(value_rx)]() mutable {
+        value_thread_loop_cpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+    });
+
+    auto policy_rx = std::move(policy_rxs[0]);
+    threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(policy_rx)]() mutable {
+        policy_thread_loop_cpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
+    });
+
+    for (usize i = 0; i < settings.num_threads; ++i) {
+        auto value_tx = std::move(value_txs[i]);
+        auto policy_tx = std::move(policy_txs[i]);
+        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens,
+                              value_tx = std::move(value_tx), policy_tx = std::move(policy_tx)]() mutable {
+            search_thread_loop<DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex, opening_fens,
+                                           std::move(value_tx), std::move(policy_tx));
         });
     }
 }
@@ -608,20 +679,17 @@ void run_games(Settings settings, std::ostream &out) {
         switch (settings.evaluator_backend) {
         case EvaluatorBackend::CPU:
             if (settings.mode == DatagenMode::value) {
-                launch_threads<network::CpuEvaluator, ViriformatWriter>(settings, final_output, opening_fens, threads);
+                launch_cpu_threads<ViriformatWriter>(settings, final_output, opening_fens, threads);
             } else {
-                launch_threads<network::CpuEvaluator, MontyFormatWriter>(settings, final_output, opening_fens, threads);
+                launch_cpu_threads<MontyFormatWriter>(settings, final_output, opening_fens, threads);
             }
             break;
 #ifdef DATAGEN_CUDA
         case EvaluatorBackend::GPU:
-            network::QueuedGpuEvaluator::set_batch_size(static_cast<u32>(gpu_batch_size(settings)));
             if (settings.mode == DatagenMode::value) {
-                launch_threads<network::QueuedGpuEvaluator, ViriformatWriter>(settings, final_output, opening_fens,
-                                                                              threads);
+                launch_gpu_threads<ViriformatWriter>(settings, final_output, opening_fens, threads);
             } else {
-                launch_threads<network::QueuedGpuEvaluator, MontyFormatWriter>(settings, final_output, opening_fens,
-                                                                               threads);
+                launch_gpu_threads<MontyFormatWriter>(settings, final_output, opening_fens, threads);
             }
             break;
 #else

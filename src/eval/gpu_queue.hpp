@@ -173,22 +173,6 @@ class GpuValueQueue {
     std::atomic<bool> stop_requested_ = false;
 };
 
-class GlobalGpuValueQueue {
-  public:
-    static GlobalGpuValueQueue &get() {
-        static GlobalGpuValueQueue instance;
-        return instance;
-    }
-
-    [[nodiscard]] GpuValueQueue &queue() {
-        return queue_;
-    }
-
-  private:
-    GlobalGpuValueQueue() = default;
-    GpuValueQueue queue_;
-};
-
 class GpuPolicyQueue {
   public:
     struct PolicySlot {
@@ -373,22 +357,6 @@ class GpuPolicyQueue {
     std::thread gpu_thread_;
     std::mutex state_mutex_;
     std::atomic<bool> stop_requested_ = false;
-};
-
-class GlobalGpuPolicyQueue {
-  public:
-    static GlobalGpuPolicyQueue &get() {
-        static GlobalGpuPolicyQueue instance;
-        return instance;
-    }
-
-    [[nodiscard]] GpuPolicyQueue &queue() {
-        return queue_;
-    }
-
-  private:
-    GlobalGpuPolicyQueue() = default;
-    GpuPolicyQueue queue_;
 };
 
 } // namespace network
