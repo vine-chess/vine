@@ -283,7 +283,6 @@ void finish_move(DatagenGame<DataWriter> *game, const Settings &settings, std::a
         return;
     }
 
-    game->writer.push_board_state(game->board.state());
     game->searcher.restart();
     game->time_manager.start_tracking(settings.time_settings);
     reset_adjudication(*game);
