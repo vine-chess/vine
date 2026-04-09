@@ -126,7 +126,7 @@ void Handler::handle_genfens(std::ostream &out, const std::vector<std::string_vi
             gamma = std::strtod(std::string(part.substr(gamma_str.length())).c_str(), &dummy);
         }
     }
-    rng::seed_generator(seed);
+    rng::seed(seed);
 
     for (usize i = 0; i < count; ++i) {
         out << "info string genfens "
@@ -140,6 +140,8 @@ void Handler::handle_datagen(std::ostream &out, const std::vector<std::string_vi
     settings.num_games = 1000;
     settings.num_threads = 1;
     settings.hash_size = 16;
+    settings.temperature = 1.25;
+    settings.gamma = 0.9;
     settings.time_settings = search::TimeSettings{};
     settings.time_settings.min_kld_gain =
         std::get<i32>(uci::options.get("KldMinGain")->value_as_variant()) / 10000000.0;

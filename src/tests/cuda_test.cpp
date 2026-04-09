@@ -284,6 +284,6 @@ int main(int argc, char **argv) {
         options.count = std::stoull(argv[i]);
     }
 
-    rng::seed_generator(0);
+    rng::seed(0);
     return (options.is_value ? run_value_test(options) : run_policy_test(options)) ? 0 : 1;
 }

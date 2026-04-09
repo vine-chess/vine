@@ -60,6 +60,7 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
                 break;
             }
 
+            searcher.clear();
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
 
             temperature *= gamma;
@@ -75,9 +76,14 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
             }
 
             // Position is too imbalanced
+            searcher.clear();
             searcher.go(board, {.max_depth = 5, .max_iters = 1000});
+            const auto root = searcher.game_tree().root();
+            if (!root.info.terminal_state.is_none()) {
+                return false;
+            }
             const auto cp_score = static_cast<i32>(
-                std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(searcher.game_tree().root().q())));
+                std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(root.q())));
             if (std::abs(cp_score) >= 300) {
                 return false;
             }

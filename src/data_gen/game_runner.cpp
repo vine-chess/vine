@@ -4,6 +4,7 @@
 #include "../eval/gpu_queue.hpp"
 #include "../util/math.hpp"
 #include "../util/sharded_queue.hpp"
+#include "../util/tui.hpp"
 #include "format/monty_format.hpp"
 #include "format/viri_format.hpp"
 
@@ -27,8 +28,15 @@ void signal_handler([[maybe_unused]] i32 signum) {
     stop_flag = true;
 }
 
-std::atomic_size_t games_played = 0;
-std::atomic_size_t positions_written = 0;
+std::atomic_uint64_t games_played = 0;
+std::atomic_uint64_t active_games_live = 0;
+std::atomic_uint64_t positions_played = 0;
+std::atomic_uint64_t positions_written = 0;
+std::atomic_uint64_t value_batches = 0;
+std::atomic_uint64_t value_batch_items = 0;
+std::atomic_uint64_t policy_batches = 0;
+std::atomic_uint64_t policy_batch_items = 0;
+std::atomic_uint64_t policy_moves = 0;
 
 namespace {
 
@@ -41,6 +49,19 @@ namespace {
     }
 
     return "unknown";
+}
+
+[[nodiscard]] f64 child_selection_score(const search::NodeReference child) {
+    constexpr f64 mate_score = 1000.0;
+    switch (child.info.terminal_state.flag()) {
+    case search::TerminalState::Flag::WIN:
+        return mate_score - child.info.terminal_state.distance_to_terminal();
+    case search::TerminalState::Flag::LOSS:
+        return -mate_score + child.info.terminal_state.distance_to_terminal();
+    default:
+        vine_assert(child.visited());
+        return 1.0 - child.q();
+    }
 }
 
 [[nodiscard]] constexpr usize searcher_count(const Settings &settings) {
@@ -63,9 +84,11 @@ struct DatagenGame {
     bool resume = false;
     u64 iterations = 0;
     u64 previous_depth = 0;
+    u16 plies = 0;
     u16 white_win_plies = 0;
     u16 white_loss_plies = 0;
     u16 draw_plies = 0;
+    std::string opening_fen;
 };
 
 template <class DataWriter>
@@ -81,7 +104,7 @@ struct GamePool {
     WorkQueue value;
     WorkQueue policy;
 
-    void reset(usize count, usize n, std::ostream &out) {
+    void reset(usize count, usize shards, std::ostream &out) {
         games.clear();
         for (usize i = 0; i < count; ++i) {
             games.emplace_back(out);
@@ -89,8 +112,8 @@ struct GamePool {
 
         free.reset(count);
         search.reset(count);
-        value.reset(n, count);
-        policy.reset(n, count);
+        value.reset(shards, count);
+        policy.reset(shards, count);
         for (auto &game : games) {
             vine_assert(free.try_push(&game));
         }
@@ -128,14 +151,24 @@ template <class Receiver, class T>
 }
 
 template <class DataWriter>
-void init_game(DatagenGame<DataWriter> &game, const Settings &settings, const std::vector<std::string> &opening_fens) {
+void start_game(DatagenGame<DataWriter> &game, const Settings &settings, const std::vector<std::string> &opening_fens,
+                const usize game_idx) {
+    rng::add_entropy(game_idx);
     game.board = Board(generate_opening(opening_fens, settings.random_moves, settings.temperature, settings.gamma));
+    game.opening_fen = game.board.state().to_fen();
     game.searcher.clear();
     game.searcher.set_hash_size(std::max<usize>(1, settings.hash_size));
     game.searcher.set_verbosity(search::Verbosity::NONE);
     game.writer.push_board_state(game.board.state());
     game.time_manager.start_tracking(settings.time_settings);
-    reset_adjudication(game);
+    game.old_visit_dist.clear();
+    game.resume = false;
+    game.iterations = 0;
+    game.previous_depth = 0;
+    game.plies = 0;
+    game.white_win_plies = 0;
+    game.white_loss_plies = 0;
+    game.draw_plies = 0;
 }
 
 template <class DataWriter>
@@ -154,7 +187,8 @@ template <class DataWriter>
     }
 
     active_games.fetch_add(1, std::memory_order_release);
-    init_game(*game, settings, opening_fens);
+    active_games_live.fetch_add(1, std::memory_order_relaxed);
+    start_game(*game, settings, opening_fens, game_idx);
     return game;
 }
 
@@ -163,37 +197,30 @@ template <class DataWriter>
 }
 
 template <class DataWriter>
-void reset_adjudication(DatagenGame<DataWriter> &game) {
-    game.old_visit_dist.clear();
-    game.resume = false;
-    game.iterations = 0;
-    game.previous_depth = 0;
-    game.white_win_plies = 0;
-    game.white_loss_plies = 0;
-    game.draw_plies = 0;
-}
-
-template <class DataWriter>
 [[nodiscard]] std::optional<f64> adjudicated_result(DatagenGame<DataWriter> &game, const Board &board,
                                                     const search::NodeReference best_child, const f64 score) {
-    if (best_child.info.terminal_state.is_win()) {
-        return board.state().side_to_move == Color::BLACK ? 1.0 : 0.0;
-    }
-    if (best_child.info.terminal_state.is_loss()) {
-        return board.state().side_to_move == Color::WHITE ? 1.0 : 0.0;
+    constexpr f64 win_loss_cp_threshold = 1000.0;
+    constexpr f64 draw_cp_threshold = 25.0;
+    constexpr u16 win_loss_plies_required = 5;
+    constexpr u16 draw_plies_required = 10;
+    constexpr u16 draw_fifty_clock_required = 20;
+    constexpr u16 min_game_plies = 20;
+
+    if (game.plies < min_game_plies) {
+        return std::nullopt;
     }
 
     const f64 white_relative_cp =
         400 * util::math::inverse_sigmoid(board.state().side_to_move == Color::WHITE ? score : 1.0 - score);
-    if (white_relative_cp >= 2000) {
+    if (white_relative_cp >= win_loss_cp_threshold) {
         ++game.white_win_plies;
         game.white_loss_plies = 0;
         game.draw_plies = 0;
-    } else if (white_relative_cp <= -2000) {
+    } else if (white_relative_cp <= -win_loss_cp_threshold) {
         ++game.white_loss_plies;
         game.white_win_plies = 0;
         game.draw_plies = 0;
-    } else if (std::abs(white_relative_cp) <= 30) {
+    } else if (std::abs(white_relative_cp) <= draw_cp_threshold) {
         ++game.draw_plies;
         game.white_win_plies = 0;
         game.white_loss_plies = 0;
@@ -203,13 +230,13 @@ template <class DataWriter>
         game.draw_plies = 0;
     }
 
-    if (game.white_win_plies >= 5) {
+    if (game.white_win_plies >= win_loss_plies_required) {
         return 1.0;
     }
-    if (game.white_loss_plies >= 5) {
+    if (game.white_loss_plies >= win_loss_plies_required) {
         return 0.0;
     }
-    if (game.draw_plies >= 10 && board.state().fifty_moves_clock >= 20) {
+    if (game.draw_plies >= draw_plies_required && board.state().fifty_moves_clock >= draw_fifty_clock_required) {
         return 0.5;
     }
 
@@ -237,56 +264,76 @@ void finish_game(DatagenGame<DataWriter> *game, std::atomic_size_t &active_games
         const std::lock_guard lock(out_mutex);
         game->writer.write_with_result(result);
     }
-    game->searcher.clear();
+    positions_written.fetch_add(game->plies, std::memory_order_relaxed);
     active_games.fetch_sub(1, std::memory_order_relaxed);
+    active_games_live.fetch_sub(1, std::memory_order_relaxed);
     games_played.fetch_add(1, std::memory_order_relaxed);
+
     push_until(pool.free, game);
 }
 
 template <class DataWriter>
-void finish_move(DatagenGame<DataWriter> *game, const Settings &settings, std::atomic_size_t &active_games,
-                 GamePool<DataWriter> &pool, std::mutex &out_mutex) {
+[[nodiscard]] bool finish_move(DatagenGame<DataWriter> *game, const Settings &settings,
+                               std::atomic_size_t &active_games, GamePool<DataWriter> &pool, std::mutex &out_mutex,
+                               bool requeue = true) {
     auto &game_tree = game->searcher.game_tree();
     const auto root_node = game_tree.root();
 
-    if (!root_node.info.terminal_state.is_none()) {
+    if (root_node.terminal()) {
         finish_game(game, active_games, pool, out_mutex, terminal_game_result(game->board));
-        return;
+        return false;
     }
 
-    search::NodeIndex best_child_idx = root_node.info.first_child_idx;
-    f32 best_q = game_tree.node_at(best_child_idx).q();
-    for (usize j = 1; j < root_node.info.num_children; ++j) {
+    std::optional<search::NodeIndex> best_child_idx;
+    f64 best_score = -std::numeric_limits<f64>::max();
+    for (usize j = 0; j < root_node.info.num_children; ++j) {
         const auto child = game_tree.node_at(root_node.info.first_child_idx + j);
-        if (child.q() < best_q) {
+        if (!child.visited()) {
+            continue;
+        }
+        const auto score = child_selection_score(child);
+        if (score > best_score) {
             best_child_idx = root_node.info.first_child_idx + j;
-            best_q = child.q();
+            best_score = score;
         }
     }
 
-    const auto best_child = game_tree.node_at(best_child_idx);
+    if (!best_child_idx) {
+        std::lock_guard lock(out_mutex);
+        std::cerr << "no visited root children at move selection, fen: " << game->board.state().to_fen() << '\n';
+    }
+    vine_assert(best_child_idx);
+
+    const auto best_child = game_tree.node_at(*best_child_idx);
     vine_assert(!best_child.info.move.is_null());
 
     const f64 score = 1.0 - best_child.q();
     if (const auto result = adjudicated_result(*game, game->board, best_child, score)) {
         finish_game(game, active_games, pool, out_mutex, *result);
-        return;
+        return false;
     }
 
     push_move_data(game->writer, game_tree, root_node, best_child, game->board.state());
     game->board.make_move(best_child.info.move);
+    ++game->plies;
+    positions_played.fetch_add(1, std::memory_order_relaxed);
 
-    positions_written.fetch_add(1, std::memory_order_relaxed);
 
     if (game->board.is_draw()) {
         finish_game(game, active_games, pool, out_mutex, 0.5);
-        return;
+        return false;
     }
 
-    game->searcher.restart();
+    game->searcher.clear();
     game->time_manager.start_tracking(settings.time_settings);
-    reset_adjudication(*game);
-    push_until(pool.search, game);
+    game->old_visit_dist.clear();
+    game->resume = false;
+    game->iterations = 0;
+    game->previous_depth = 0;
+    if (requeue) {
+        push_until(pool.search, game);
+    }
+    return true;
 }
 
 template <class DataWriter>
@@ -320,6 +367,9 @@ void value_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_ga
             continue;
         }
 
+        value_batches.fetch_add(1, std::memory_order_relaxed);
+        value_batch_items.fetch_add(count, std::memory_order_relaxed);
+
         for (usize i = 0; i < count; ++i) {
             slots[i] = queue.reserve_value_slot(games[i]->searcher.pending_state());
             queue.mark_ready(slots[i]);
@@ -351,6 +401,7 @@ void value_thread_loop_cpu(const Settings &settings, std::atomic_size_t &next_ga
         }
 
         game->searcher.finish_value(static_cast<f32>(evaluator.value(game->searcher.pending_state())));
+        value_batch_items.fetch_add(1, std::memory_order_relaxed);
         game->resume = true;
         push_until(pool.search, game);
     }
@@ -388,6 +439,9 @@ void policy_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_g
             continue;
         }
 
+        policy_batches.fetch_add(1, std::memory_order_relaxed);
+        policy_batch_items.fetch_add(count, std::memory_order_relaxed);
+
         for (usize i = 0; i < count; ++i) {
             const auto req = games[i]->searcher.poll();
             vine_assert(req);
@@ -396,13 +450,13 @@ void policy_thread_loop_gpu(const Settings &settings, std::atomic_size_t &next_g
             const auto &state = games[i]->searcher.pending_state();
             auto &tree = games[i]->searcher.game_tree();
             const auto node = tree.node_at(requests[i].node);
+            policy_moves.fetch_add(node.info.num_children, std::memory_order_relaxed);
 
             slots[i] = queue.reserve_policy_slot(state, node.info.num_children);
             for (u16 j = 0; j < node.info.num_children; ++j) {
                 const auto child = tree.node_at(node.info.first_child_idx + j);
-                slots[i].move_indices[j] =
-                    network::policy::move_output_idx(state, child.info.move,
-                                                     state.get_piece_type(child.info.move.from()));
+                slots[i].move_indices[j] = network::policy::move_output_idx(
+                    state, child.info.move, state.get_piece_type(child.info.move.from()));
             }
             queue.mark_ready(slots[i]);
         }
@@ -439,6 +493,8 @@ void policy_thread_loop_cpu(const Settings &settings, std::atomic_size_t &next_g
         const auto &state = game->searcher.pending_state();
         auto &tree = game->searcher.game_tree();
         const auto node = tree.node_at(req->node);
+        policy_batch_items.fetch_add(1, std::memory_order_relaxed);
+        policy_moves.fetch_add(node.info.num_children, std::memory_order_relaxed);
 
         auto ctx = evaluator.policy_context(state);
         for (u16 i = 0; i < node.info.num_children; ++i) {
@@ -480,7 +536,7 @@ void advance_search(DatagenGame<DataWriter> *game, const Settings &settings, std
         game->searcher.ready();
         game->resume = false;
         if (times_up(*game)) {
-            finish_move(game, settings, active_games, pool, out_mutex);
+            (void)finish_move(game, settings, active_games, pool, out_mutex, true);
             return;
         }
     }
@@ -489,7 +545,7 @@ void advance_search(DatagenGame<DataWriter> *game, const Settings &settings, std
 
     switch (request.kind) {
     case search::RequestKind::Value:
-        if (!game->searcher.game_tree().node_at(request.node).info.terminal_state.is_none()) {
+        if (game->searcher.game_tree().node_at(request.node).terminal()) {
             game->searcher.finish_value(
                 static_cast<f32>(game->searcher.game_tree().node_at(request.node).info.terminal_state.score()));
             game->resume = true;
@@ -506,11 +562,10 @@ void advance_search(DatagenGame<DataWriter> *game, const Settings &settings, std
 
 template <class DataWriter>
 void search_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
-                        GamePool<DataWriter> &pool, std::mutex &out_mutex,
-                        const std::vector<std::string> &opening_fens,
+                        GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens,
                         typename GamePool<DataWriter>::WorkQueue::Sender value_tx,
                         typename GamePool<DataWriter>::WorkQueue::Sender policy_tx) {
-    rng::seed_generator(std::random_device{}(), std::hash<std::thread::id>{}(std::this_thread::get_id()));
+    rng::seed(std::random_device{}());
 
     while (!stop_flag.load(std::memory_order_relaxed)) {
         DatagenGame<DataWriter> *game = nullptr;
@@ -533,6 +588,30 @@ void search_thread_loop(const Settings &settings, std::atomic_size_t &next_game_
 }
 
 template <class DataWriter>
+void cpu_thread_loop(const Settings &settings, std::atomic_size_t &next_game_idx, std::atomic_size_t &active_games,
+                     GamePool<DataWriter> &pool, std::mutex &out_mutex, const std::vector<std::string> &opening_fens) {
+    rng::seed(std::random_device{}());
+
+    while (!stop_flag.load(std::memory_order_relaxed)) {
+        auto *game = next_game(settings, next_game_idx, active_games, pool, opening_fens);
+        if (!game) {
+            if (all_done(settings, next_game_idx, active_games)) {
+                break;
+            }
+            std::this_thread::yield();
+            continue;
+        }
+
+        while (!stop_flag.load(std::memory_order_relaxed)) {
+            game->searcher.go(game->board, settings.time_settings);
+            if (!finish_move(game, settings, active_games, pool, out_mutex, false)) {
+                break;
+            }
+        }
+    }
+}
+
+template <class DataWriter>
 void launch_gpu_threads(const Settings &settings, std::ostream &final_output,
                         const std::vector<std::string> &opening_fens, std::vector<std::thread> &threads) {
     auto pool = std::make_shared<GamePool<DataWriter>>();
@@ -542,48 +621,27 @@ void launch_gpu_threads(const Settings &settings, std::ostream &final_output,
     auto out_mutex = std::make_shared<std::mutex>();
     auto value_fill_mutex = std::make_shared<std::mutex>();
     auto policy_fill_mutex = std::make_shared<std::mutex>();
+
     const usize gpu_workers = std::max<usize>(1, settings.gpu_workers_per_queue);
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> value_txs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> policy_txs;
-
-    value_rxs.reserve(gpu_workers);
-    policy_rxs.reserve(gpu_workers);
-    value_txs.reserve(settings.num_threads);
-    policy_txs.reserve(settings.num_threads);
 
     for (usize i = 0; i < gpu_workers; ++i) {
-        value_rxs.emplace_back(pool->value.receiver());
-        policy_rxs.emplace_back(pool->policy.receiver());
-    }
-    for (usize i = 0; i < settings.num_threads; ++i) {
-        value_txs.emplace_back(pool->value.sender());
-        policy_txs.emplace_back(pool->policy.sender());
-    }
-
-    for (usize i = 0; i < gpu_workers; ++i) {
-        auto rx = std::move(value_rxs[i]);
-        threads.emplace_back([settings, pool, next_game_idx, active_games, value_fill_mutex,
-                              rx = std::move(rx)]() mutable {
-            value_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
-                                              *value_fill_mutex);
-        });
+        threads.emplace_back(
+            [settings, pool, next_game_idx, active_games, value_fill_mutex, rx = pool->value.receiver()]() mutable {
+                value_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
+                                                  *value_fill_mutex);
+            });
     }
     for (usize i = 0; i < gpu_workers; ++i) {
-        auto rx = std::move(policy_rxs[i]);
-        threads.emplace_back([settings, pool, next_game_idx, active_games, policy_fill_mutex,
-                              rx = std::move(rx)]() mutable {
-            policy_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
-                                               *policy_fill_mutex);
-        });
+        threads.emplace_back(
+            [settings, pool, next_game_idx, active_games, policy_fill_mutex, rx = pool->policy.receiver()]() mutable {
+                policy_thread_loop_gpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx),
+                                                   *policy_fill_mutex);
+            });
     }
 
     for (usize i = 0; i < settings.num_threads; ++i) {
-        auto value_tx = std::move(value_txs[i]);
-        auto policy_tx = std::move(policy_txs[i]);
         threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens,
-                              value_tx = std::move(value_tx), policy_tx = std::move(policy_tx)]() mutable {
+                              value_tx = pool->value.sender(), policy_tx = pool->policy.sender()]() mutable {
             search_thread_loop<DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex, opening_fens,
                                            std::move(value_tx), std::move(policy_tx));
         });
@@ -598,38 +656,9 @@ void launch_cpu_threads(const Settings &settings, std::ostream &final_output,
     auto next_game_idx = std::make_shared<std::atomic_size_t>(0);
     auto active_games = std::make_shared<std::atomic_size_t>(0);
     auto out_mutex = std::make_shared<std::mutex>();
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> value_rxs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Receiver> policy_rxs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> value_txs;
-    std::vector<typename GamePool<DataWriter>::WorkQueue::Sender> policy_txs;
-
-    value_rxs.emplace_back(pool->value.receiver());
-    policy_rxs.emplace_back(pool->policy.receiver());
-    value_txs.reserve(settings.num_threads);
-    policy_txs.reserve(settings.num_threads);
-
     for (usize i = 0; i < settings.num_threads; ++i) {
-        value_txs.emplace_back(pool->value.sender());
-        policy_txs.emplace_back(pool->policy.sender());
-    }
-
-    auto value_rx = std::move(value_rxs[0]);
-    threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(value_rx)]() mutable {
-        value_thread_loop_cpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
-    });
-
-    auto policy_rx = std::move(policy_rxs[0]);
-    threads.emplace_back([settings, pool, next_game_idx, active_games, rx = std::move(policy_rx)]() mutable {
-        policy_thread_loop_cpu<DataWriter>(settings, *next_game_idx, *active_games, *pool, std::move(rx));
-    });
-
-    for (usize i = 0; i < settings.num_threads; ++i) {
-        auto value_tx = std::move(value_txs[i]);
-        auto policy_tx = std::move(policy_txs[i]);
-        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens,
-                              value_tx = std::move(value_tx), policy_tx = std::move(policy_tx)]() mutable {
-            search_thread_loop<DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex, opening_fens,
-                                           std::move(value_tx), std::move(policy_tx));
+        threads.emplace_back([settings, pool, next_game_idx, active_games, out_mutex, &opening_fens]() mutable {
+            cpu_thread_loop<DataWriter>(settings, *next_game_idx, *active_games, *pool, *out_mutex, opening_fens);
         });
     }
 }
@@ -639,7 +668,14 @@ void launch_cpu_threads(const Settings &settings, std::ostream &final_output,
 void run_games(Settings settings, std::ostream &out) {
     stop_flag = false;
     games_played = 0;
+    active_games_live = 0;
+    positions_played = 0;
     positions_written = 0;
+    value_batches = 0;
+    value_batch_items = 0;
+    policy_batches = 0;
+    policy_batch_items = 0;
+    policy_moves = 0;
 
     if (settings.num_threads == 0) {
         out << "error: datagen requires at least one thread\n";
@@ -655,7 +691,9 @@ void run_games(Settings settings, std::ostream &out) {
 
     std::thread monitor([&out, &settings]() {
         usize last_games = 0;
-        usize last_positions = 0;
+        usize last_positions_played = 0;
+        usize last_value_evals = 0;
+        usize last_policy_evals = 0;
         auto last_time = std::chrono::steady_clock::now();
         bool printed = false;
 
@@ -666,10 +704,17 @@ void run_games(Settings settings, std::ostream &out) {
             const f64 elapsed_sec = std::chrono::duration<f64>(current_time - last_time).count();
 
             const usize current_games = games_played.load();
-            const usize current_positions = positions_written.load();
+            const usize current_active_games = active_games_live.load(std::memory_order_relaxed);
+            const usize current_positions_played = positions_played.load();
+            const usize current_positions_written = positions_written.load();
+            const usize current_active_positions = current_positions_played - current_positions_written;
+            const usize current_value_evals = value_batch_items.load(std::memory_order_relaxed);
+            const usize current_policy_evals = policy_batch_items.load(std::memory_order_relaxed);
             const usize total_games = settings.num_games;
             const f64 games_per_sec = (current_games - last_games) / elapsed_sec;
-            const f64 positions_per_sec = (current_positions - last_positions) / elapsed_sec;
+            const f64 positions_per_sec = (current_positions_played - last_positions_played) / elapsed_sec;
+            const f64 value_evals_per_sec = (current_value_evals - last_value_evals) / elapsed_sec;
+            const f64 policy_evals_per_sec = (current_policy_evals - last_policy_evals) / elapsed_sec;
             const f64 remaining_games = total_games > current_games ? total_games - current_games : 0;
             const f64 eta_sec = games_per_sec > 0.0 ? remaining_games / games_per_sec : 0.0;
             const usize eta = eta_sec;
@@ -677,19 +722,45 @@ void run_games(Settings settings, std::ostream &out) {
             const usize eta_hour = eta_min / 60;
             const usize eta_rem_min = eta_min % 60;
             const usize eta_rem_sec = eta % 60;
+            const auto current_value_batches = value_batches.load(std::memory_order_relaxed);
+            const auto current_value_batch_items = value_batch_items.load(std::memory_order_relaxed);
+            const auto current_policy_batches = policy_batches.load(std::memory_order_relaxed);
+            const auto current_policy_batch_items = policy_batch_items.load(std::memory_order_relaxed);
+            const auto current_policy_moves = policy_moves.load(std::memory_order_relaxed);
+            const f64 average_value_batch_size =
+                current_value_batches == 0 ? 0.0 : static_cast<f64>(current_value_batch_items) / current_value_batches;
+            const f64 average_policy_batch_size = current_policy_batches == 0
+                                                      ? 0.0
+                                                      : static_cast<f64>(current_policy_batch_items) / current_policy_batches;
+            const f64 average_policy_moves =
+                current_policy_batch_items == 0 ? 0.0 : static_cast<f64>(current_policy_moves) / current_policy_batch_items;
+            const f64 average_active_game_length =
+                current_active_games == 0 ? 0.0 : static_cast<f64>(current_active_positions) / current_active_games;
 
             if (printed) {
-                out << "\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K\033[F\033[K";
+                util::tui::clear_lines(out, 11);
             }
 
+            out << "current speed:\n";
+            out << "  positions played  : " << current_positions_played << " (" << positions_per_sec << " pos/s)\n";
+            out << "  evals             : value " << value_evals_per_sec << "/s, policy " << policy_evals_per_sec
+                << "/s\n";
+            out << "  avg batch size    : value " << average_value_batch_size << ", policy "
+                << average_policy_batch_size << '\n';
+            out << "  avg policy moves  : " << average_policy_moves << '\n';
+            out << "  active games      : " << current_active_games << ", active positions " << current_active_positions
+                << " (" << average_active_game_length << " avg/game)\n";
             out << "progress update:\n";
             out << "  games played      : " << current_games << " / " << total_games << '\n';
-            out << "  positions written : " << current_positions << '\n';
-            out << "  throughput        : " << games_per_sec << " games/s, " << positions_per_sec << " pos/s\n";
+            out << "  positions written : " << current_positions_written << '\n';
+            out << "  throughput        : " << games_per_sec << " games/s\n";
             out << "  eta               : " << eta_hour << "h " << eta_rem_min << "m " << eta_rem_sec << "s\n";
+            out.flush();
 
             last_games = current_games;
-            last_positions = current_positions;
+            last_positions_played = current_positions_played;
+            last_value_evals = current_value_evals;
+            last_policy_evals = current_policy_evals;
             last_time = current_time;
 
             if (stop_flag.load()) {

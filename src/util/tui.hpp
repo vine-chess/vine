@@ -24,6 +24,12 @@ inline void reset_color(std::ostream &out) {
     out << "\u001b[0m";
 }
 
+inline void clear_lines(std::ostream &out, const usize count) {
+    for (usize i = 0; i < count; ++i) {
+        out << "\033[F\033[K";
+    }
+}
+
 constexpr Color get_score_color(f64 score) {
     const auto smooth_step = [](const f64 x) { return std::clamp(3.0 * x * x - 2.0 * x * x * x, 0.0, 1.0); };
     const auto t = smooth_step(score);

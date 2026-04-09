@@ -2,6 +2,6 @@
 
 namespace rng {
 
-thread_local std::mt19937_64 generator(DEFAULT_SEED);
+thread_local Xoshiro256pp generator;
 
 } // namespace rng
