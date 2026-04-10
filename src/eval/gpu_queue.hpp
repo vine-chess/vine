@@ -150,7 +150,7 @@ class GpuValueQueue {
         for (usize batch_idx = 0; batch_idx < ready_indices.size(); ++batch_idx) {
             const auto &state = slots_[ready_indices[batch_idx]].board_state;
             auto &input = inputs[batch_idx];
-            std::copy(state.piece_type_on_sq.begin(), state.piece_type_on_sq.end(), std::begin(input.pieces));
+            input.pieces.compress(state.piece_type_on_sq);
             input.side_to_move = static_cast<u8>(state.side_to_move);
         }
 
@@ -324,7 +324,7 @@ class GpuPolicyQueue {
             const auto &state = slots_[board_idx].board_state;
             const auto &slot = slots_[board_idx];
             auto &input = inputs[batch_idx];
-            std::copy(state.piece_type_on_sq.begin(), state.piece_type_on_sq.end(), std::begin(input.pieces));
+            input.pieces.compress(state.piece_type_on_sq);
             input.move_offset = static_cast<u32>(move_offset);
             input.move_count = static_cast<u8>(slot.move_count);
             input.side_to_move = static_cast<u8>(state.side_to_move);

@@ -1,6 +1,8 @@
 #ifndef VALUE_NETWORK_CUDA_HPP
 #define VALUE_NETWORK_CUDA_HPP
 
+#include "compressed_mailbox.hpp"
+
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
@@ -34,7 +36,7 @@ void export_cuda_network(CudaValueNetwork &dst);
 namespace network::value {
 
 struct CudaBoardInput {
-    ColoredPiece pieces[64]{};
+    cuda_common::CompressedMailbox pieces{};
     u8 side_to_move = 0;
 };
 

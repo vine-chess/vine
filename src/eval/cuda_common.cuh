@@ -1,11 +1,14 @@
 #ifndef CUDA_COMMON_CUH
 #define CUDA_COMMON_CUH
 
+#include "compressed_mailbox.hpp"
+
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
-#include <cstdlib>
+#include <array>
 #include <cstddef>
+#include <cstdlib>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <memory>
@@ -15,7 +18,6 @@
 
 namespace network::cuda_common {
 
-constexpr usize BOARD_SIZE = 64;
 constexpr i32 WARP_SIZE = 32;
 
 enum class PackedColor : u8 {
@@ -195,12 +197,12 @@ struct PackedBoard {
     return color == PackedColor::WHITE ? PackedColor::BLACK : PackedColor::WHITE;
 }
 
-[[nodiscard]] __device__ __forceinline__ PackedPieceType decode_piece_type(ColoredPiece piece) {
-    return static_cast<PackedPieceType>((*reinterpret_cast<const u8 *>(&piece)) >> 1);
+[[nodiscard]] __device__ __forceinline__ PackedPieceType decode_piece_type(u8 piece) {
+    return static_cast<PackedPieceType>(piece >> 1);
 }
 
-[[nodiscard]] __device__ __forceinline__ PackedColor decode_color(ColoredPiece piece) {
-    return static_cast<PackedColor>((*reinterpret_cast<const u8 *>(&piece)) & 1);
+[[nodiscard]] __device__ __forceinline__ PackedColor decode_color(u8 piece) {
+    return static_cast<PackedColor>(piece & 1);
 }
 
 [[nodiscard]] __device__ __host__ constexpr u64 square_bb(i32 sq) {
@@ -367,16 +369,17 @@ template <class T>
     return ((attacks & NOT_A_FILE) >> 1) | ((attacks & NOT_H_FILE) << 1);
 }
 
-[[nodiscard]] __device__ __forceinline__ PackedBoard build_board_warp(const ColoredPiece *pieces, i32 lane) {
+[[nodiscard]] __device__ __forceinline__ PackedBoard build_board_warp(const CompressedMailbox &pieces, u8 lane) {
     PackedBoard board{};
 
-    for (i32 sq = lane; sq < static_cast<i32>(BOARD_SIZE); sq += WARP_SIZE) {
-        const PackedPieceType piece = decode_piece_type(pieces[sq]);
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        const PackedPieceType piece = decode_piece_type(piece_byte);
         if (piece == PackedPieceType::NONE) {
             continue;
         }
 
-        const PackedColor color = decode_color(pieces[sq]);
+        const PackedColor color = decode_color(piece_byte);
         const u64 sq_bb = square_bb(sq);
         board.piece_bbs[to_index(piece) - 1] |= sq_bb;
         board.side_bbs[to_index(color)] |= sq_bb;

@@ -152,7 +152,7 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
     std::cout << "generating " << options.count << " positions\n";
     for (usize i = 0; i < options.count; ++i) {
         states[i] = generate_position(POSITION_PLIES + (i & 1));
-        std::copy(states[i].piece_type_on_sq.begin(), states[i].piece_type_on_sq.end(), std::begin(inputs[i].pieces));
+        inputs[i].pieces.compress(states[i].piece_type_on_sq);
         inputs[i].side_to_move = static_cast<u8>(states[i].side_to_move);
     }
 
@@ -197,7 +197,7 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
     std::cout << "generating " << options.count << " positions\n";
     for (usize i = 0; i < options.count; ++i) {
         states[i] = generate_position(POSITION_PLIES + (i & 1));
-        std::copy(states[i].piece_type_on_sq.begin(), states[i].piece_type_on_sq.end(), std::begin(inputs[i].pieces));
+        inputs[i].pieces.compress(states[i].piece_type_on_sq);
         inputs[i].side_to_move = static_cast<u8>(states[i].side_to_move);
         inputs[i].move_offset = static_cast<u32>(move_indices.size());
 

@@ -15,18 +15,19 @@ constexpr usize L1_CHUNK_SIZE = 64;
 static_assert(ACTIVATED_SIZE % L1_CHUNK_SIZE == 0);
 using namespace network::cuda_common;
 
-[[nodiscard]] __device__ u64 threats_by_warp(const PackedBoard &board, const ColoredPiece *pieces, PackedColor color,
-                                             i32 lane) {
+[[nodiscard]] __device__ u64 threats_by_warp(const PackedBoard &board, const CompressedMailbox &pieces,
+                                             PackedColor color, u8 lane) {
     const i32 king_sq = lsb(piece_bb(board, PackedPieceType::KING, color));
     const u64 occ = occupancy(board) ^ piece_bb(board, PackedPieceType::KING, opposite(color));
 
     u64 threats = lane == 0 ? king_attacks(king_sq) : 0;
-    for (i32 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-        if (decode_color(pieces[sq]) != color) {
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        if (decode_color(piece_byte) != color) {
             continue;
         }
 
-        switch (decode_piece_type(pieces[sq])) {
+        switch (decode_piece_type(piece_byte)) {
         case PackedPieceType::NONE:
             break;
         case PackedPieceType::PAWN:
@@ -55,7 +56,7 @@ using namespace network::cuda_common;
 __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs,
                                 i32 position_count, const cuda_detail::CudaPolicyNetwork *network) {
     const i32 warp_in_block = threadIdx.x / WARP_SIZE;
-    const i32 lane = threadIdx.x % WARP_SIZE;
+    const u8 lane = threadIdx.x % WARP_SIZE;
     const i32 position_idx = blockIdx.x * WARPS_PER_BLOCK + warp_in_block;
     if (position_idx >= position_count) {
         return;
@@ -68,11 +69,11 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
     __shared__ u64 shared_occupied[WARPS_PER_BLOCK];
 
     const CudaPolicyInput &input = inputs[position_idx];
-    const ColoredPiece *pieces = input.pieces;
     i16 *l1_left = shared_l1_left[warp_in_block];
     i16 *l1_right = shared_l1_right[warp_in_block];
     u16 *activated_chunk = shared_activated_chunk[warp_in_block];
     u8 *feature_classes = shared_feature_classes[warp_in_block];
+    const CompressedMailbox &pieces = input.pieces;
     i32 flip = 0;
 
     {
@@ -86,13 +87,14 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
             shared_occupied[warp_in_block] = occupancy(board);
         }
 
-        for (i32 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-            const PackedPieceType piece = decode_piece_type(pieces[sq]);
+        for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+            const u8 piece_byte = pieces.at(sq);
+            const PackedPieceType piece = decode_piece_type(piece_byte);
             if (piece == PackedPieceType::NONE) {
                 continue;
             }
 
-            const PackedColor color = decode_color(pieces[sq]);
+            const PackedColor color = decode_color(piece_byte);
             const i32 defended =
                 perspective == PackedColor::WHITE ? is_set(white_threats, sq) : is_set(black_threats, sq);
             const i32 threatened =
@@ -231,8 +233,8 @@ class CudaExecutor {
 
         cuda_check(cudaMemcpyAsync(device_inputs_.data(), host_inputs_.data(), position_count * sizeof(CudaPolicyInput),
                                    cudaMemcpyHostToDevice, stream_));
-        cuda_check(cudaMemcpyAsync(device_move_indices_.data(), host_move_indices_.data(), total_move_count * sizeof(u16),
-                                   cudaMemcpyHostToDevice, stream_));
+        cuda_check(cudaMemcpyAsync(device_move_indices_.data(), host_move_indices_.data(),
+                                   total_move_count * sizeof(u16), cudaMemcpyHostToDevice, stream_));
 
         const i32 position_count_i32 = static_cast<i32>(position_count);
         const i32 block_count = (position_count_i32 + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK;

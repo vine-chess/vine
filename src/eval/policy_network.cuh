@@ -1,6 +1,8 @@
 #ifndef POLICY_NETWORK_CUDA_HPP
 #define POLICY_NETWORK_CUDA_HPP
 
+#include "compressed_mailbox.hpp"
+
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
@@ -31,7 +33,7 @@ struct CudaPolicyNetwork {
 void export_cuda_network(CudaPolicyNetwork &dst);
 
 struct CudaPolicyInput {
-    ColoredPiece pieces[64]{};
+    network::cuda_common::CompressedMailbox pieces{};
     u32 move_offset = 0;
     u8 move_count = 0;
     u8 side_to_move = 0;

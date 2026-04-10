@@ -102,20 +102,21 @@ using namespace network::cuda_common;
     return pinned;
 }
 
-[[nodiscard]] __device__ u64 pinned_threats_by_warp(const PackedBoard &board, const ColoredPiece *pieces,
-                                                    PackedColor color, i32 lane) {
+[[nodiscard]] __device__ u64 pinned_threats_by_warp(const PackedBoard &board, const CompressedMailbox &pieces,
+                                                    PackedColor color, u8 lane) {
     const i32 king_sq = lsb(piece_bb(board, PackedPieceType::KING, color));
     const u64 occ = occupancy(board);
     const u64 pinned = lane == 0 ? compute_pinned_pieces(board, color) : 0;
     const u64 pinned_mask = warp_broadcast(pinned);
 
     u64 threats = lane == 0 ? king_attacks(king_sq) : 0;
-    for (i32 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-        if (decode_color(pieces[sq]) != color) {
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        if (decode_color(piece_byte) != color) {
             continue;
         }
 
-        const PackedPieceType piece = decode_piece_type(pieces[sq]);
+        const PackedPieceType piece = decode_piece_type(piece_byte);
         u64 cur = 0;
         switch (piece) {
         case PackedPieceType::NONE:
@@ -152,7 +153,7 @@ using namespace network::cuda_common;
 __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 count,
                                 const cuda_detail::CudaValueNetwork *network) {
     const i32 warp_in_block = threadIdx.x / WARP_SIZE;
-    const i32 lane = threadIdx.x % WARP_SIZE;
+    const u8 lane = threadIdx.x % WARP_SIZE;
     const i32 idx = blockIdx.x * WARPS_PER_BLOCK + warp_in_block;
     if (idx >= count) {
         return;
@@ -166,11 +167,11 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
     __shared__ f32 shared_l2[WARPS_PER_BLOCK][L2_SIZE];
 
     const CudaBoardInput &input = inputs[idx];
-    const ColoredPiece *pieces = input.pieces;
     i16 *l1_left = shared_l1_left[warp_in_block];
     i16 *l1_right = shared_l1_right[warp_in_block];
     u16 *l1_activations = shared_l1_activations[warp_in_block];
     u8 *feature_classes = shared_feature_classes[warp_in_block];
+    const CompressedMailbox &pieces = input.pieces;
     i32 *l2_int = shared_l2_int[warp_in_block];
     f32 *l2 = shared_l2[warp_in_block];
 
@@ -190,14 +191,15 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
     const u64 black_threats = warp_broadcast(warp_or(pinned_threats_by_warp(board, pieces, PackedColor::BLACK, lane)));
     __syncwarp();
 
-    for (i32 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-        const PackedPieceType piece = decode_piece_type(pieces[sq]);
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        const PackedPieceType piece = decode_piece_type(piece_byte);
         if (piece == PackedPieceType::NONE) {
             feature_classes[sq] = 0xff;
             continue;
         }
 
-        const PackedColor color = decode_color(pieces[sq]);
+        const PackedColor color = decode_color(piece_byte);
         const i32 defended = color == PackedColor::WHITE ? is_set(white_threats, sq) : is_set(black_threats, sq);
         const i32 threatened = color == PackedColor::WHITE ? is_set(black_threats, sq) : is_set(white_threats, sq);
         const i32 opposite_color = color != perspective;
@@ -311,8 +313,8 @@ class CudaExecutor {
   public:
     CudaExecutor() {
         cuda_check(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-        device_network_ =
-            cached_value_network().get_or_init([](auto &host_network) { cuda_detail::export_cuda_network(host_network); });
+        device_network_ = cached_value_network().get_or_init(
+            [](auto &host_network) { cuda_detail::export_cuda_network(host_network); });
     }
 
     ~CudaExecutor() {
@@ -348,8 +350,8 @@ class CudaExecutor {
                                    cudaMemcpyHostToDevice, stream_));
 
         const i32 block_count = static_cast<i32>((count + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK);
-        evaluate_kernel<<<block_count, THREADS_PER_BLOCK, 0, stream_>>>(
-            device_inputs_.data(), device_outputs_.data(), count_i32, device_network_);
+        evaluate_kernel<<<block_count, THREADS_PER_BLOCK, 0, stream_>>>(device_inputs_.data(), device_outputs_.data(),
+                                                                        count_i32, device_network_);
         cuda_check(cudaGetLastError());
 
         cuda_check(cudaMemcpyAsync(host_outputs_.data(), device_outputs_.data(), count * sizeof(f32),
