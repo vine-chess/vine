@@ -2,13 +2,31 @@
 #define VALUE_NETWORK_CUDA_HPP
 
 #include "compressed_mailbox.hpp"
+#include "shared.hpp"
 
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
 #include <array>
 
-namespace network::value::cuda_detail {
+namespace network::value {
+
+namespace cuda_detail {
+
+#ifdef MIXER_VALUE_NETWORK
+
+struct CudaValueNetwork {
+    std::array<i16, MIXER_FEATURE_COUNT * MIXER_SIZE> ft_weights{};
+    std::array<i16, MIXER_SIZE> ft_biases{};
+    std::array<f32, MIXER_D * MIXER_D> wl1{};
+    std::array<f32, MIXER_D * MIXER_D> wr1{};
+    std::array<f32, MIXER_D * MIXER_D> wl2{};
+    std::array<f32, MIXER_D * MIXER_D> wr2{};
+    std::array<f32, MIXER_SIZE> value_weights{};
+    f32 value_bias = 0.0f;
+};
+
+#else
 
 constexpr usize FT_WEIGHT_COUNT = 2 * 2 * 2 * 6 * 64 * 4096;
 constexpr usize FT_BIAS_COUNT = 4096;
@@ -29,11 +47,11 @@ struct CudaValueNetwork {
     f32 l3_bias = 0.0f;
 };
 
+#endif
+
 void export_cuda_network(CudaValueNetwork &dst);
 
-} // namespace network::value::cuda_detail
-
-namespace network::value {
+} // namespace cuda_detail
 
 struct CudaBoardInput {
     cuda_common::CompressedMailbox pieces{};

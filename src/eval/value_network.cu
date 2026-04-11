@@ -7,6 +7,16 @@ namespace network::value {
 
 namespace {
 
+#ifdef MIXER_VALUE_NETWORK
+
+constexpr usize VALUES_PER_LANE = (MIXER_SIZE + network::cuda_common::WARP_SIZE - 1) / network::cuda_common::WARP_SIZE;
+constexpr i16 QA = 255;
+constexpr i32 WARPS_PER_BLOCK = 4;
+constexpr i32 THREADS_PER_BLOCK = network::cuda_common::WARP_SIZE * WARPS_PER_BLOCK;
+static_assert(MIXER_D == 16 || MIXER_D == 64);
+
+#else
+
 constexpr usize L1_SIZE = 4096;
 constexpr usize L2_SIZE = 16;
 constexpr usize L3_SIZE = 128;
@@ -17,6 +27,9 @@ constexpr i32 THREADS_PER_BLOCK = network::cuda_common::WARP_SIZE * WARPS_PER_BL
 constexpr usize L1_CHUNK_SIZE = 64;
 static_assert((L1_SIZE / 2) % L1_CHUNK_SIZE == 0);
 static_assert(network::cuda_common::WARP_SIZE == L2_SIZE * 2);
+
+#endif
+
 using namespace network::cuda_common;
 
 [[nodiscard]] __device__ __forceinline__ i32 clamp_i32(i32 value, i32 min_value, i32 max_value) {
@@ -149,6 +162,162 @@ using namespace network::cuda_common;
 
     return threats;
 }
+
+#ifdef MIXER_VALUE_NETWORK
+
+[[nodiscard]] __device__ __forceinline__ f32 warp_read_matrix_value(const f32 (&x)[VALUES_PER_LANE], usize idx,
+                                                                    u8 lane) {
+    const i32 owner = static_cast<i32>(idx % WARP_SIZE);
+    const usize slot = idx / WARP_SIZE;
+    const f32 value = lane == owner ? x[slot] : 0.0f;
+    return __shfl_sync(0xffffffff, value, owner);
+}
+
+template <shared::mixer::MixSide Side>
+__device__ void apply_mix(f32 (&x)[VALUES_PER_LANE], const f32 *weights, u8 lane) {
+    f32 mix[VALUES_PER_LANE]{};
+
+#pragma unroll
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize idx = lane + local * WARP_SIZE;
+        if (idx >= MIXER_SIZE) {
+            continue;
+        }
+
+        const usize row = idx % MIXER_D;
+        const usize col = idx / MIXER_D;
+        f32 sum = 0.0f;
+        for (usize k = 0; k < MIXER_D; ++k) {
+            if constexpr (Side == shared::mixer::MixSide::Left) {
+                sum += weights[shared::mixer::matrix_index(row, k)] *
+                       warp_read_matrix_value(x, shared::mixer::matrix_index(k, col), lane);
+            } else {
+                sum += warp_read_matrix_value(x, shared::mixer::matrix_index(row, k), lane) *
+                       weights[shared::mixer::matrix_index(k, col)];
+            }
+        }
+        mix[local] = sum;
+    }
+
+    __syncwarp();
+
+#pragma unroll
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize idx = lane + local * WARP_SIZE;
+        if (idx < MIXER_SIZE) {
+            x[local] += shared::mixer::crelu(mix[local]);
+        }
+    }
+
+    __syncwarp();
+}
+
+__global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 count,
+                                const cuda_detail::CudaValueNetwork *network) {
+    const i32 warp_in_block = threadIdx.x / WARP_SIZE;
+    const u8 lane = threadIdx.x % WARP_SIZE;
+    const i32 idx = blockIdx.x * WARPS_PER_BLOCK + warp_in_block;
+    if (idx >= count) {
+        return;
+    }
+
+    __shared__ u8 shared_feature_classes[WARPS_PER_BLOCK][BOARD_SIZE];
+
+    const CudaBoardInput &input = inputs[idx];
+    u8 *feature_classes = shared_feature_classes[warp_in_block];
+    const CompressedMailbox &pieces = input.pieces;
+    const i16 *ft_weights = reinterpret_cast<const i16 *>(&network->ft_weights);
+    const i16 *ft_biases = reinterpret_cast<const i16 *>(&network->ft_biases);
+    const f32 *wl1 = reinterpret_cast<const f32 *>(&network->wl1);
+    const f32 *wr1 = reinterpret_cast<const f32 *>(&network->wr1);
+    const f32 *wl2 = reinterpret_cast<const f32 *>(&network->wl2);
+    const f32 *wr2 = reinterpret_cast<const f32 *>(&network->wr2);
+    const f32 *value_weights = reinterpret_cast<const f32 *>(&network->value_weights);
+
+    PackedBoard board = build_board_warp(pieces, lane);
+    const PackedColor perspective = static_cast<PackedColor>(input.side_to_move);
+    const i32 king_sq = lsb(piece_bb(board, PackedPieceType::KING, perspective));
+    const usize flip = shared::mixer::feature_flip(perspective == PackedColor::BLACK, file_of(king_sq) >= 4);
+    const u64 white_threats = warp_broadcast(warp_or(pinned_threats_by_warp(board, pieces, PackedColor::WHITE, lane)));
+    const u64 black_threats = warp_broadcast(warp_or(pinned_threats_by_warp(board, pieces, PackedColor::BLACK, lane)));
+    __syncwarp();
+
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        const PackedPieceType piece = decode_piece_type(piece_byte);
+        if (piece == PackedPieceType::NONE) {
+            feature_classes[sq] = 0xff;
+            continue;
+        }
+
+        const PackedColor color = decode_color(piece_byte);
+        const i32 defended = color == PackedColor::WHITE ? is_set(white_threats, sq) : is_set(black_threats, sq);
+        const i32 threatened = color == PackedColor::WHITE ? is_set(black_threats, sq) : is_set(white_threats, sq);
+        const i32 opposite_color = color != perspective;
+        feature_classes[sq] = shared::mixer::feature_class(defended, threatened, opposite_color, to_index(piece) - 1);
+    }
+
+    __syncwarp();
+
+    i32 acc[VALUES_PER_LANE]{};
+    f32 x[VALUES_PER_LANE]{};
+
+#pragma unroll
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize out_idx = lane + local * WARP_SIZE;
+        if (out_idx < MIXER_SIZE) {
+            acc[local] = ft_biases[out_idx];
+        }
+    }
+
+    for (u8 sq = 0; sq < BOARD_SIZE; ++sq) {
+        const u8 feature_class = feature_classes[sq];
+        if (feature_class == 0xff) {
+            continue;
+        }
+
+        const usize feature_idx = shared::mixer::feature_index(feature_class, sq, flip);
+        const usize base = feature_idx * MIXER_SIZE;
+#pragma unroll
+        for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+            const usize out_idx = lane + local * WARP_SIZE;
+            if (out_idx < MIXER_SIZE) {
+                acc[local] += ft_weights[base + out_idx];
+            }
+        }
+    }
+
+#pragma unroll
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize out_idx = lane + local * WARP_SIZE;
+        if (out_idx < MIXER_SIZE) {
+            x[local] = static_cast<f32>(clamp_i32(acc[local], 0, QA)) / static_cast<f32>(QA);
+        }
+    }
+
+    __syncwarp();
+
+    apply_mix<shared::mixer::MixSide::Left>(x, wl1, lane);
+    apply_mix<shared::mixer::MixSide::Right>(x, wr1, lane);
+    apply_mix<shared::mixer::MixSide::Left>(x, wl2, lane);
+    apply_mix<shared::mixer::MixSide::Right>(x, wr2, lane);
+
+    f32 final_sum = lane == 0 ? network->value_bias : 0.0f;
+#pragma unroll
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize out_idx = lane + local * WARP_SIZE;
+        if (out_idx < MIXER_SIZE) {
+            final_sum += x[local] * value_weights[out_idx];
+        }
+    }
+
+    final_sum = warp_sum(final_sum);
+    if (lane == 0) {
+        outputs[idx] = final_sum;
+    }
+}
+
+#else
 
 __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 count,
                                 const cuda_detail::CudaValueNetwork *network) {
@@ -296,6 +465,8 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
         outputs[idx] = final_sum;
     }
 }
+
+#endif
 
 DeviceCached<cuda_detail::CudaValueNetwork> &cached_value_network() {
     static DeviceCached<cuda_detail::CudaValueNetwork> cached_network;

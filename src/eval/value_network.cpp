@@ -7,6 +7,110 @@ namespace network::value {
 
 const extern ValueNetwork *const network;
 
+#ifdef MIXER_VALUE_NETWORK
+
+namespace detail {
+
+using MixerVector = std::array<f32, MIXER_SIZE>;
+using MixerWeights = util::MultiArray<f32, MIXER_D, MIXER_D>;
+
+[[nodiscard]] usize feature_index(Square sq, PieceType piece, Color piece_color, Color perspective, Square king_sq,
+                                  Bitboard threats, Bitboard defences) {
+    const usize flip = shared::mixer::feature_flip(perspective == Color::BLACK, king_sq.file() >= File::E);
+    const usize defended = defences.is_set(sq);
+    const usize threatened = threats.is_set(sq);
+    const usize opposite_color = piece_color != perspective;
+    const usize feature_class = shared::mixer::feature_class(defended, threatened, opposite_color, piece - 1);
+    return shared::mixer::feature_index(feature_class, static_cast<u8>(sq), flip);
+}
+
+void add_feature(std::array<i32, MIXER_SIZE> &accumulator, const usize feature_idx) {
+    for (usize i = 0; i < MIXER_SIZE; ++i) {
+        accumulator[i] += network->ft_weights[feature_idx][i];
+    }
+}
+
+template <shared::mixer::MixSide Side>
+void apply_mix(MixerVector &x, const MixerWeights &weights) {
+    MixerVector mix{};
+    for (usize row = 0; row < MIXER_D; ++row) {
+        for (usize col = 0; col < MIXER_D; ++col) {
+            f32 sum = 0.0f;
+            for (usize k = 0; k < MIXER_D; ++k) {
+                if constexpr (Side == shared::mixer::MixSide::Left) {
+                    sum += weights[k][row] * x[shared::mixer::matrix_index(k, col)];
+                } else {
+                    sum += x[shared::mixer::matrix_index(row, k)] * weights[col][k];
+                }
+            }
+            mix[shared::mixer::matrix_index(row, col)] = sum;
+        }
+    }
+
+    for (usize i = 0; i < MIXER_SIZE; ++i) {
+        x[i] += shared::mixer::crelu(mix[i]);
+    }
+}
+
+} // namespace detail
+
+namespace cuda_detail {
+
+void export_cuda_network(CudaValueNetwork &dst) {
+    std::ranges::copy(network->ft_weights.flat_span(), dst.ft_weights.begin());
+    std::ranges::copy(network->ft_biases, dst.ft_biases.begin());
+    std::ranges::copy(network->wl1.flat_span(), dst.wl1.begin());
+    std::ranges::copy(network->wr1.flat_span(), dst.wr1.begin());
+    std::ranges::copy(network->wl2.flat_span(), dst.wl2.begin());
+    std::ranges::copy(network->wr2.flat_span(), dst.wr2.begin());
+    std::ranges::copy(network->value_weights, dst.value_weights.begin());
+    dst.value_bias = network->value_bias;
+}
+
+} // namespace cuda_detail
+
+f64 evaluate(const BoardState &state) {
+    std::array<i32, MIXER_SIZE> accumulator{};
+    for (usize i = 0; i < MIXER_SIZE; ++i) {
+        accumulator[i] = network->ft_biases[i];
+    }
+
+    const auto stm = state.side_to_move;
+    const auto king_sq = state.king(stm).lsb();
+    const std::array<Bitboard, 2> threats = {state.pinned_threats_by(Color::WHITE),
+                                             state.pinned_threats_by(Color::BLACK)};
+
+    for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
+        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
+            detail::add_feature(
+                accumulator, detail::feature_index(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]));
+        }
+
+        for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
+            detail::add_feature(
+                accumulator, detail::feature_index(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]));
+        }
+    }
+
+    std::array<f32, MIXER_SIZE> x{};
+    for (usize i = 0; i < MIXER_SIZE; ++i) {
+        x[i] = static_cast<f32>(std::clamp(accumulator[i], 0, static_cast<i32>(QA))) / static_cast<f32>(QA);
+    }
+
+    detail::apply_mix<shared::mixer::MixSide::Left>(x, network->wl1);
+    detail::apply_mix<shared::mixer::MixSide::Right>(x, network->wr1);
+    detail::apply_mix<shared::mixer::MixSide::Left>(x, network->wl2);
+    detail::apply_mix<shared::mixer::MixSide::Right>(x, network->wr2);
+
+    f32 value = network->value_bias;
+    for (usize i = 0; i < MIXER_SIZE; ++i) {
+        value += x[i] * network->value_weights[i];
+    }
+    return value;
+}
+
+#else
+
 namespace detail {
 
 [[nodiscard]] const util::MultiArray<i16Vec, L1_SIZE / VECTOR_SIZE> &feature(Square sq, PieceType piece,
@@ -139,5 +243,7 @@ f64 evaluate(const BoardState &state) {
     }
     return final_sum;
 }
+
+#endif
 
 } // namespace network::value
