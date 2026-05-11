@@ -174,12 +174,25 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - gpu_start);
 
     if (!options.benchmark_only) {
+        f32 max_err = 0.0f;
+        f64 sum_err = 0.0;
+        f64 sum_signed_err = 0.0;
+        usize fail_count = 0;
         for (usize i = 0; i < options.count; ++i) {
-            if (std::abs(actual[i] - expected[i]) > EPSILON) {
-                std::cerr << "mismatch at index " << i << ": got " << actual[i] << ", expected " << expected[i] << '\n';
-                std::cerr << "fen: " << states[i].to_fen() << '\n';
-                return false;
-            }
+            const f32 diff = actual[i] - expected[i];
+            const f32 err = std::abs(diff);
+            if (err > max_err) max_err = err;
+            sum_err += err;
+            sum_signed_err += diff;
+            if (err > EPSILON) ++fail_count;
+        }
+        const f64 n = static_cast<f64>(options.count);
+        std::cerr << "max error: " << max_err
+                  << ", mean abs error: " << sum_err / n
+                  << ", mean signed error: " << sum_signed_err / n
+                  << ", failures (>" << EPSILON << "): " << fail_count << '/' << options.count << '\n';
+        if (fail_count > 0) {
+            return false;
         }
     }
 
