@@ -2,7 +2,9 @@
 #define EVAL_SHARED_HPP
 
 #include "../util/types.hpp"
+
 #define MIXER_VALUE_NETWORK
+#define MIXER_VALUE_WMMA
 #define MIXER_VALUE_DIM 16
 
 #ifdef __CUDACC__

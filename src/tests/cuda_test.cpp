@@ -251,7 +251,6 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
                     std::cerr << "mismatch at position " << i << ", move " << move.to_string() << ": got "
                               << actual[flat_idx] << ", expected " << expected[flat_idx] << '\n';
                     std::cerr << "fen: " << states[i].to_fen() << '\n';
-                    std::cerr << "policy index: " << move_indices[flat_idx] << '\n';
                     return false;
                 }
             }

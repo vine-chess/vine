@@ -94,10 +94,10 @@ all: nets $(OBJS)
 	$(CXX) $(FLAGS) $(OBJS) -o $(EXE)
 
 datagen: nets $(DATAGEN_OBJS)
-	$(NVCC) $(NVCCFLAGS) $(DATAGEN_OBJS) $(CUDA_TEST_FILES) -o $(EXE)
+	$(NVCC) $(NVCCFLAGS) $(filter -D%,$(DATAGEN_FLAGS)) $(DATAGEN_OBJS) $(CUDA_TEST_FILES) -o $(EXE)
 
 cuda-test: nets $(TEST_OBJS)
-	$(NVCC) $(NVCCFLAGS) $(TEST_OBJS) $(CUDA_TEST_FILES) -o $(TEST_EXE)
+	$(NVCC) $(NVCCFLAGS) $(filter -D%,$(TEST_FLAGS)) $(TEST_OBJS) $(CUDA_TEST_FILES) -o $(TEST_EXE)
 
 compile-commands:
 	bear --output compile_commands.json -- $(MAKE) -B cuda-test

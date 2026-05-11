@@ -3,6 +3,10 @@
 #include "cuda_common.cuh"
 #include "value_network.cuh"
 
+#if defined(MIXER_VALUE_NETWORK) && defined(MIXER_VALUE_WMMA)
+#include <mma.h>
+#endif
+
 namespace network::value {
 
 namespace {
@@ -11,9 +15,22 @@ namespace {
 
 constexpr usize VALUES_PER_LANE = (MIXER_SIZE + network::cuda_common::WARP_SIZE - 1) / network::cuda_common::WARP_SIZE;
 constexpr i16 QA = 255;
+#ifdef MIXER_VALUE_WMMA
+constexpr i32 MAX_WARPS_PER_BLOCK = 4;
+constexpr i32 SHARED_MEM_BYTES = 49152;
+constexpr usize WMMA_SHARED_BYTES_PER_WARP =
+    2 * MIXER_SIZE * sizeof(f32) + network::cuda_common::BOARD_SIZE * sizeof(u8);
+constexpr i32 WARPS_PER_BLOCK = std::min(MAX_WARPS_PER_BLOCK, static_cast<i32>(SHARED_MEM_BYTES / WMMA_SHARED_BYTES_PER_WARP));
+static_assert(WARPS_PER_BLOCK >= 1);
+#else
 constexpr i32 WARPS_PER_BLOCK = 4;
+#endif
+
 constexpr i32 THREADS_PER_BLOCK = network::cuda_common::WARP_SIZE * WARPS_PER_BLOCK;
 static_assert(MIXER_D == 16 || MIXER_D == 64);
+#ifdef MIXER_VALUE_WMMA
+static_assert(MIXER_D % 16 == 0);
+#endif
 
 #else
 
@@ -33,16 +50,6 @@ static_assert(network::cuda_common::WARP_SIZE == L2_SIZE * 2);
 using namespace network::cuda_common;
 
 [[nodiscard]] __device__ __forceinline__ i32 clamp_i32(i32 value, i32 min_value, i32 max_value) {
-    if (value < min_value) {
-        return min_value;
-    }
-    if (value > max_value) {
-        return max_value;
-    }
-    return value;
-}
-
-[[nodiscard]] __device__ __forceinline__ f32 clamp_f32(f32 value, f32 min_value, f32 max_value) {
     if (value < min_value) {
         return min_value;
     }
@@ -165,6 +172,8 @@ using namespace network::cuda_common;
 
 #ifdef MIXER_VALUE_NETWORK
 
+#ifndef MIXER_VALUE_WMMA
+
 [[nodiscard]] __device__ __forceinline__ f32 warp_read_matrix_value(const f32 (&x)[VALUES_PER_LANE], usize idx,
                                                                     u8 lane) {
     const i32 owner = static_cast<i32>(idx % WARP_SIZE);
@@ -212,6 +221,57 @@ __device__ void apply_mix(f32 (&x)[VALUES_PER_LANE], const f32 *weights, u8 lane
     __syncwarp();
 }
 
+#else
+
+template <shared::mixer::MixSide Side>
+__device__ void apply_mix_wmma(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *shared_mix, const f32 *weights, u8 lane) {
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize idx = lane + local * WARP_SIZE;
+        if (idx < MIXER_SIZE) {
+            shared_x[idx] = nvcuda::wmma::__float_to_tf32(x[local]);
+        }
+    }
+    __syncwarp();
+
+    namespace wmma = nvcuda::wmma;
+
+    wmma::fragment<wmma::matrix_a, 16, 16, 8, wmma::precision::tf32, wmma::col_major> a;
+    wmma::fragment<wmma::matrix_b, 16, 16, 8, wmma::precision::tf32, wmma::col_major> b;
+    wmma::fragment<wmma::accumulator, 16, 16, 8, f32> c;
+
+    for (usize tile_col = 0; tile_col < MIXER_D; tile_col += 16) {
+        for (usize tile_row = 0; tile_row < MIXER_D; tile_row += 16) {
+            wmma::fill_fragment(c, 0.0f);
+
+            for (usize k = 0; k < MIXER_D; k += 8) {
+                if constexpr (Side == shared::mixer::MixSide::Left) {
+                    wmma::load_matrix_sync(a, weights + shared::mixer::matrix_index(tile_row, k), MIXER_D);
+                    wmma::load_matrix_sync(b, shared_x + shared::mixer::matrix_index(k, tile_col), MIXER_D);
+                } else {
+                    wmma::load_matrix_sync(a, shared_x + shared::mixer::matrix_index(tile_row, k), MIXER_D);
+                    wmma::load_matrix_sync(b, weights + shared::mixer::matrix_index(k, tile_col), MIXER_D);
+                }
+                wmma::mma_sync(c, a, b, c);
+            }
+
+            wmma::store_matrix_sync(shared_mix + shared::mixer::matrix_index(tile_row, tile_col), c, MIXER_D,
+                                    wmma::mem_col_major);
+        }
+    }
+
+    __syncwarp();
+
+    for (usize local = 0; local < VALUES_PER_LANE; ++local) {
+        const usize idx = lane + local * WARP_SIZE;
+        if (idx < MIXER_SIZE) {
+            x[local] += shared::mixer::crelu(shared_mix[idx]);
+        }
+    }
+    __syncwarp();
+}
+
+#endif
+
 __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 count,
                                 const cuda_detail::CudaValueNetwork *network) {
     const i32 warp_in_block = threadIdx.x / WARP_SIZE;
@@ -222,9 +282,17 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
     }
 
     __shared__ u8 shared_feature_classes[WARPS_PER_BLOCK][BOARD_SIZE];
+#ifdef MIXER_VALUE_WMMA
+    __shared__ f32 shared_x[WARPS_PER_BLOCK][MIXER_SIZE];
+    __shared__ f32 shared_mix[WARPS_PER_BLOCK][MIXER_SIZE];
+#endif
 
     const CudaBoardInput &input = inputs[idx];
     u8 *feature_classes = shared_feature_classes[warp_in_block];
+#ifdef MIXER_VALUE_WMMA
+    f32 *mixer_x = shared_x[warp_in_block];
+    f32 *mixer_mix = shared_mix[warp_in_block];
+#endif
     const CompressedMailbox &pieces = input.pieces;
     const i16 *ft_weights = reinterpret_cast<const i16 *>(&network->ft_weights);
     const i16 *ft_biases = reinterpret_cast<const i16 *>(&network->ft_biases);
@@ -297,10 +365,17 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
 
     __syncwarp();
 
+#ifdef MIXER_VALUE_WMMA
+    apply_mix_wmma<shared::mixer::MixSide::Left>(x, mixer_x, mixer_mix, wl1, lane);
+    apply_mix_wmma<shared::mixer::MixSide::Right>(x, mixer_x, mixer_mix, wr1, lane);
+    apply_mix_wmma<shared::mixer::MixSide::Left>(x, mixer_x, mixer_mix, wl2, lane);
+    apply_mix_wmma<shared::mixer::MixSide::Right>(x, mixer_x, mixer_mix, wr2, lane);
+#else
     apply_mix<shared::mixer::MixSide::Left>(x, wl1, lane);
     apply_mix<shared::mixer::MixSide::Right>(x, wr1, lane);
     apply_mix<shared::mixer::MixSide::Left>(x, wl2, lane);
     apply_mix<shared::mixer::MixSide::Right>(x, wr2, lane);
+#endif
 
     f32 final_sum = lane == 0 ? network->value_bias : 0.0f;
 #pragma unroll
@@ -318,6 +393,16 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
 }
 
 #else
+
+[[nodiscard]] __device__ __forceinline__ f32 clamp_f32(f32 value, f32 min_value, f32 max_value) {
+    if (value < min_value) {
+        return min_value;
+    }
+    if (value > max_value) {
+        return max_value;
+    }
+    return value;
+}
 
 __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 count,
                                 const cuda_detail::CudaValueNetwork *network) {

@@ -112,15 +112,17 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
 
     constexpr f32 DEQUANTISATION = 1.0f / static_cast<f32>(Q * Q * Q);
     constexpr i32 MOVE_ROUND_STRIDE = MOVES_PER_ROUND * WARP_SIZE;
-    for (i32 move_local_0 = lane; move_local_0 < input.move_count; move_local_0 += MOVE_ROUND_STRIDE) {
-        const i32 move_local_1 = move_local_0 + WARP_SIZE;
-        const bool has_move_1 = move_local_1 < input.move_count;
-        const usize output_idx_0 = input.move_offset + static_cast<usize>(move_local_0);
-        const usize output_idx_1 = input.move_offset + static_cast<usize>(move_local_1);
-        const u16 move_idx_0 = move_indices[output_idx_0];
-        const u16 move_idx_1 = has_move_1 ? move_indices[output_idx_1] : 0;
-        i32 lane_sum_0 = static_cast<i32>(l1_biases[move_idx_0]) * Q * Q;
-        i32 lane_sum_1 = has_move_1 ? static_cast<i32>(l1_biases[move_idx_1]) * Q * Q : 0;
+    for (i32 move_base = 0; move_base < input.move_count; move_base += MOVE_ROUND_STRIDE) {
+        const i32 idx0 = move_base + lane;
+        const i32 idx1 = idx0 + WARP_SIZE;
+        const bool has0 = idx0 < input.move_count;
+        const bool has1 = idx1 < input.move_count;
+        const usize out0 = input.move_offset + static_cast<usize>(idx0);
+        const usize out1 = input.move_offset + static_cast<usize>(idx1);
+        const u16 move_idx0 = has0 ? move_indices[out0] : 0;
+        const u16 move_idx1 = has1 ? move_indices[out1] : 0;
+        i32 sum0 = has0 ? static_cast<i32>(l1_biases[move_idx0]) * Q * Q : 0;
+        i32 sum1 = has1 ? static_cast<i32>(l1_biases[move_idx1]) * Q * Q : 0;
 
         for (usize chunk_start = 0; chunk_start < ACTIVATED_SIZE; chunk_start += L1_CHUNK_SIZE) {
             for (usize i = lane; i < L1_CHUNK_SIZE; i += WARP_SIZE) {
@@ -155,24 +157,28 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
 
             __syncwarp();
 
-            const i8 *weights_0 = l1_weights + static_cast<usize>(move_idx_0) * ACTIVATED_SIZE + chunk_start;
-#pragma unroll
-            for (usize i = 0; i < L1_CHUNK_SIZE; ++i) {
-                lane_sum_0 += static_cast<i32>(activated_chunk[i]) * static_cast<i32>(weights_0[i]);
-            }
-
-            if (has_move_1) {
-                const i8 *weights_1 = l1_weights + static_cast<usize>(move_idx_1) * ACTIVATED_SIZE + chunk_start;
+            if (has0) {
+                const i8 *weights = l1_weights + static_cast<usize>(move_idx0) * ACTIVATED_SIZE + chunk_start;
 #pragma unroll
                 for (usize i = 0; i < L1_CHUNK_SIZE; ++i) {
-                    lane_sum_1 += static_cast<i32>(activated_chunk[i]) * static_cast<i32>(weights_1[i]);
+                    sum0 += static_cast<i32>(activated_chunk[i]) * static_cast<i32>(weights[i]);
+                }
+            }
+
+            if (has1) {
+                const i8 *weights = l1_weights + static_cast<usize>(move_idx1) * ACTIVATED_SIZE + chunk_start;
+#pragma unroll
+                for (usize i = 0; i < L1_CHUNK_SIZE; ++i) {
+                    sum1 += static_cast<i32>(activated_chunk[i]) * static_cast<i32>(weights[i]);
                 }
             }
         }
 
-        outputs[output_idx_0] = static_cast<f32>(lane_sum_0) * DEQUANTISATION;
-        if (has_move_1) {
-            outputs[output_idx_1] = static_cast<f32>(lane_sum_1) * DEQUANTISATION;
+        if (has0) {
+            outputs[out0] = static_cast<f32>(sum0) * DEQUANTISATION;
+        }
+        if (has1) {
+            outputs[out1] = static_cast<f32>(sum1) * DEQUANTISATION;
         }
     }
 }
