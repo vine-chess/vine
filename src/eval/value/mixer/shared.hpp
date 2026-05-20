@@ -1,6 +1,7 @@
 #ifndef EVAL_VALUE_MIXER_SHARED_HPP
 #define EVAL_VALUE_MIXER_SHARED_HPP
 
+#include "../../../util/math.hpp"
 #include "../../../util/types.hpp"
 #include "../../compat.hpp"
 
@@ -58,6 +59,13 @@ enum class MixSide {
     return col * num_rows + row;
 }
 
+[[nodiscard]] VINE_HOST_DEVICE constexpr f32 relu(f32 value) {
+    if (value < 0.0f) {
+        value = 0.0f;
+    }
+    return value;
+}
+
 [[nodiscard]] VINE_HOST_DEVICE constexpr f32 crelu(f32 value) {
     if (value < 0.0f) {
         value = 0.0f;
@@ -66,6 +74,18 @@ enum class MixSide {
         value = 1.0f;
     }
     return value;
+}
+
+[[nodiscard]] VINE_HOST_DEVICE inline f32 silu(f32 value) {
+#ifdef __CUDA_ARCH__
+    return value * (1.0f / (1.0f + __expf(-value)));
+#else
+    return value * util::math::sigmoid(value);
+#endif
+}
+
+[[nodiscard]] VINE_HOST_DEVICE inline f32 activate(f32 x) {
+    return silu(x);
 }
 
 struct CudaMixerLayer {

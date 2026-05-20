@@ -2,8 +2,24 @@
 #define EVAL_VALUE_DENSE_SHARED_HPP
 
 #include "../../../util/types.hpp"
+#include "../../compat.hpp"
 
 namespace network::value {
+
+[[nodiscard]] VINE_HOST_DEVICE inline f32 hard_sigmoid(f32 value) {
+    f32 scaled = value / 6.0f + 0.5f;
+    if (scaled < 0.0f) {
+        return 0.0f;
+    }
+    if (scaled > 1.0f) {
+        return 1.0f;
+    }
+    return scaled;
+}
+
+[[nodiscard]] VINE_HOST_DEVICE inline f32 hard_silu(f32 value) {
+    return value * hard_sigmoid(value);
+}
 
 constexpr i16 QB = 64;
 constexpr usize L1_SIZE = 4096;

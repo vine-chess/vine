@@ -5,8 +5,7 @@
 #include "../board.hpp"
 
 #if !defined(DENSE_VALUE_NETWORK) && !defined(MIXER_VALUE_NETWORK)
-#define MIXER_VALUE_NETWORK
-#define MIXER_VALUE_WMMA
+#define DENSE_VALUE_NETWORK
 #endif
 
 #if defined(DENSE_VALUE_NETWORK) && defined(MIXER_VALUE_NETWORK)

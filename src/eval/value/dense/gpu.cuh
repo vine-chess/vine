@@ -144,7 +144,7 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
 
     if (lane < L2_SIZE) {
         f32 value = l2_int[lane] * DEQUANTISATION + l1_biases[lane];
-        value *= clamp_f32(value / 6.0f + 0.5f, 0.0f, 1.0f);
+        value = hard_silu(value);
         l2[lane] = value;
     }
 
@@ -160,7 +160,7 @@ __global__ void evaluate_kernel(const CudaBoardInput *inputs, f32 *outputs, i32 
             g += l2[j] * l2_weights[j * (L3_SIZE * 2) + i + L3_SIZE];
         }
 
-        v *= clamp_f32(g / 6.0f + 0.5f, 0.0f, 1.0f);
+        v *= hard_sigmoid(g);
         final_sum += v * l3_weights[i];
     }
 

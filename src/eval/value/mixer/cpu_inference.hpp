@@ -44,7 +44,7 @@ void apply_left_mix(MixerVector &x, const MixerLayer &layer) {
     }
 #if MIXER_DO_DOWN_PROJ
     for (auto &v : up)
-        v = crelu(v);
+        v = activate(v);
     for (usize col = 0; col < MIXER_D2; ++col) {
         for (usize k = 0; k < MIXER_INNER1; ++k) {
             const f32 up_val = up[col * MIXER_INNER1 + k];
@@ -55,7 +55,7 @@ void apply_left_mix(MixerVector &x, const MixerLayer &layer) {
     }
 #else
     for (usize i = 0; i < MIXER_SIZE; ++i) {
-        x[i] += crelu(up[i]);
+        x[i] += activate(up[i]);
     }
 #endif
 }
@@ -72,7 +72,7 @@ void apply_right_mix(MixerVector &x, const MixerLayer &layer) {
     }
 #if MIXER_DO_DOWN_PROJ
     for (auto &v : up)
-        v = crelu(v);
+        v = activate(v);
     for (usize col = 0; col < MIXER_D2; ++col) {
         for (usize k = 0; k < MIXER_INNER2; ++k) {
             const f32 w_val = layer.wr_down[col][k];
@@ -83,7 +83,7 @@ void apply_right_mix(MixerVector &x, const MixerLayer &layer) {
     }
 #else
     for (usize i = 0; i < MIXER_SIZE; ++i) {
-        x[i] += crelu(up[i]);
+        x[i] += activate(up[i]);
     }
 #endif
 }

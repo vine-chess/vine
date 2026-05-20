@@ -84,13 +84,9 @@ static_assert(MIXER_INNER1 % 16 == 0);
 static_assert(MIXER_INNER2 % 16 == 0);
 #endif
 
-
-
 [[nodiscard]] __device__ inline f32 *get_shared_x(f32 *base, int warp_idx) {
     return base + warp_idx * MIXER_SIZE;
 }
-
-
 
 #ifndef MIXER_VALUE_WMMA
 
@@ -117,7 +113,7 @@ __device__ void apply_left_mix(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *sh
 
 #if MIXER_DO_DOWN_PROJ
     for (usize i = lane; i < UP_SIZE; i += WARP_SIZE)
-        shared_tmp[i] = crelu(shared_tmp[i]);
+        shared_tmp[i] = activate(shared_tmp[i]);
     __syncwarp();
 
     for (usize i = lane; i < MIXER_SIZE; i += WARP_SIZE) {
@@ -139,7 +135,7 @@ __device__ void apply_left_mix(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *sh
     for (usize local = 0; local < VALUES_PER_LANE; ++local) {
         const usize idx = lane + local * WARP_SIZE;
         if (idx < MIXER_SIZE)
-            x[local] += crelu(shared_tmp[idx]);
+            x[local] += activate(shared_tmp[idx]);
     }
 #endif
 }
@@ -167,7 +163,7 @@ __device__ void apply_right_mix(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *s
 
 #if MIXER_DO_DOWN_PROJ
     for (usize i = lane; i < UP_SIZE; i += WARP_SIZE)
-        shared_tmp[i] = crelu(shared_tmp[i]);
+        shared_tmp[i] = activate(shared_tmp[i]);
     __syncwarp();
 
     for (usize i = lane; i < MIXER_SIZE; i += WARP_SIZE) {
@@ -189,14 +185,12 @@ __device__ void apply_right_mix(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *s
     for (usize local = 0; local < VALUES_PER_LANE; ++local) {
         const usize idx = lane + local * WARP_SIZE;
         if (idx < MIXER_SIZE)
-            x[local] += crelu(shared_tmp[idx]);
+            x[local] += activate(shared_tmp[idx]);
     }
 #endif
 }
 
 #endif // !MIXER_VALUE_WMMA
-
-
 
 #ifdef MIXER_VALUE_WMMA
 
@@ -208,19 +202,19 @@ __device__ void apply_right_mix(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, f32 *s
     }
 }
 
-__device__ inline void store_crelu_tile(WmmaScratch &scratch, accumulator_fragment_t &fragment, u8 lane) {
+__device__ inline void store_activate_tile(WmmaScratch &scratch, accumulator_fragment_t &fragment, u8 lane) {
     namespace wmma = nvcuda::wmma;
 
     if constexpr (WMMA_PRECISION == WmmaPrecision::TF32) {
         for (usize i = 0; i < fragment.num_storage_elements; ++i) {
-            fragment.x[i] = to_wmma_operand(crelu(fragment.x[i]));
+            fragment.x[i] = to_wmma_operand(activate(fragment.x[i]));
         }
         wmma::store_matrix_sync(scratch.tile_f32, fragment, 16, wmma::mem_col_major);
     } else {
         wmma::store_matrix_sync(scratch.tile_f32, fragment, 16, wmma::mem_col_major);
         __syncwarp();
         for (usize i = lane; i < 16 * 16; i += WARP_SIZE) {
-            scratch.tile_operand[i] = to_wmma_operand(crelu(scratch.tile_f32[i]));
+            scratch.tile_operand[i] = to_wmma_operand(activate(scratch.tile_f32[i]));
         }
     }
 }
@@ -229,15 +223,15 @@ __device__ inline matrix_a_fragment_t load_a_from_f32(WmmaScratch &scratch, cons
                                                       usize col0, u8 lane) {
     namespace wmma = nvcuda::wmma;
     matrix_a_fragment_t a;
-    if constexpr (WMMA_PRECISION == WmmaPrecision::TF32) {
-        wmma::load_matrix_sync(a, src + matrix_index(row0, col0, ld), ld);
-    } else {
-        for (usize i = lane; i < 16 * 16; i += WARP_SIZE) {
-            scratch.a_operand[i] = to_wmma_operand(src[matrix_index(row0 + i % 16, col0 + i / 16, ld)]);
-        }
-        __syncwarp();
-        wmma::load_matrix_sync(a, scratch.a_operand, 16);
+#if MIXER_WMMA_PRECISION == 0
+    wmma::load_matrix_sync(a, src + matrix_index(row0, col0, ld), ld);
+#else
+    for (usize i = lane; i < 16 * 16; i += WARP_SIZE) {
+        scratch.a_operand[i] = to_wmma_operand(src[matrix_index(row0 + i % 16, col0 + i / 16, ld)]);
     }
+    __syncwarp();
+    wmma::load_matrix_sync(a, scratch.a_operand, 16);
+#endif
     return a;
 }
 
@@ -245,37 +239,37 @@ __device__ inline matrix_b_fragment_t load_b_from_f32(WmmaScratch &scratch, cons
                                                       usize col0, u8 lane) {
     namespace wmma = nvcuda::wmma;
     matrix_b_fragment_t b;
-    if constexpr (WMMA_PRECISION == WmmaPrecision::TF32) {
-        wmma::load_matrix_sync(b, src + matrix_index(row0, col0, ld), ld);
-    } else {
-        for (usize i = lane; i < 16 * 16; i += WARP_SIZE) {
-            scratch.b_operand[i] = to_wmma_operand(src[matrix_index(row0 + i % 16, col0 + i / 16, ld)]);
-        }
-        __syncwarp();
-        wmma::load_matrix_sync(b, scratch.b_operand, 16);
+#if MIXER_WMMA_PRECISION == 0
+    wmma::load_matrix_sync(b, src + matrix_index(row0, col0, ld), ld);
+#else
+    for (usize i = lane; i < 16 * 16; i += WARP_SIZE) {
+        scratch.b_operand[i] = to_wmma_operand(src[matrix_index(row0 + i % 16, col0 + i / 16, ld)]);
     }
+    __syncwarp();
+    wmma::load_matrix_sync(b, scratch.b_operand, 16);
+#endif
     return b;
 }
 
 __device__ inline matrix_a_fragment_t load_tile_a(WmmaScratch &scratch, usize col0) {
     namespace wmma = nvcuda::wmma;
     matrix_a_fragment_t a;
-    if constexpr (WMMA_PRECISION == WmmaPrecision::TF32) {
-        wmma::load_matrix_sync(a, scratch.tile_f32 + col0 * 16, 16);
-    } else {
-        wmma::load_matrix_sync(a, scratch.tile_operand, 16);
-    }
+#if MIXER_WMMA_PRECISION == 0
+    wmma::load_matrix_sync(a, scratch.tile_f32 + col0 * 16, 16);
+#else
+    wmma::load_matrix_sync(a, scratch.tile_operand, 16);
+#endif
     return a;
 }
 
 __device__ inline matrix_b_fragment_t load_tile_b(WmmaScratch &scratch, usize col0) {
     namespace wmma = nvcuda::wmma;
     matrix_b_fragment_t b;
-    if constexpr (WMMA_PRECISION == WmmaPrecision::TF32) {
-        wmma::load_matrix_sync(b, scratch.tile_f32 + col0, 16);
-    } else {
-        wmma::load_matrix_sync(b, scratch.tile_operand, 16);
-    }
+#if MIXER_WMMA_PRECISION == 0
+    wmma::load_matrix_sync(b, scratch.tile_f32 + col0, 16);
+#else
+    wmma::load_matrix_sync(b, scratch.tile_operand, 16);
+#endif
     return b;
 }
 
@@ -324,7 +318,7 @@ __device__ void apply_left_mix_wmma(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, Wm
                     wmma::mma_sync(c_up, a, b, c_up);
                     __syncwarp();
                 }
-                store_crelu_tile(scratch, c_up, lane);
+                store_activate_tile(scratch, c_up, lane);
                 __syncwarp();
                 for (usize k2 = 0; k2 < 16; k2 += K) {
                     auto a = load_a_from_f32(scratch, wl_down, MIXER_D1, tile_row, k_chunk + k2, lane);
@@ -341,7 +335,7 @@ __device__ void apply_left_mix_wmma(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, Wm
                 __syncwarp();
             }
             for (usize i = 0; i < c.num_storage_elements; ++i)
-                c.x[i] = crelu(c.x[i]);
+                c.x[i] = activate(c.x[i]);
 #endif
             wmma::store_matrix_sync(scratch.tile_f32, c, 16, wmma::mem_col_major);
             __syncwarp();
@@ -381,7 +375,7 @@ __device__ void apply_right_mix_wmma(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, W
                     wmma::mma_sync(c_up, a, b, c_up);
                     __syncwarp();
                 }
-                store_crelu_tile(scratch, c_up, lane);
+                store_activate_tile(scratch, c_up, lane);
                 __syncwarp();
                 for (usize k2 = 0; k2 < 16; k2 += K) {
                     auto a = load_tile_a(scratch, k2);
@@ -398,7 +392,7 @@ __device__ void apply_right_mix_wmma(f32 (&x)[VALUES_PER_LANE], f32 *shared_x, W
                 __syncwarp();
             }
             for (usize i = 0; i < c.num_storage_elements; ++i)
-                c.x[i] = crelu(c.x[i]);
+                c.x[i] = activate(c.x[i]);
 #endif
             wmma::store_matrix_sync(scratch.tile_f32, c, 16, wmma::mem_col_major);
             __syncwarp();

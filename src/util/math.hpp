@@ -9,6 +9,10 @@ namespace util {
 
 namespace math {
 
+inline f32 sigmoid(f32 x) {
+    return 1.0 / (1.0 + std::exp(-x));
+}
+
 inline f64 sigmoid(f64 x) {
     return 1.0 / (1.0 + std::exp(-x));
 }
