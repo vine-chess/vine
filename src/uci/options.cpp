@@ -54,7 +54,7 @@ void IntegerOption::print(std::ostream &os) const {
 }
 
 FloatOption::FloatOption(std::string_view name, f32 value, f32 min, f32 max,
-                             std::function<void(const Option &)> callback)
+                         std::function<void(const Option &)> callback)
     : value_(value), min_(min), max_(max) {
     name_ = name;
     callback_ = std::move(callback);
@@ -70,8 +70,8 @@ void FloatOption::set_value(std::string_view str_value) {
         if (callback_)
             callback_(*this);
     } else {
-        std::cerr << "FloatOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to "
-                  << max_ << ")" << std::endl;
+        std::cerr << "FloatOption::set_value: invalid value '" << str_value << "' (expected " << min_ << " to " << max_
+                  << ")" << std::endl;
     }
 }
 

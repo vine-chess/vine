@@ -84,7 +84,7 @@ Board::Board(std::string_view fen) {
     if (hmc != "-" && !hmc.empty()) {
         state().fifty_moves_clock = static_cast<u8>(std::stoi(hmc));
     }
-    
+
     state().compute_masks();
 }
 

@@ -1,11 +1,9 @@
-#include "policy_network.hpp"
-#include "../chess/move_gen.hpp"
+#include "cpu.hpp"
+#include "../../chess/move_gen.hpp"
 
-#include "../third_party/incbin.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <iostream>
 #include <numeric>
 
 namespace network::policy {
@@ -78,16 +76,12 @@ constexpr std::array<std::array<usize, 65>, 6> OFFSETS = [] {
 
 } // namespace detail
 
-namespace cuda_detail {
-
 void export_cuda_network(CudaPolicyNetwork &dst) {
     std::ranges::copy(network->ft_weights.flat_span(), dst.ft_weights.begin());
     std::ranges::copy(network->ft_biases, dst.ft_biases.begin());
     std::ranges::copy(network->l1_weights.flat_span(), dst.l1_weights.begin());
     std::ranges::copy(network->l1_biases, dst.l1_biases.begin());
 }
-
-} // namespace cuda_detail
 
 PolicyContext::PolicyContext(const BoardState &state)
     : stm_(state.side_to_move), king_sq_(state.king(state.side_to_move).lsb()) {

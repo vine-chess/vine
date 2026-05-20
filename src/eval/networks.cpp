@@ -1,6 +1,6 @@
 #include "../third_party/incbin.h"
-#include "policy_network.hpp"
-#include "value_network.hpp"
+#include "policy/cpu.hpp"
+#include "value/cpu.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -54,7 +54,8 @@ extern const auto network = &detail::combined_networks->policy_net;
 namespace value {
 
 INCBIN(VALUENETWORK, VALUEFILE);
-extern const auto network = detail::checked_network<ValueNetwork>(gVALUENETWORKData, gVALUENETWORKSize, "value network");
+extern const auto network =
+    detail::checked_network<ValueNetwork>(gVALUENETWORKData, gVALUENETWORKSize, "value network");
 
 } // namespace value
 

@@ -318,7 +318,6 @@ template <class DataWriter>
     ++game->plies;
     positions_played.fetch_add(1, std::memory_order_relaxed);
 
-
     if (game->board.is_draw()) {
         finish_game(game, active_games, pool, out_mutex, 0.5);
         return false;
@@ -729,11 +728,12 @@ void run_games(Settings settings, std::ostream &out) {
             const auto current_policy_moves = policy_moves.load(std::memory_order_relaxed);
             const f64 average_value_batch_size =
                 current_value_batches == 0 ? 0.0 : static_cast<f64>(current_value_batch_items) / current_value_batches;
-            const f64 average_policy_batch_size = current_policy_batches == 0
-                                                      ? 0.0
-                                                      : static_cast<f64>(current_policy_batch_items) / current_policy_batches;
-            const f64 average_policy_moves =
-                current_policy_batch_items == 0 ? 0.0 : static_cast<f64>(current_policy_moves) / current_policy_batch_items;
+            const f64 average_policy_batch_size =
+                current_policy_batches == 0 ? 0.0
+                                            : static_cast<f64>(current_policy_batch_items) / current_policy_batches;
+            const f64 average_policy_moves = current_policy_batch_items == 0
+                                                 ? 0.0
+                                                 : static_cast<f64>(current_policy_moves) / current_policy_batch_items;
             const f64 average_active_game_length =
                 current_active_games == 0 ? 0.0 : static_cast<f64>(current_active_positions) / current_active_games;
 

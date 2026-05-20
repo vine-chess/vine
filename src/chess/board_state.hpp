@@ -29,11 +29,9 @@ class ColoredPiece {
 
     [[nodiscard]] constexpr bool operator==(ColoredPiece const &other) const = default;
 
-
     [[nodiscard]] constexpr operator u8() const {
         return raw_;
     }
-
 
   private:
     static constexpr u8 COLOR_BITS = 1;

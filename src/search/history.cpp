@@ -1,5 +1,5 @@
 #include "history.hpp"
-#include "../eval/value_network.hpp"
+#include "../eval/value/cpu.hpp"
 #include "../util/math.hpp"
 #include <algorithm>
 

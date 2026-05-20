@@ -48,7 +48,7 @@ class IntegerOption : public Option {
 class FloatOption : public Option {
   public:
     FloatOption(std::string_view name, f32 value, f32 min, f32 max,
-                  std::function<void(const Option &)> callback = nullptr);
+                std::function<void(const Option &)> callback = nullptr);
 
     void set_value(std::string_view str_value) override;
     [[nodiscard]] std::string value() const override;

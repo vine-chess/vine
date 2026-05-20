@@ -2,16 +2,16 @@
 #define GAME_TREE_HPP
 
 #include "../chess/board.hpp"
+#include "../chess/move_gen.hpp"
 #include "../eval/evaluator.hpp"
+#include "../util/assert.hpp"
+#include "../util/math.hpp"
 #include "../util/tunable.hpp"
 #include "hash_table.hpp"
 #include "history.hpp"
 #include "node.hpp"
 #include "node_index.hpp"
 #include "tree_half.hpp"
-#include "../chess/move_gen.hpp"
-#include "../util/assert.hpp"
-#include "../util/math.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

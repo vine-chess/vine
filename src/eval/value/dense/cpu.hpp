@@ -1,38 +1,14 @@
-#ifndef VALUE_NETWORK_HPP
-#define VALUE_NETWORK_HPP
+#ifndef EVAL_VALUE_DENSE_CPU_HPP
+#define EVAL_VALUE_DENSE_CPU_HPP
 
+#include "../../../util/multi_array.hpp"
+#include "../../../util/simd.hpp"
 #include "shared.hpp"
-#include "value_network.cuh"
 
-#include "../chess/board_state.hpp"
-#include "../util/multi_array.hpp"
-#include "../util/simd.hpp"
 #include <algorithm>
 
 namespace network::value {
 
-constexpr i16 QA = 255;
-constexpr i16 EVAL_SCALE = 400;
-
-#ifdef MIXER_VALUE_NETWORK
-
-struct alignas(64) ValueNetwork {
-    util::MultiArray<i16, MIXER_FEATURE_COUNT, MIXER_SIZE> ft_weights;
-    util::MultiArray<i16, MIXER_SIZE> ft_biases;
-    util::MultiArray<f32, MIXER_D, MIXER_D> wl1;
-    util::MultiArray<f32, MIXER_D, MIXER_D> wr1;
-    util::MultiArray<f32, MIXER_D, MIXER_D> wl2;
-    util::MultiArray<f32, MIXER_D, MIXER_D> wr2;
-    util::MultiArray<f32, MIXER_SIZE> value_weights;
-    f32 value_bias = 0.0f;
-};
-
-#else
-
-constexpr i16 QB = 64;
-constexpr usize L1_SIZE = 4096;
-constexpr usize L2_SIZE = 16;
-constexpr usize L3_SIZE = 128;
 constexpr usize VECTOR_SIZE = util::NATIVE_SIZE<i16>;
 constexpr usize L2_REG_SIZE = std::min(util::NATIVE_SIZE<i16>, L2_SIZE);
 constexpr usize L3_REG_SIZE = std::min(util::NATIVE_SIZE<f32>, L3_SIZE);
@@ -66,12 +42,6 @@ struct alignas(util::NATIVE_VECTOR_ALIGNMENT) ValueNetwork {
     util::MultiArray<f32, 1> l3_biases;
 };
 
-#endif
-
-f64 evaluate(const BoardState &state);
-bool cuda_available();
-void evaluate_many(const CudaBoardInput *inputs, f32 *outputs, usize count);
-
 } // namespace network::value
 
-#endif // VALUE_NETWORK_HPP
+#endif // EVAL_VALUE_DENSE_CPU_HPP

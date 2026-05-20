@@ -8,8 +8,8 @@
 
 namespace datagen {
 
-BoardState generate_opening(std::span<const std::string> opening_fens, usize random_moves, f64 initial_temperature = 1.25,
-                            f64 gamma = 0.9);
+BoardState generate_opening(std::span<const std::string> opening_fens, usize random_moves,
+                            f64 initial_temperature = 1.25, f64 gamma = 0.9);
 
 }
 

@@ -1,7 +1,7 @@
-#include "../chess/board_state.hpp"
+#include "../board_cuda.cuh"
+#include "gpu.cuh"
 
-#include "cuda_common.cuh"
-#include "policy_network.cuh"
+#include "../../chess/board_state.hpp"
 
 namespace network::policy {
 
@@ -21,40 +21,38 @@ using namespace network::cuda_common;
     const u64 occ = occupancy(board) ^ piece_bb(board, PackedPieceType::KING, opposite(color));
 
     u64 threats = lane == 0 ? king_attacks(king_sq) : 0;
-    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-        const u8 piece_byte = pieces.at(sq);
-        if (decode_color(piece_byte) != color) {
-            continue;
+    warp_for_each_bit(board.side_bbs[to_index(color)], lane, [&](int sq, bool active) {
+        if (active) {
+            const u8 piece_byte = pieces.at(static_cast<u8>(sq));
+            switch (decode_piece_type(piece_byte)) {
+            case PackedPieceType::NONE:
+                break;
+            case PackedPieceType::PAWN:
+                threats |= pawn_attacks(sq, color);
+                break;
+            case PackedPieceType::KNIGHT:
+                threats |= knight_attacks(sq);
+                break;
+            case PackedPieceType::BISHOP:
+                threats |= bishop_attacks(sq, occ);
+                break;
+            case PackedPieceType::ROOK:
+                threats |= rook_attacks(sq, occ);
+                break;
+            case PackedPieceType::QUEEN:
+                threats |= bishop_attacks(sq, occ) | rook_attacks(sq, occ);
+                break;
+            case PackedPieceType::KING:
+                break;
+            }
         }
-
-        switch (decode_piece_type(piece_byte)) {
-        case PackedPieceType::NONE:
-            break;
-        case PackedPieceType::PAWN:
-            threats |= pawn_attacks(sq, color);
-            break;
-        case PackedPieceType::KNIGHT:
-            threats |= knight_attacks(sq);
-            break;
-        case PackedPieceType::BISHOP:
-            threats |= bishop_attacks(sq, occ);
-            break;
-        case PackedPieceType::ROOK:
-            threats |= rook_attacks(sq, occ);
-            break;
-        case PackedPieceType::QUEEN:
-            threats |= bishop_attacks(sq, occ) | rook_attacks(sq, occ);
-            break;
-        case PackedPieceType::KING:
-            break;
-        }
-    }
+    });
 
     return threats;
 }
 
 __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs,
-                                i32 position_count, const cuda_detail::CudaPolicyNetwork *network) {
+                                i32 position_count, const CudaPolicyNetwork *network) {
     const i32 warp_in_block = threadIdx.x / WARP_SIZE;
     const u8 lane = threadIdx.x % WARP_SIZE;
     const i32 position_idx = blockIdx.x * WARPS_PER_BLOCK + warp_in_block;
@@ -65,16 +63,16 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
     __shared__ i16 shared_l1_left[WARPS_PER_BLOCK][L1_CHUNK_SIZE];
     __shared__ i16 shared_l1_right[WARPS_PER_BLOCK][L1_CHUNK_SIZE];
     __shared__ u16 shared_activated_chunk[WARPS_PER_BLOCK][L1_CHUNK_SIZE];
-    __shared__ u8 shared_feature_classes[WARPS_PER_BLOCK][BOARD_SIZE];
-    __shared__ u64 shared_occupied[WARPS_PER_BLOCK];
+    __shared__ u16 shared_feature_indices[WARPS_PER_BLOCK][BOARD_SIZE];
 
     const CudaPolicyInput &input = inputs[position_idx];
     i16 *l1_left = shared_l1_left[warp_in_block];
     i16 *l1_right = shared_l1_right[warp_in_block];
     u16 *activated_chunk = shared_activated_chunk[warp_in_block];
-    u8 *feature_classes = shared_feature_classes[warp_in_block];
+    u16 *feature_indices = shared_feature_indices[warp_in_block];
     const CompressedMailbox &pieces = input.pieces;
     i32 flip = 0;
+    int active_feature_count = 0;
 
     {
         const PackedColor perspective = static_cast<PackedColor>(input.side_to_move);
@@ -83,25 +81,25 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
         flip = (perspective == PackedColor::BLACK ? 0b111000 : 0) ^ (file_of(king_sq) >= 4 ? 0b111 : 0);
         const u64 white_threats = warp_broadcast(warp_or(threats_by_warp(board, pieces, PackedColor::WHITE, lane)));
         const u64 black_threats = warp_broadcast(warp_or(threats_by_warp(board, pieces, PackedColor::BLACK, lane)));
-        if (lane == 0) {
-            shared_occupied[warp_in_block] = occupancy(board);
-        }
 
-        for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
-            const u8 piece_byte = pieces.at(sq);
-            const PackedPieceType piece = decode_piece_type(piece_byte);
-            if (piece == PackedPieceType::NONE) {
-                continue;
+        const u64 occ = occupancy(board);
+        active_feature_count = __popcll(occ);
+
+        warp_for_each_bit(occ, lane, [&](int sq, bool active) {
+            if (active) {
+                const u8 piece_byte = pieces.at(static_cast<u8>(sq));
+                const PackedPieceType piece = decode_piece_type(piece_byte);
+                const PackedColor color = decode_color(piece_byte);
+                const i32 defended =
+                    perspective == PackedColor::WHITE ? is_set(white_threats, sq) : is_set(black_threats, sq);
+                const i32 threatened =
+                    perspective == PackedColor::WHITE ? is_set(black_threats, sq) : is_set(white_threats, sq);
+                const i32 opposite_color = color != perspective;
+                const u8 feature_class = ft_feature_class(defended, threatened, opposite_color, piece);
+                feature_indices[lane] =
+                    static_cast<u16>((static_cast<u16>(feature_class) << 8) | static_cast<u16>(sq ^ flip));
             }
-
-            const PackedColor color = decode_color(piece_byte);
-            const i32 defended =
-                perspective == PackedColor::WHITE ? is_set(white_threats, sq) : is_set(black_threats, sq);
-            const i32 threatened =
-                perspective == PackedColor::WHITE ? is_set(black_threats, sq) : is_set(white_threats, sq);
-            const i32 opposite_color = color != perspective;
-            feature_classes[sq] = ft_feature_class(defended, threatened, opposite_color, piece);
-        }
+        });
     }
 
     const i8 *ft_weights = reinterpret_cast<const i8 *>(&network->ft_weights);
@@ -135,11 +133,11 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
             for (usize i = lane; i < L1_CHUNK_SIZE; i += WARP_SIZE) {
                 i16 left = l1_left[i];
                 i16 right = l1_right[i];
-                u64 occupied = shared_occupied[warp_in_block];
-                while (occupied != 0) {
-                    const i32 sq = pop_lsb(occupied);
-                    const u8 feature_class = feature_classes[sq];
-                    const usize base = ft_offset<L1_SIZE>(feature_class, sq ^ flip);
+                for (int j = 0; j < active_feature_count; ++j) {
+                    const u16 packed = feature_indices[j];
+                    const u8 feature_class = static_cast<u8>(packed >> 8);
+                    const i32 sq_flipped = static_cast<i32>(packed & 0xff);
+                    const usize base = ft_offset<L1_SIZE>(feature_class, sq_flipped);
                     left += ft_weights[base + chunk_start + i];
                     right += ft_weights[base + ACTIVATED_SIZE + chunk_start + i];
                 }
@@ -183,8 +181,8 @@ __global__ void evaluate_kernel(const CudaPolicyInput *inputs, const u16 *move_i
     }
 }
 
-DeviceCached<cuda_detail::CudaPolicyNetwork> &cached_policy_network() {
-    static DeviceCached<cuda_detail::CudaPolicyNetwork> cached_network;
+cuda_common::DeviceCached<CudaPolicyNetwork> &cached_policy_network() {
+    static cuda_common::DeviceCached<CudaPolicyNetwork> cached_network;
     return cached_network;
 }
 
@@ -195,78 +193,65 @@ bool cuda_available() {
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
 }
 
-class CudaExecutor {
-  public:
-    CudaExecutor() {
-        cuda_check(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-        device_network_ = cached_policy_network().get_or_init(
-            [](auto &host_network) { cuda_detail::export_cuda_network(host_network); });
+CudaExecutor::CudaExecutor() {
+    cuda_common::cuda_check(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+    device_network_ =
+        cached_policy_network().get_or_init([](auto &host_network) { export_cuda_network(host_network); });
+}
+
+CudaExecutor::~CudaExecutor() {
+    if (stream_ != nullptr) {
+        cudaStreamDestroy(stream_);
+    }
+}
+
+void CudaExecutor::reserve(usize position_count, usize total_move_count) {
+    host_inputs_.reserve(position_count);
+    host_move_indices_.reserve(total_move_count);
+    host_outputs_.reserve(total_move_count);
+    device_inputs_.reserve(position_count);
+    device_move_indices_.reserve(total_move_count);
+    device_outputs_.reserve(total_move_count);
+}
+
+CudaPolicyInput *CudaExecutor::inputs() {
+    return host_inputs_.data();
+}
+
+u16 *CudaExecutor::move_indices() {
+    return host_move_indices_.data();
+}
+
+f32 *CudaExecutor::outputs() {
+    return host_outputs_.data();
+}
+
+void CudaExecutor::launch(usize position_count, usize total_move_count) {
+    if (position_count == 0 || total_move_count == 0) {
+        return;
     }
 
-    ~CudaExecutor() {
-        if (stream_ != nullptr) {
-            cudaStreamDestroy(stream_);
-        }
-    }
+    reserve(position_count, total_move_count);
 
-    void reserve(usize position_count, usize total_move_count) {
-        host_inputs_.reserve(position_count);
-        host_move_indices_.reserve(total_move_count);
-        host_outputs_.reserve(total_move_count);
-        device_inputs_.reserve(position_count);
-        device_move_indices_.reserve(total_move_count);
-        device_outputs_.reserve(total_move_count);
-    }
+    cuda_common::cuda_check(cudaMemcpyAsync(device_inputs_.data(), host_inputs_.data(),
+                                            position_count * sizeof(CudaPolicyInput), cudaMemcpyHostToDevice, stream_));
+    cuda_common::cuda_check(cudaMemcpyAsync(device_move_indices_.data(), host_move_indices_.data(),
+                                            total_move_count * sizeof(u16), cudaMemcpyHostToDevice, stream_));
 
-    [[nodiscard]] CudaPolicyInput *inputs() {
-        return host_inputs_.data();
-    }
+    const i32 position_count_i32 = static_cast<i32>(position_count);
+    const i32 block_count = (position_count_i32 + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK;
+    evaluate_kernel<<<block_count, THREADS_PER_BLOCK, 0, stream_>>>(device_inputs_.data(), device_move_indices_.data(),
+                                                                    device_outputs_.data(), position_count_i32,
+                                                                    device_network_);
+    cuda_common::cuda_check(cudaGetLastError());
 
-    [[nodiscard]] u16 *move_indices() {
-        return host_move_indices_.data();
-    }
+    cuda_common::cuda_check(cudaMemcpyAsync(host_outputs_.data(), device_outputs_.data(),
+                                            total_move_count * sizeof(f32), cudaMemcpyDeviceToHost, stream_));
+}
 
-    [[nodiscard]] f32 *outputs() {
-        return host_outputs_.data();
-    }
-
-    void launch(usize position_count, usize total_move_count) {
-        if (position_count == 0 || total_move_count == 0) {
-            return;
-        }
-
-        reserve(position_count, total_move_count);
-
-        cuda_check(cudaMemcpyAsync(device_inputs_.data(), host_inputs_.data(), position_count * sizeof(CudaPolicyInput),
-                                   cudaMemcpyHostToDevice, stream_));
-        cuda_check(cudaMemcpyAsync(device_move_indices_.data(), host_move_indices_.data(),
-                                   total_move_count * sizeof(u16), cudaMemcpyHostToDevice, stream_));
-
-        const i32 position_count_i32 = static_cast<i32>(position_count);
-        const i32 block_count = (position_count_i32 + WARPS_PER_BLOCK - 1) / WARPS_PER_BLOCK;
-        evaluate_kernel<<<block_count, THREADS_PER_BLOCK, 0, stream_>>>(
-            device_inputs_.data(), device_move_indices_.data(), device_outputs_.data(), position_count_i32,
-            device_network_);
-        cuda_check(cudaGetLastError());
-
-        cuda_check(cudaMemcpyAsync(host_outputs_.data(), device_outputs_.data(), total_move_count * sizeof(f32),
-                                   cudaMemcpyDeviceToHost, stream_));
-    }
-
-    void wait() {
-        cuda_check(cudaStreamSynchronize(stream_));
-    }
-
-  private:
-    PinnedArray<CudaPolicyInput> host_inputs_;
-    PinnedArray<u16> host_move_indices_;
-    PinnedArray<f32> host_outputs_;
-    DeviceBuffer<CudaPolicyInput> device_inputs_;
-    DeviceBuffer<u16> device_move_indices_;
-    DeviceBuffer<f32> device_outputs_;
-    cudaStream_t stream_ = nullptr;
-    cuda_detail::CudaPolicyNetwork *device_network_ = nullptr;
-};
+void CudaExecutor::wait() {
+    cuda_common::cuda_check(cudaStreamSynchronize(stream_));
+}
 
 void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs, usize position_count) {
     if (position_count == 0) {

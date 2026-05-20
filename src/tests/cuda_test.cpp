@@ -1,8 +1,6 @@
 #include "../chess/board.hpp"
 #include "../chess/move_gen.hpp"
 #include "../eval/evaluator.hpp"
-#include "../eval/policy_network.hpp"
-#include "../eval/value_network.hpp"
 #include "../util/random.hpp"
 
 #include <algorithm>
@@ -16,7 +14,6 @@
 #include <vector>
 
 namespace {
-
 
 struct TestOptions {
     bool is_value = true;
@@ -181,16 +178,17 @@ void print_summary(const TestOptions &options, const RunStats &stats) {
         for (usize i = 0; i < options.count; ++i) {
             const f32 diff = actual[i] - expected[i];
             const f32 err = std::abs(diff);
-            if (err > max_err) max_err = err;
+            if (err > max_err)
+                max_err = err;
             sum_err += err;
             sum_signed_err += diff;
-            if (err > EPSILON) ++fail_count;
+            if (err > EPSILON)
+                ++fail_count;
         }
         const f64 n = static_cast<f64>(options.count);
-        std::cerr << "max error: " << max_err
-                  << ", mean abs error: " << sum_err / n
-                  << ", mean signed error: " << sum_signed_err / n
-                  << ", failures (>" << EPSILON << "): " << fail_count << '/' << options.count << '\n';
+        std::cerr << "max error: " << max_err << ", mean abs error: " << sum_err / n
+                  << ", mean signed error: " << sum_signed_err / n << ", failures (>" << EPSILON << "): " << fail_count
+                  << '/' << options.count << '\n';
         if (fail_count > 0) {
             return false;
         }

@@ -1,8 +1,8 @@
 #ifndef GPU_QUEUE_HPP
 #define GPU_QUEUE_HPP
 
-#include "policy_network.hpp"
-#include "value_network.hpp"
+#include "policy/cpu.hpp"
+#include "value/cpu.hpp"
 
 #include "../chess/move_gen.hpp"
 #include "../util/ring_queue.hpp"
@@ -95,8 +95,7 @@ class GpuValueQueue {
     }
 
     [[nodiscard]] ValueResult wait_for_result(const ValueSlot &slot) {
-        while (!stop_requested_.load(std::memory_order_relaxed) &&
-               !slots_[slot].done.load(std::memory_order_acquire)) {
+        while (!stop_requested_.load(std::memory_order_relaxed) && !slots_[slot].done.load(std::memory_order_acquire)) {
             std::this_thread::yield();
         }
         return batch_results_[slot];
@@ -121,7 +120,7 @@ class GpuValueQueue {
         free_slots_.reset(batch_size_);
         ready_slots_.reset(batch_size_);
         for (u32 board_idx = 0; board_idx < batch_size_; ++board_idx) {
-            (void) free_slots_.try_push(board_idx);
+            (void)free_slots_.try_push(board_idx);
         }
     }
 
@@ -184,8 +183,7 @@ class GpuPolicyQueue {
         std::array<f32, MAX_MOVES> logits{};
     };
 
-    explicit GpuPolicyQueue(u32 batch_size = 1)
-        : batch_size_(batch_size) {
+    explicit GpuPolicyQueue(u32 batch_size = 1) : batch_size_(batch_size) {
         reset_storage();
     }
 
@@ -286,7 +284,7 @@ class GpuPolicyQueue {
         free_slots_.reset(batch_size_);
         ready_slots_.reset(batch_size_);
         for (u32 board_idx = 0; board_idx < batch_size_; ++board_idx) {
-            (void) free_slots_.try_push(board_idx);
+            (void)free_slots_.try_push(board_idx);
         }
     }
 

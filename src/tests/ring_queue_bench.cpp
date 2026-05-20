@@ -1,6 +1,6 @@
+#include "../../../MPMCQueue/include/rigtorp/MPMCQueue.h"
 #include "../util/ring_queue.hpp"
 #include "../util/sharded_queue.hpp"
-#include "../../../MPMCQueue/include/rigtorp/MPMCQueue.h"
 
 #include <atomic>
 #include <cassert>
@@ -25,8 +25,8 @@ void print_result(const char *name, const usize ops, const Clock::time_point beg
 }
 
 template <class MakePusher, class MakePopper>
-void bench(const char *name, const usize prod, const usize cons, const usize ops,
-           MakePusher make_pusher, MakePopper make_popper) {
+void bench(const char *name, const usize prod, const usize cons, const usize ops, MakePusher make_pusher,
+           MakePopper make_popper) {
     const usize total = prod * ops;
     std::atomic<bool> start{false};
     std::atomic<usize> remaining{total};
@@ -36,27 +36,33 @@ void bench(const char *name, const usize prod, const usize cons, const usize ops
 
     for (usize p = 0; p < prod; ++p) {
         threads.emplace_back([&start, push = make_pusher(p), p, ops]() mutable {
-            while (!start.load(std::memory_order_acquire)) {}
+            while (!start.load(std::memory_order_acquire)) {
+            }
             const u64 base = p * ops;
             for (usize i = 0; i < ops; ++i) {
-                while (!push(base + i)) {}
+                while (!push(base + i)) {
+                }
             }
         });
     }
 
     for (usize c = 0; c < cons; ++c) {
         threads.emplace_back([&start, &remaining, &sums, pop = make_popper(c), c]() mutable {
-            while (!start.load(std::memory_order_acquire)) {}
+            while (!start.load(std::memory_order_acquire)) {
+            }
             u64 sum = 0;
             std::array<u64, 128> values{};
             while (true) {
                 const usize count = pop(std::span(values));
                 if (count == 0) {
-                    if (remaining.load(std::memory_order_relaxed) == 0) break;
+                    if (remaining.load(std::memory_order_relaxed) == 0)
+                        break;
                     continue;
                 }
-                for (usize i = 0; i < count; ++i) sum += values[i];
-                if (remaining.fetch_sub(count, std::memory_order_relaxed) == count) break;
+                for (usize i = 0; i < count; ++i)
+                    sum += values[i];
+                if (remaining.fetch_sub(count, std::memory_order_relaxed) == count)
+                    break;
             }
             sums[c] = sum;
         });
@@ -64,37 +70,40 @@ void bench(const char *name, const usize prod, const usize cons, const usize ops
 
     const auto begin = Clock::now();
     start.store(true, std::memory_order_release);
-    for (auto &t : threads) t.join();
+    for (auto &t : threads)
+        t.join();
 
     u64 sum = 0;
-    for (const u64 s : sums) sum += s;
+    for (const u64 s : sums)
+        sum += s;
     assert(sum == expected_sum(total));
     print_result(name, total, begin, sum);
 }
 
 void bench_mpmc(const usize prod, const usize cons, const usize ops, const usize cap, const char *name) {
     util::RingQueue<u64> queue(cap);
-    bench(name, prod, cons, ops,
-        [&](usize) { return [&](u64 v) { return queue.try_push(v); }; },
+    bench(
+        name, prod, cons, ops, [&](usize) { return [&](u64 v) { return queue.try_push(v); }; },
         [&](usize) { return [&](std::span<u64> s) { return queue.try_pop_some(s); }; });
 }
 
 void bench_sharded(const usize prod, const usize cons, const usize ops, const usize cap, const char *name) {
     util::ShardedQueue<u64> queue;
     queue.reset(prod, cap);
-    bench(name, prod, cons, ops,
-        [&](usize) { return [tx = queue.sender()](u64 v) mutable { return tx.try_push(v); }; },
+    bench(
+        name, prod, cons, ops, [&](usize) { return [tx = queue.sender()](u64 v) mutable { return tx.try_push(v); }; },
         [&](usize) { return [rx = queue.receiver()](std::span<u64> s) mutable { return rx.try_pop_some(s); }; });
 }
 
 void bench_rigtorp(const usize prod, const usize cons, const usize ops, const usize cap, const char *name) {
     rigtorp::mpmc::Queue<u64> queue(cap);
-    bench(name, prod, cons, ops,
-        [&](usize) { return [&](u64 v) { return queue.try_push(v); }; },
+    bench(
+        name, prod, cons, ops, [&](usize) { return [&](u64 v) { return queue.try_push(v); }; },
         [&](usize) {
             return [&](std::span<u64> s) {
                 usize count = 0;
-                while (count < s.size() && queue.try_pop(s[count])) ++count;
+                while (count < s.size() && queue.try_pop(s[count]))
+                    ++count;
                 return count;
             };
         });

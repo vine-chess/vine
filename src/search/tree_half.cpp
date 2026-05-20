@@ -1,6 +1,6 @@
 #include "tree_half.hpp"
-#include "node.hpp"
 #include "../util/simd.hpp"
+#include "node.hpp"
 
 namespace search {
 

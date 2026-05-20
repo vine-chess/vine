@@ -10,7 +10,6 @@ namespace search {
 
 class TreeHalf {
   public:
-
     explicit TreeHalf(HalfIndex our_half);
 
     void set_node_capacity(usize capacity);

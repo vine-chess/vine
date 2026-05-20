@@ -1,13 +1,12 @@
-#ifndef POLICY_NETWORK_HPP
-#define POLICY_NETWORK_HPP
+#ifndef EVAL_POLICY_CPU_HPP
+#define EVAL_POLICY_CPU_HPP
 
-#include "policy_network.cuh"
+#include "shared.hpp"
 
-#include "../chess/board_state.hpp"
-#include "../util/multi_array.hpp"
-#include "../util/simd.hpp"
+#include "../../chess/board_state.hpp"
+#include "../../util/multi_array.hpp"
+#include "../../util/simd.hpp"
 #include <array>
-#include <span>
 
 namespace network::policy {
 
@@ -50,15 +49,7 @@ class PolicyContext {
 
 [[nodiscard]] u16 move_output_idx(const BoardState &state, Move move, PieceType moving_piece);
 
-namespace cuda_detail {
-
-void export_cuda_network(CudaPolicyNetwork &dst);
-
-} // namespace cuda_detail
-
-bool cuda_available();
-void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs, usize position_count);
 
 } // namespace network::policy
 
-#endif // POLICY_NETWORK_HPP
+#endif // EVAL_POLICY_CPU_HPP

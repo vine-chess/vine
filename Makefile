@@ -1,6 +1,6 @@
 EXE = vine
 FILES = $(shell find src -name '*.cpp' ! -name 'cuda_test.cpp' ! -name 'ring_queue_bench.cpp')
-CUDA_TEST_FILES = src/eval/value_network.cu src/eval/policy_network.cu
+CUDA_TEST_FILES = src/eval/value/gpu.cu src/eval/policy/gpu.cu
 
 OBJS = $(FILES:.cpp=.o)
 TEST_EXE = cuda_test

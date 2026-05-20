@@ -1,5 +1,5 @@
 #include "game_tree.hpp"
-#include "../eval/value_network.hpp"
+#include "../eval/value/cpu.hpp"
 #include "../uci/uci.hpp"
 #include "../util/assert.hpp"
 #include "../util/math.hpp"
@@ -151,8 +151,8 @@ void GameTree::backpropagate_terminal_state(NodeIndex node_idx, TerminalState ch
 void GameTree::backpropagate_score(f64 score) {
     vine_assert(!nodes_in_path_.empty());
 
-    auto cp_score = static_cast<i32>(network::value::EVAL_SCALE *
-                                     util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
+    auto cp_score =
+        static_cast<i32>(network::value::EVAL_SCALE * util::math::inverse_sigmoid(std::clamp(score, 0.001, 0.999)));
     auto child_terminal_state = TerminalState::none();
 
     while (!nodes_in_path_.empty()) {

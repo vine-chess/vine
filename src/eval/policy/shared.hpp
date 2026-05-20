@@ -1,10 +1,9 @@
-#ifndef POLICY_NETWORK_CUDA_HPP
-#define POLICY_NETWORK_CUDA_HPP
+#ifndef EVAL_POLICY_SHARED_HPP
+#define EVAL_POLICY_SHARED_HPP
 
-#include "compressed_mailbox.hpp"
+#include "../board.hpp"
 
-#include "../chess/board_state.hpp"
-#include "../util/types.hpp"
+#include "../../util/types.hpp"
 
 #include <array>
 
@@ -13,10 +12,6 @@ namespace network::policy {
 constexpr i16 Q = 128;
 constexpr usize L1_SIZE = 4096;
 constexpr usize OUTPUT_SIZE = 3920;
-
-} // namespace network::policy
-
-namespace network::policy::cuda_detail {
 
 constexpr usize FT_WEIGHT_COUNT = 2 * 2 * 2 * 6 * 64 * L1_SIZE;
 constexpr usize FT_BIAS_COUNT = L1_SIZE;
@@ -40,12 +35,9 @@ struct CudaPolicyInput {
     u16 padding = 0;
 };
 
-} // namespace network::policy::cuda_detail
-
-namespace network::policy {
-
-using cuda_detail::CudaPolicyInput;
+bool cuda_available();
+void evaluate_many(const CudaPolicyInput *inputs, const u16 *move_indices, f32 *outputs, usize position_count);
 
 } // namespace network::policy
 
-#endif // POLICY_NETWORK_CUDA_HPP
+#endif // EVAL_POLICY_SHARED_HPP

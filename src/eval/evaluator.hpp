@@ -2,8 +2,8 @@
 #define EVALUATOR_HPP
 
 #include "../chess/move_gen.hpp"
-#include "policy_network.hpp"
-#include "value_network.hpp"
+#include "policy/cpu.hpp"
+#include "value/cpu.hpp"
 
 #include "../util/static_vector.hpp"
 #include <algorithm>

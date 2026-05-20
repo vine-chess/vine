@@ -1,24 +1,13 @@
-#ifndef CUDA_COMMON_CUH
-#define CUDA_COMMON_CUH
+#ifndef EVAL_BOARD_CUDA_CUH
+#define EVAL_BOARD_CUDA_CUH
 
-#include "compressed_mailbox.hpp"
+#include "board.hpp"
+#include "cuda_utils.cuh"
 
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
-#include <array>
-#include <cstddef>
-#include <cstdlib>
-#include <cuda_runtime.h>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <source_location>
-#include <type_traits>
-
 namespace network::cuda_common {
-
-constexpr i32 WARP_SIZE = 32;
 
 enum class PackedColor : u8 {
     WHITE = 0,
@@ -33,151 +22,6 @@ enum class PackedPieceType : u8 {
     ROOK = 4,
     QUEEN = 5,
     KING = 6,
-};
-
-inline void cuda_check(cudaError_t err, const std::source_location &loc = std::source_location::current()) {
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA Error: " << cudaGetErrorString(err) << "\n  File: " << loc.file_name()
-                  << "\n  Line: " << loc.line() << "\n  Func: " << loc.function_name() << "\n";
-        std::exit(1);
-    }
-}
-
-template <class T>
-struct CudaArray {
-    T *ptr;
-    std::size_t size;
-
-    explicit CudaArray(std::size_t n) : ptr(nullptr), size(n) {
-        cuda_check(cudaMalloc(reinterpret_cast<void **>(&ptr), size_bytes()));
-    }
-
-    ~CudaArray() {
-        cudaFree(ptr);
-    }
-
-    [[nodiscard]] std::size_t size_bytes() const {
-        return size * sizeof(T);
-    }
-
-    void set(const T *host_ptr) {
-        cuda_check(cudaMemcpy(ptr, host_ptr, size_bytes(), cudaMemcpyHostToDevice));
-    }
-
-    void get(T *host_ptr) const {
-        cuda_check(cudaMemcpy(host_ptr, ptr, size_bytes(), cudaMemcpyDeviceToHost));
-    }
-
-    operator T *() const {
-        return ptr;
-    }
-};
-
-template <class T>
-struct PinnedArray {
-    T *ptr = nullptr;
-    std::size_t size = 0;
-
-    PinnedArray() = default;
-
-    PinnedArray(const PinnedArray &) = delete;
-    PinnedArray &operator=(const PinnedArray &) = delete;
-
-    ~PinnedArray() {
-        reset();
-    }
-
-    void reserve(std::size_t n) {
-        if (size >= n) {
-            return;
-        }
-
-        reset();
-        cuda_check(cudaMallocHost(reinterpret_cast<void **>(&ptr), n * sizeof(T)));
-        size = n;
-    }
-
-    void reset() {
-        if (ptr != nullptr) {
-            cudaFreeHost(ptr);
-            ptr = nullptr;
-            size = 0;
-        }
-    }
-
-    [[nodiscard]] T *data() {
-        return ptr;
-    }
-};
-
-template <class T>
-struct DeviceBuffer {
-    T *ptr = nullptr;
-    std::size_t size = 0;
-
-    DeviceBuffer() = default;
-
-    DeviceBuffer(const DeviceBuffer &) = delete;
-    DeviceBuffer &operator=(const DeviceBuffer &) = delete;
-
-    ~DeviceBuffer() {
-        reset();
-    }
-
-    void reserve(std::size_t n) {
-        if (size >= n) {
-            return;
-        }
-
-        reset();
-        cuda_check(cudaMalloc(reinterpret_cast<void **>(&ptr), n * sizeof(T)));
-        size = n;
-    }
-
-    void reset() {
-        if (ptr != nullptr) {
-            cudaFree(ptr);
-            ptr = nullptr;
-            size = 0;
-        }
-    }
-
-    [[nodiscard]] T *data() {
-        return ptr;
-    }
-};
-
-template <class T>
-class DeviceCached {
-  public:
-    static_assert(std::is_trivially_copyable_v<T>);
-
-    DeviceCached() = default;
-    DeviceCached(const DeviceCached &) = delete;
-    DeviceCached &operator=(const DeviceCached &) = delete;
-
-    template <class Init>
-    T *get_or_init(Init init) {
-        std::call_once(init_once_, [this, &init] {
-            auto host_value = std::make_unique<T>();
-            init(*host_value);
-            cuda_check(cudaMalloc(reinterpret_cast<void **>(&device_ptr_), sizeof(T)));
-            cuda_check(cudaMemcpy(device_ptr_, host_value.get(), sizeof(T), cudaMemcpyHostToDevice));
-            initialized_ = true;
-        });
-        return device_ptr_;
-    }
-
-    ~DeviceCached() {
-        if (initialized_) {
-            cudaFree(device_ptr_);
-        }
-    }
-
-  private:
-    std::once_flag init_once_{};
-    T *device_ptr_ = nullptr;
-    bool initialized_ = false;
 };
 
 struct PackedBoard {
@@ -297,26 +141,6 @@ struct PackedBoard {
     return (forward ^ backward) & mask;
 }
 
-[[nodiscard]] __device__ __forceinline__ u64 warp_or(u64 value) {
-    for (i32 offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
-        value |= __shfl_down_sync(0xffffffff, value, offset);
-    }
-    return value;
-}
-
-template <class T>
-[[nodiscard]] __device__ __forceinline__ T warp_broadcast(T value) {
-    return __shfl_sync(0xffffffff, value, 0);
-}
-
-template <class T>
-[[nodiscard]] __device__ __forceinline__ T warp_sum(T value) {
-    for (i32 offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
-        value += __shfl_down_sync(0xffffffff, value, offset);
-    }
-    return value;
-}
-
 [[nodiscard]] __device__ __forceinline__ u64 rook_attacks(i32 sq, u64 occ) {
     const u64 from_bb = square_bb(sq);
     const u64 from_bb_reversed = reverse_bits(from_bb);
@@ -369,6 +193,118 @@ template <class T>
     return ((attacks & NOT_A_FILE) >> 1) | ((attacks & NOT_H_FILE) << 1);
 }
 
+[[nodiscard]] __device__ __forceinline__ u64 ray_between(i32 from, i32 to) {
+    if (from == to) {
+        return 0;
+    }
+
+    const i32 dr = (to >> 3) - (from >> 3);
+    const i32 df = file_of(to) - file_of(from);
+    i32 step = 0;
+    if (dr == 0) {
+        step = df > 0 ? 1 : -1;
+    } else if (df == 0) {
+        step = dr > 0 ? 8 : -8;
+    } else if (dr == df) {
+        step = dr > 0 ? 9 : -9;
+    } else if (dr == -df) {
+        step = dr > 0 ? 7 : -7;
+    } else {
+        return 0;
+    }
+
+    u64 mask = 0;
+    for (i32 sq = from + step; sq != to; sq += step) {
+        mask |= square_bb(sq);
+    }
+    return mask;
+}
+
+[[nodiscard]] __device__ __forceinline__ u64 xray_attacks(u64 attacks, i32 king_sq, u64 occ, u64 blockers,
+                                                          bool diagonal) {
+    const u64 first_blockers = attacks & blockers;
+    if (first_blockers == 0) {
+        return 0;
+    }
+
+    const u64 occ_without_blockers = occ ^ first_blockers;
+    const u64 attacks_without_blockers =
+        diagonal ? bishop_attacks(king_sq, occ_without_blockers) : rook_attacks(king_sq, occ_without_blockers);
+    return attacks ^ attacks_without_blockers;
+}
+
+[[nodiscard]] __device__ __forceinline__ u64 compute_pinned_pieces(const PackedBoard &board, PackedColor color) {
+    const i32 king_sq = lsb(piece_bb(board, PackedPieceType::KING, color));
+    const u64 occ = occupancy(board);
+    const u64 own_occ = board.side_bbs[to_index(color)];
+    const u64 enemy_diag_sliders = piece_bb(board, PackedPieceType::BISHOP, opposite(color)) |
+                                   piece_bb(board, PackedPieceType::QUEEN, opposite(color));
+    const u64 enemy_ortho_sliders = piece_bb(board, PackedPieceType::ROOK, opposite(color)) |
+                                    piece_bb(board, PackedPieceType::QUEEN, opposite(color));
+
+    const u64 diag_pinners =
+        xray_attacks(bishop_attacks(king_sq, occ), king_sq, occ, own_occ, true) & enemy_diag_sliders;
+    const u64 ortho_pinners =
+        xray_attacks(rook_attacks(king_sq, occ), king_sq, occ, own_occ, false) & enemy_ortho_sliders;
+
+    u64 pinned = 0;
+    u64 pinners = diag_pinners | ortho_pinners;
+    while (pinners != 0) {
+        const i32 pinner_sq = pop_lsb(pinners);
+        pinned |= ray_between(king_sq, pinner_sq) & own_occ;
+    }
+    return pinned;
+}
+
+[[nodiscard]] __device__ __forceinline__ u64 pinned_threats_by_warp(const PackedBoard &board,
+                                                                    const CompressedMailbox &pieces, PackedColor color,
+                                                                    u8 lane) {
+    const i32 king_sq = lsb(piece_bb(board, PackedPieceType::KING, color));
+    const u64 occ = occupancy(board);
+    const u64 pinned = lane == 0 ? compute_pinned_pieces(board, color) : 0;
+    const u64 pinned_mask = warp_broadcast(pinned);
+
+    u64 threats = lane == 0 ? king_attacks(king_sq) : 0;
+    for (u8 sq = lane; sq < BOARD_SIZE; sq += WARP_SIZE) {
+        const u8 piece_byte = pieces.at(sq);
+        if (decode_color(piece_byte) != color) {
+            continue;
+        }
+
+        const PackedPieceType piece = decode_piece_type(piece_byte);
+        u64 cur = 0;
+        switch (piece) {
+        case PackedPieceType::NONE:
+        case PackedPieceType::KING:
+            break;
+        case PackedPieceType::PAWN:
+            cur = pawn_attacks(sq, color);
+            break;
+        case PackedPieceType::KNIGHT:
+            if ((pinned_mask & square_bb(sq)) == 0) {
+                cur = knight_attacks(sq);
+            }
+            break;
+        case PackedPieceType::BISHOP:
+            cur = bishop_attacks(sq, occ);
+            break;
+        case PackedPieceType::ROOK:
+            cur = rook_attacks(sq, occ);
+            break;
+        case PackedPieceType::QUEEN:
+            cur = bishop_attacks(sq, occ) | rook_attacks(sq, occ);
+            break;
+        }
+
+        if (pinned_mask & square_bb(sq)) {
+            cur &= ray_between(king_sq, sq);
+        }
+        threats |= cur;
+    }
+
+    return threats;
+}
+
 [[nodiscard]] __device__ __forceinline__ PackedBoard build_board_warp(const CompressedMailbox &pieces, u8 lane) {
     PackedBoard board{};
 
@@ -407,4 +343,4 @@ template <usize HiddenSize>
 
 } // namespace network::cuda_common
 
-#endif // CUDA_COMMON_CUH
+#endif // EVAL_BOARD_CUDA_CUH

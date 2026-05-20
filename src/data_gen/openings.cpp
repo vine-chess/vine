@@ -1,6 +1,6 @@
 #include "openings.hpp"
 #include "../chess/move_gen.hpp"
-#include "../eval/value_network.hpp"
+#include "../eval/value/cpu.hpp"
 #include "../search/searcher.hpp"
 #include "../util/math.hpp"
 #include <iostream>
@@ -82,8 +82,8 @@ BoardState generate_opening(std::span<const std::string> opening_fens, const usi
             if (!root.info.terminal_state.is_none()) {
                 return false;
             }
-            const auto cp_score = static_cast<i32>(
-                std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(root.q())));
+            const auto cp_score =
+                static_cast<i32>(std::round(network::value::EVAL_SCALE * util::math::inverse_sigmoid(root.q())));
             if (std::abs(cp_score) >= 300) {
                 return false;
             }

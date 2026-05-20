@@ -1,18 +1,12 @@
-#ifndef COMPRESSED_MAILBOX_HPP
-#define COMPRESSED_MAILBOX_HPP
+#ifndef EVAL_BOARD_HPP
+#define EVAL_BOARD_HPP
+
+#include "compat.hpp"
 
 #include "../chess/board_state.hpp"
 #include "../util/types.hpp"
 
 #include <array>
-
-#if defined(__CUDACC__)
-#define VINE_CUDA_HOST __host__
-#define VINE_CUDA_DEVICE __device__
-#else
-#define VINE_CUDA_HOST
-#define VINE_CUDA_DEVICE
-#endif
 
 namespace network::cuda_common {
 
@@ -21,7 +15,7 @@ constexpr usize BOARD_SIZE = 64;
 struct CompressedMailbox {
     alignas(u32) u8 data[32];
 
-    VINE_CUDA_HOST VINE_CUDA_DEVICE void compress(const u8 *in) {
+    VINE_HOST_DEVICE void compress(const u8 *in) {
         const u64 *src = reinterpret_cast<const u64 *>(in);
         u32 *dst = reinterpret_cast<u32 *>(data);
 #pragma unroll
@@ -35,11 +29,11 @@ struct CompressedMailbox {
         }
     }
 
-    VINE_CUDA_HOST void compress(const std::array<ColoredPiece, BOARD_SIZE> &in) {
+    VINE_HOST void compress(const std::array<ColoredPiece, BOARD_SIZE> &in) {
         compress(reinterpret_cast<const u8 *>(in.data()));
     }
 
-    VINE_CUDA_HOST VINE_CUDA_DEVICE void decompress(u8 *out) const {
+    VINE_HOST_DEVICE void decompress(u8 *out) const {
         const u32 *src = reinterpret_cast<const u32 *>(data);
         u64 *dst = reinterpret_cast<u64 *>(out);
 #pragma unroll
@@ -50,14 +44,11 @@ struct CompressedMailbox {
         }
     }
 
-    [[nodiscard]] VINE_CUDA_HOST VINE_CUDA_DEVICE u8 at(const u8 sq) const {
+    [[nodiscard]] VINE_HOST_DEVICE u8 at(const u8 sq) const {
         return (data[sq / 2] >> (4 * (sq % 2))) & 0x0f;
     }
 };
 
 } // namespace network::cuda_common
 
-#undef VINE_CUDA_HOST
-#undef VINE_CUDA_DEVICE
-
-#endif // COMPRESSED_MAILBOX_HPP
+#endif // EVAL_BOARD_HPP
