@@ -7,8 +7,8 @@
 #include "../tests/perft.hpp"
 #include "../util/math.hpp"
 #include "../util/string.hpp"
-#include "../util/tunable.hpp"
 #include "../util/tui.hpp"
+#include "../util/tunable.hpp"
 #include "../util/types.hpp"
 #include "options.hpp"
 
@@ -197,6 +197,8 @@ void Handler::initialize_tunables() {
 }
 
 void Handler::process_input(std::istream &in, std::ostream &out) {
+    const auto flags = out.flags();
+    const auto precision = out.precision();
     std::string line;
     while (std::getline(in, line)) {
         const auto parts = util::split_string(line);
@@ -216,7 +218,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             handle_perft(out, *util::parse_number(parts[1]));
         } else if (parts[0] == "eval") {
             const auto eval = network::value::evaluate(board_.state());
-            out << std::round(network::value::EVAL_SCALE * eval) << std::endl;
+            out << static_cast<int>(std::round(network::value::EVAL_SCALE * eval)) << std::endl;
         } else if (parts[0] == "policy") {
             MoveList moves;
             generate_moves(board_.state(), moves);
@@ -267,7 +269,7 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
 
             const auto eval = network::value::evaluate(board_.state());
             util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
-            out << std::round(network::value::EVAL_SCALE * eval) << '\n';
+            out << static_cast<int>(std::round(network::value::EVAL_SCALE * eval)) << '\n';
             util::tui::reset_color(out);
 
             out << '\n';
@@ -368,6 +370,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         }
 #endif
     }
+    out.setf(flags);
+    out.precision(precision);
 }
 
 void Handler::handle_newgame() {
