@@ -46,30 +46,30 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
         while (true) {
             searcher.go(board, settings.time_settings);
 
-            const auto &game_tree = searcher.game_tree();
-            const auto &root_node = game_tree.root();
+            auto &game_tree = searcher.game_tree();
+            auto root_node = game_tree.root();
             if (root_node.terminal()) {
                 game_result = board.state().checkers != 0 ? board.state().side_to_move == Color::BLACK : 0.5;
                 break;
             }
 
-            search::NodeIndex best_child_idx = root_node.first_child_idx;
-            for (usize j = 0; j < root_node.num_children; j++) {
-                const auto &child = game_tree.node_at(root_node.first_child_idx + j);
+            search::NodeIndex best_child_idx = root_node.info.first_child_idx;
+            for (usize j = 0; j < root_node.info.num_children; j++) {
+                auto child = game_tree.node_at(root_node.info.first_child_idx + j);
                 if (child.q() < game_tree.node_at(best_child_idx).q()) {
-                    best_child_idx = root_node.first_child_idx + j;
+                    best_child_idx = root_node.info.first_child_idx + j;
                 }
             }
 
-            const auto &best_child = game_tree.node_at(best_child_idx);
-            vine_assert(!best_child.move.is_null());
+            auto best_child = game_tree.node_at(best_child_idx);
+            vine_assert(!best_child.info.move.is_null());
 
             const f64 score = 1.0 - best_child.q();
 
             // Adjudicate immediately if our move has a mate score
-            if (best_child.terminal_state.is_win()) {
+            if (best_child.info.terminal_state.is_win()) {
                 game_result = static_cast<f64>(board.state().side_to_move == Color::BLACK);
-            } else if (best_child.terminal_state.is_loss()) {
+            } else if (best_child.info.terminal_state.is_loss()) {
                 game_result = static_cast<f64>(board.state().side_to_move == Color::WHITE);
             }
             // Otherwise adjudicate based on score agreement to a certain ply
@@ -97,16 +97,16 @@ void thread_loop(const Settings &settings, std::ostream &out_file, std::span<con
             }
 
             if constexpr (value) {
-                writer->push_move(best_child.move, score, board.state());
+                writer->push_move(best_child.info.move, score, board.state());
             } else {
                 VisitsDistribution visits_dist;
-                for (usize j = 0; j < root_node.num_children; j++) {
-                    const auto &child = game_tree.node_at(root_node.first_child_idx + j);
-                    visits_dist.emplace_back(writer->to_monty_move(child.move, board.state()), child.num_visits);
+                for (usize j = 0; j < root_node.info.num_children; j++) {
+                    auto child = game_tree.node_at(root_node.info.first_child_idx + j);
+                    visits_dist.emplace_back(writer->to_monty_move(child.info.move, board.state()), child.num_visits);
                 }
-                writer->push_move(best_child.move, score, visits_dist, board.state());
+                writer->push_move(best_child.info.move, score, visits_dist, board.state());
             }
-            board.make_move(best_child.move);
+            board.make_move(best_child.info.move);
 
             positions_written.fetch_add(1, std::memory_order_relaxed);
 

@@ -20,6 +20,7 @@ class Searcher {
 
     void go(Board &board, const TimeSettings &time_settings = {});
 
+    [[nodiscard]] GameTree &game_tree();
     [[nodiscard]] const GameTree &game_tree() const;
     [[nodiscard]] u64 iterations() const;
 

@@ -212,6 +212,8 @@ void Handler::initialize_tunables() {
 }
 
 void Handler::process_input(std::istream &in, std::ostream &out) {
+    const auto flags = out.flags();
+    const auto precision = out.precision();
     std::string line;
     while (std::getline(in, line)) {
         const auto parts = util::split_string(line);
@@ -229,12 +231,60 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
             handle_newgame();
         } else if (parts[0] == "perft") {
             handle_perft(out, *util::parse_number(parts[1]));
+        } else if (parts[0] == "eval") {
+            const auto eval = network::value::evaluate(board_.state());
+            out << static_cast<int>(std::round(network::value::EVAL_SCALE * eval)) << std::endl;
+        } else if (parts[0] == "policy") {
+            MoveList moves;
+            generate_moves(board_.state(), moves);
+
+            const network::policy::PolicyContext ctx(board_.state());
+
+            std::vector<f64> logits;
+            logits.reserve(moves.size());
+            for (const auto move : moves) {
+                logits.push_back(ctx.logit(move, board_.state().get_piece_type(move.from())));
+            }
+
+            if (!logits.empty()) {
+                const f64 max_logit = *std::max_element(logits.begin(), logits.end());
+                f64 sum_exp = 0.0;
+                for (auto &val : logits) {
+                    val = std::exp(val - max_logit); // stability
+                    sum_exp += val;
+                }
+                const f64 inv_sum = 1.0 / sum_exp;
+                for (auto &val : logits) {
+                    val *= inv_sum;
+                }
+            }
+
+            std::vector<std::pair<f64, Move>> sorted;
+            for (usize i = 0; i < moves.size(); ++i) {
+                sorted.emplace_back(logits[i], moves[i]);
+            }
+            std::sort(std::begin(sorted), std::end(sorted), [](auto lhs, auto rhs) { return lhs.first > rhs.first; });
+
+            if (sorted.empty()) {
+                out << "(no policy, since there are no legal moves)\n";
+            } else {
+                const f64 max_logit = std::sqrt(sorted.front().first);
+                const f64 min_logit = std::sqrt(sorted.back().first);
+                const f64 range = max_logit - min_logit;
+
+                for (const auto &[logit, move] : sorted) {
+                    const f64 t = (std::sqrt(logit) - min_logit) / range;
+
+                    out << move << ": " << std::fixed << std::setprecision(2) << (100.0 * logit) << "%\n";
+                }
+            }
+            out << std::flush;
         } else if (parts[0] == "print") {
             out << "static eval:\n";
 
             const auto eval = network::value::evaluate(board_.state());
             util::tui::set_color(out, util::tui::get_score_color(util::math::sigmoid(eval)));
-            out << std::round(network::value::EVAL_SCALE * eval) << '\n';
+            out << static_cast<int>(std::round(network::value::EVAL_SCALE * eval)) << '\n';
             util::tui::reset_color(out);
 
             out << '\n';
@@ -335,6 +385,8 @@ void Handler::process_input(std::istream &in, std::ostream &out) {
         }
 #endif
     }
+    out.setf(flags);
+    out.precision(precision);
 }
 
 void Handler::handle_newgame() {
