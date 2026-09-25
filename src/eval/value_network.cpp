@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 
 namespace network::value {
@@ -61,44 +62,48 @@ f64 evaluate(const BoardState &state) {
         }
     }
 
-    const f32 dequantisation_constant = 1.0 / (QA * QA * QB);
+    constexpr usize ACTIVATION_SHIFT = 9;
+    constexpr usize PACK_SIZE = 64;
+    constexpr f32 DEQUANTISATION = f32(1 << ACTIVATION_SHIFT) / (QA * QA * QB);
+    constexpr u16 ACTIVATION_ROUNDING = 1 << (ACTIVATION_SHIFT - 1);
 
-    const i16 *l1 = reinterpret_cast<const i16 *>(accumulator.data());
+    std::array<u8, L1_SIZE / 2> activated;
+    const auto activate = [&](usize i) {
+        const auto left = util::clamp_scalar<i16>(accumulator[i / VECTOR_SIZE], 0, QA);
+        const auto right = util::clamp_scalar<i16>(accumulator[(i + L1_SIZE / 2) / VECTOR_SIZE], 0, QA);
+        const auto product =
+            util::convert_vector<u16, i16, VECTOR_SIZE>(left) * util::convert_vector<u16, i16, VECTOR_SIZE>(right);
 
-    std::array<i32, L2_SIZE> l2_int{};
-    for (usize i = 0; i < L1_SIZE / 2 / L2_REG_SIZE; ++i) {
-        // Load register values for pairwise
-        auto left = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i);
-        auto right = util::loadu<i16, L2_REG_SIZE>(l1 + L2_REG_SIZE * i + L1_SIZE / 2);
-
-        // Clamp to [0, 1] (quantized)
-        left = util::clamp_scalar<i16, L2_REG_SIZE>(left, 0, QA);
-        right = util::clamp_scalar<i16, L2_REG_SIZE>(right, 0, QA);
-
-        // Widen so pairwise doesnt overflow the i16s, using u16s here is neutral
-        const auto left_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(left);
-        const auto right_widened = util::convert_vector<u16, i16, L2_REG_SIZE>(right);
-
-        // Pairwise multiply the clamped values
-        const auto activated = left_widened * right_widened;
-
-        //  Matrix multiply l1 -> l2
-        for (usize j = 0; j < L2_REG_SIZE; ++j) {
-            const auto idx = i * L2_REG_SIZE + j;
-            for (usize k = 0; k < L2_SIZE; ++k) {
-                l2_int[k] += activated[j] * network->l1_weights[idx][k];
-            }
+        // add half to preserve a bit more precision
+        return std::bit_cast<i16Vec>((product + ACTIVATION_ROUNDING) >> ACTIVATION_SHIFT);
+    };
+    for (usize i = 0; i < L1_SIZE / 2; i += PACK_SIZE) {
+        for (usize j = 0; j < PACK_SIZE / 2; j += VECTOR_SIZE) {
+            util::storeu<u8>(activated.data() + i + 2 * j,
+                             util::packus(activate(i + j), activate(i + j + PACK_SIZE / 2)));
         }
     }
 
-    std::array<f32, L2_SIZE> l2;
-    for (usize i = 0; i < L2_SIZE; ++i) {
-        l2[i] = l2_int[i] * dequantisation_constant + network->l1_biases[i];
+    constexpr usize L1_UNROLL = 4;
+    constexpr usize L2_REGS = L2_SIZE / L2_REG_SIZE;
+    std::array<std::array<util::NativeVector<i32>, L2_REGS>, L1_UNROLL> sums{};
+    const auto inputs = std::bit_cast<std::array<i32, L1_SIZE / 8>>(activated);
+    for (usize i = 0; i < inputs.size(); ++i) {
+        const auto input = util::set1<i32>(inputs[i]);
+        for (usize k = 0; k < L2_REGS; ++k) {
+            sums[i % L1_UNROLL][k] = util::dpbusd(sums[i % L1_UNROLL][k], input, network->l1_weights_vec[i][k]);
+        }
     }
 
-    // Activate l2
-    for (usize i = 0; i < L2_SIZE / L2_REG_SIZE; ++i) {
-        auto v = util::loadu<f32, L2_REG_SIZE>(l2.data() + L2_REG_SIZE * i);
+    for (usize j = 1; j < L1_UNROLL; ++j) {
+        for (usize k = 0; k < L2_REGS; ++k) {
+            sums[0][k] += sums[j][k];
+        }
+    }
+    std::array<f32, L2_SIZE> l2;
+    for (usize i = 0; i < L2_REGS; ++i) {
+        auto v = util::convert_vector<f32, i32, L2_REG_SIZE>(sums[0][i]) * DEQUANTISATION +
+                 util::loadu<f32, L2_REG_SIZE>(network->l1_biases.data() + L2_REG_SIZE * i);
         const auto scaled = util::fma<f32, L2_REG_SIZE>(v, util::set1<f32, L2_REG_SIZE>(1.0f / 6.0f),
                                                         util::set1<f32, L2_REG_SIZE>(0.5f));
         v *= util::clamp_scalar<f32, L2_REG_SIZE>(scaled, 0, 1);

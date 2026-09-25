@@ -2,6 +2,7 @@
 #define SIMD_HPP
 
 #include "types.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -211,6 +212,43 @@ inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b)
 #endif
 
 #endif
+
+inline NativeVector<u8> packus(NativeVector<i16> a, NativeVector<i16> b) {
+#if defined(__AVX512BW__)
+    return _mm512_packus_epi16(a, b);
+#elif defined(__AVX2__)
+    return _mm256_packus_epi16(a, b);
+#elif defined(__SSE2__)
+    return _mm_packus_epi16(a, b);
+#else
+    NativeVector<u8> res;
+    for (usize i = 0; i < NATIVE_SIZE<u8>; ++i) {
+        const usize lane = i / 16 * 8, k = i % 16;
+        const i16 v = k < 8 ? a[lane + k] : b[lane + k - 8];
+        res[i] = u8(std::clamp<i16>(v, 0, 255));
+    }
+    return res;
+#endif
+}
+
+inline NativeVector<i32> dpbusd(NativeVector<i32> sum, NativeVector<u8> a, NativeVector<i8> b) {
+#if defined(__AVX512VNNI__)
+    return _mm512_dpbusd_epi32(sum, a, b);
+#elif defined(__AVX512BW__)
+    return sum + _mm512_madd_epi16(_mm512_maddubs_epi16(a, b), _mm512_set1_epi16(1));
+#elif defined(__AVX2__)
+    return sum + _mm256_madd_epi16(_mm256_maddubs_epi16(a, b), _mm256_set1_epi16(1));
+#elif defined(__SSSE3__)
+    return sum + _mm_madd_epi16(_mm_maddubs_epi16(a, b), _mm_set1_epi16(1));
+#else
+    for (usize i = 0; i < NATIVE_SIZE<i32>; ++i) {
+        for (usize j = 0; j < 4; ++j) {
+            sum[i] += a[4 * i + j] * b[4 * i + j];
+        }
+    }
+    return sum;
+#endif
+}
 
 } // namespace util
 
