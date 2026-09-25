@@ -53,12 +53,12 @@ using NativeVector = SimdVector<T, NATIVE_SIZE<T>>;
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
 inline SimdVector<T, N> max(SimdVector<T, N> a, SimdVector<T, N> b) {
-    return __builtin_elementwise_max(a, b);
+    return a > b ? a : b;
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
 inline SimdVector<T, N> min(SimdVector<T, N> a, SimdVector<T, N> b) {
-    return __builtin_elementwise_min(a, b);
+    return a < b ? a : b;
 }
 
 template <class T = i16, usize N = NATIVE_SIZE<T>>
