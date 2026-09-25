@@ -23,7 +23,8 @@ namespace detail {
 
 f64 evaluate(const BoardState &state) {
     std::array<i16Vec, L1_SIZE / VECTOR_SIZE> accumulator;
-    std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
+    std::array<const i16Vec *, 64> features;
+    usize feature_count = 0;
 
     const auto stm = state.side_to_move;
     const auto king_sq = state.king(stm).lsb();
@@ -35,18 +36,28 @@ f64 evaluate(const BoardState &state) {
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm)) {
-            const auto &feat = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
-            }
+            features[feature_count++] = detail::feature(sq, piece, stm, stm, king_sq, threats[~stm], threats[stm]).data();
         }
 
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm)) {
-            const auto &feat = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]);
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                accumulator[i] += feat[i];
+            features[feature_count++] = detail::feature(sq, piece, ~stm, stm, king_sq, threats[stm], threats[~stm]).data();
+        }
+    }
+
+    std::memcpy(accumulator.data(), network->ft_biases.data(), sizeof(accumulator));
+    constexpr usize UNROLL = 4;
+    usize j = 0;
+    for (; j + UNROLL <= feature_count; j += UNROLL) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            for (usize k = 0; k < UNROLL; ++k) {
+                accumulator[i] += features[j + k][i];
             }
+        }
+    }
+    for (; j < feature_count; ++j) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            accumulator[i] += features[j][i];
         }
     }
 
