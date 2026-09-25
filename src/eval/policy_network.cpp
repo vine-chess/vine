@@ -86,22 +86,34 @@ PolicyContext::PolicyContext(const BoardState &state)
         feature_accumulator_[i] = util::convert_vector<i16, i8, VECTOR_SIZE>(network->ft_biases_vec[i]);
     }
 
+    std::array<const i8Vec *, 64> features;
+    usize feature_count = 0;
+    const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
+
     // Accumulate features for both sides, viewed from side-to-move's perspective
     for (PieceType piece = PieceType::PAWN; piece <= PieceType::KING; piece = PieceType(piece + 1)) {
         // Our pieces
-        const std::array<Bitboard, 2> threats = {state.threats_by(Color::WHITE), state.threats_by(Color::BLACK)};
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
-                    detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_], king_sq_)[i]);
-            }
+            features[feature_count++] = detail::feature(sq, piece, stm_, stm_, threats[~stm_], threats[stm_], king_sq_).data();
         }
         // Opponent pieces
         for (auto sq : state.piece_bbs[piece - 1] & state.occupancy(~stm_)) {
-            for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
-                feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(
-                    detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_], king_sq_)[i]);
+            features[feature_count++] = detail::feature(sq, piece, ~stm_, stm_, threats[~stm_], threats[stm_], king_sq_).data();
+        }
+    }
+
+    constexpr usize UNROLL = 4;
+    usize j = 0;
+    for (; j + UNROLL <= feature_count; j += UNROLL) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            for (usize k = 0; k < UNROLL; ++k) {
+                feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(features[j + k][i]);
             }
+        }
+    }
+    for (; j < feature_count; ++j) {
+        for (usize i = 0; i < L1_SIZE / VECTOR_SIZE; ++i) {
+            feature_accumulator_[i] += util::convert_vector<i16, i8, VECTOR_SIZE>(features[j][i]);
         }
     }
     for (usize i = 0; i < L1_SIZE / 2 / VECTOR_SIZE; ++i) {
