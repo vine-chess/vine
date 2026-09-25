@@ -74,8 +74,11 @@ Board::Board(std::string_view fen) {
     stream >> en_passant;
 
     if (en_passant != "-") {
-        state().en_passant_sq = Square::from_string(en_passant);
-        state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+        const Square ep_sq = Square::from_string(en_passant);
+        if ((state().pawns(state().side_to_move) & PAWN_ATTACKS[ep_sq][~state().side_to_move]) != 0) {
+            state().en_passant_sq = ep_sq;
+            state().hash_key ^= zobrist::en_passant[ep_sq.file()];
+        }
     }
 
     int hmc;
@@ -110,7 +113,7 @@ const Board::History &Board::history() const {
 }
 
 bool Board::has_threefold_repetition() const {
-    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock, history_.size());
+    const u16 maximum_distance = std::min<u32>(state().fifty_moves_clock + 1, history_.size());
 
     u16 times_seen = 1;
     for (i32 i = 3; i <= maximum_distance; i += 2) {
@@ -218,9 +221,11 @@ void Board::make_move(Move move) {
 
     if (from_type == PieceType::PAWN) {
         state().fifty_moves_clock = 0;
-        if ((move.from() ^ move.to()) == 16) {
-            state().en_passant_sq = (move.from() + move.to()) / 2;
-            state().hash_key ^= zobrist::en_passant[state().en_passant_sq.file()];
+        const Square ep_sq = (move.from() + move.to()) / 2;
+        if ((move.from() ^ move.to()) == 16 &&
+            (state().pawns(~state().side_to_move) & PAWN_ATTACKS[ep_sq][state().side_to_move]) != 0) {
+            state().en_passant_sq = ep_sq;
+            state().hash_key ^= zobrist::en_passant[ep_sq.file()];
         }
     } else if (from_type == PieceType::KING) {
         state().castle_rights.clear_kingside_availability(state().side_to_move);
