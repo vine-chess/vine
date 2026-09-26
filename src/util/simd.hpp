@@ -213,6 +213,22 @@ inline SimdVector<i32, 4> madd_epi16(SimdVector<i16, 8> a, SimdVector<i16, 8> b)
 
 #endif
 
+inline NativeVector<i16> mulhi_round_epi16(NativeVector<i16> a, NativeVector<i16> b) {
+#if defined(__AVX512BW__)
+    return _mm512_mulhrs_epi16(a, b);
+#elif defined(__AVX2__)
+    return _mm256_mulhrs_epi16(a, b);
+#elif defined(__SSSE3__)
+    return _mm_mulhrs_epi16(a, b);
+#else
+    NativeVector<i16> result;
+    for (usize i = 0; i < NATIVE_SIZE<i16>; ++i) {
+        result[i] = i16((i32(a[i]) * b[i] + 16384) >> 15);
+    }
+    return result;
+#endif
+}
+
 inline NativeVector<u8> packus(NativeVector<i16> a, NativeVector<i16> b) {
 #if defined(__AVX512BW__)
     return _mm512_packus_epi16(a, b);

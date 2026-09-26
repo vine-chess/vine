@@ -65,17 +65,12 @@ f64 evaluate(const BoardState &state) {
     constexpr usize ACTIVATION_SHIFT = 9;
     constexpr usize PACK_SIZE = 64;
     constexpr f32 DEQUANTISATION = f32(1 << ACTIVATION_SHIFT) / (QA * QA * QB);
-    constexpr u16 ACTIVATION_ROUNDING = 1 << (ACTIVATION_SHIFT - 1);
 
     std::array<u8, L1_SIZE / 2> activated;
     const auto activate = [&](usize i) {
         const auto left = util::clamp_scalar<i16>(accumulator[i / VECTOR_SIZE], 0, QA);
         const auto right = util::clamp_scalar<i16>(accumulator[(i + L1_SIZE / 2) / VECTOR_SIZE], 0, QA);
-        const auto product =
-            util::convert_vector<u16, i16, VECTOR_SIZE>(left) * util::convert_vector<u16, i16, VECTOR_SIZE>(right);
-
-        // add half to preserve a bit more precision
-        return std::bit_cast<i16Vec>((product + ACTIVATION_ROUNDING) >> ACTIVATION_SHIFT);
+        return util::mulhi_round_epi16(left << (15 - ACTIVATION_SHIFT), right);
     };
     for (usize i = 0; i < L1_SIZE / 2; i += PACK_SIZE) {
         for (usize j = 0; j < PACK_SIZE / 2; j += VECTOR_SIZE) {
